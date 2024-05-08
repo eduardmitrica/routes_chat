@@ -1,0 +1,1 @@
+class MoreThanOneUniqueEntity extends Error {}

@@ -28,9 +28,9 @@ import 'application/friend_requests/received_friend_requests_watcher/received_fr
     as _i25;
 import 'application/shared/picture_placeholder_fetcher/placeholder_fetcher_bloc.dart'
     as _i19;
-import 'application/shared/users_watcher/users_watcher_bloc.dart' as _i22;
-import 'application/user/user_form/user_form_bloc.dart' as _i20;
-import 'application/user/user_watcher/user_watcher_bloc.dart' as _i21;
+import 'application/shared/users_watcher/users_watcher_bloc.dart' as _i20;
+import 'application/user/user_form/user_form_bloc.dart' as _i21;
+import 'application/user/user_watcher/user_watcher_bloc.dart' as _i22;
 import 'domain/authentication/authentication_facade_interface.dart' as _i13;
 import 'domain/friend_requests/friend_requests_repository_interface.dart'
     as _i11;
@@ -86,12 +86,12 @@ extension GetItInjectableX on _i1.GetIt {
         () => _i18.SignInFormBloc(gh<_i13.IAuthFacade>()));
     gh.factory<_i19.PlaceholderFetcherBloc>(
         () => _i19.PlaceholderFetcherBloc(gh<_i13.IAuthFacade>()));
-    gh.factory<_i20.UserFormBloc>(
-        () => _i20.UserFormBloc(gh<_i9.IUserRepository>()));
-    gh.factory<_i21.UserWatcherBloc>(
-        () => _i21.UserWatcherBloc(gh<_i9.IUserRepository>()));
-    gh.factory<_i22.UsersWatcherBloc>(
-        () => _i22.UsersWatcherBloc(gh<_i9.IUserRepository>()));
+    gh.factory<_i20.UsersWatcherBloc>(
+        () => _i20.UsersWatcherBloc(gh<_i9.IUserRepository>()));
+    gh.factory<_i21.UserFormBloc>(
+        () => _i21.UserFormBloc(gh<_i9.IUserRepository>()));
+    gh.factory<_i22.UserWatcherBloc>(
+        () => _i22.UserWatcherBloc(gh<_i9.IUserRepository>()));
     gh.factory<_i23.FriendsWatcherBloc>(() => _i23.FriendsWatcherBloc(
           gh<_i11.IFriendRequestsRepository>(),
           gh<_i13.IAuthFacade>(),

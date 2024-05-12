@@ -17,8 +17,7 @@ class PendingFriendRequestsTabBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<UsersWatcherBloc,
-        UsersWatcherState>(
+    return BlocBuilder<UsersWatcherBloc, UsersWatcherState>(
       builder: (context, state) => state.map(
           initial: (state) => const SizedBox(),
           loadInProgress: (state) => const Center(
@@ -30,7 +29,7 @@ class PendingFriendRequestsTabBody extends StatelessWidget {
                     itemCount: pendingFriendRequests.size,
                     itemBuilder: (context, index) {
                       final friendRequest = pendingFriendRequests[index];
-                      final receivingUser = state.friendRequests.find((user) =>
+                      final receivingUser = state.users.find((user) =>
                           user.id.getOrCrash() ==
                           friendRequest.receiverId.getOrCrash());
                       if (friendRequest.failureOption.isSome()) {
@@ -51,22 +50,33 @@ class PendingFriendRequestsTabBody extends StatelessWidget {
                                     padding: const EdgeInsets.all(10.0),
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         CircleAvatar(
                                           radius: 80,
                                           foregroundImage: NetworkImage(
                                               receivingUser?.imageUrl
-                                                  .getOrCrash() ??
+                                                      .getOrCrash() ??
                                                   getIt<PlaceholderFetcherBloc>()
                                                       .state
                                                       .imagePath
                                                       .getOrCrash()),
                                         ),
-                                        const SizedBox(height: 10,),
-                                        Text(receivingUser?.username.getOrCrash() ?? '', style: const TextStyle(color: Colors.deepPurpleAccent),),
+                                        const SizedBox(
+                                          height: 10,
+                                        ),
+                                        Text(
+                                          receivingUser?.username
+                                                  .getOrCrash() ??
+                                              '',
+                                          style: const TextStyle(
+                                              color: Colors.deepPurpleAccent),
+                                        ),
                                         const SizedBox(height: 10),
-                                        Text(receivingUser?.description.getOrCrash() ?? ''),
+                                        Text(receivingUser?.description
+                                                .getOrCrash() ??
+                                            ''),
                                       ],
                                     ),
                                   ),

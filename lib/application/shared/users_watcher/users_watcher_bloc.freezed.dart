@@ -371,7 +371,7 @@ mixin _$UsersWatcherState {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loadInProgress,
-    required TResult Function(KtList<User> friendRequests) loadSuccess,
+    required TResult Function(KtList<User> users) loadSuccess,
     required TResult Function(UserFailure failure) loadFailure,
   }) =>
       throw _privateConstructorUsedError;
@@ -379,7 +379,7 @@ mixin _$UsersWatcherState {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loadInProgress,
-    TResult? Function(KtList<User> friendRequests)? loadSuccess,
+    TResult? Function(KtList<User> users)? loadSuccess,
     TResult? Function(UserFailure failure)? loadFailure,
   }) =>
       throw _privateConstructorUsedError;
@@ -387,7 +387,7 @@ mixin _$UsersWatcherState {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loadInProgress,
-    TResult Function(KtList<User> friendRequests)? loadSuccess,
+    TResult Function(KtList<User> users)? loadSuccess,
     TResult Function(UserFailure failure)? loadFailure,
     required TResult orElse(),
   }) =>
@@ -477,7 +477,7 @@ class _$InitialImpl implements _Initial {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loadInProgress,
-    required TResult Function(KtList<User> friendRequests) loadSuccess,
+    required TResult Function(KtList<User> users) loadSuccess,
     required TResult Function(UserFailure failure) loadFailure,
   }) {
     return initial();
@@ -488,7 +488,7 @@ class _$InitialImpl implements _Initial {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loadInProgress,
-    TResult? Function(KtList<User> friendRequests)? loadSuccess,
+    TResult? Function(KtList<User> users)? loadSuccess,
     TResult? Function(UserFailure failure)? loadFailure,
   }) {
     return initial?.call();
@@ -499,7 +499,7 @@ class _$InitialImpl implements _Initial {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loadInProgress,
-    TResult Function(KtList<User> friendRequests)? loadSuccess,
+    TResult Function(KtList<User> users)? loadSuccess,
     TResult Function(UserFailure failure)? loadFailure,
     required TResult orElse(),
   }) {
@@ -591,7 +591,7 @@ class _$LoadInProgressImpl implements _LoadInProgress {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loadInProgress,
-    required TResult Function(KtList<User> friendRequests) loadSuccess,
+    required TResult Function(KtList<User> users) loadSuccess,
     required TResult Function(UserFailure failure) loadFailure,
   }) {
     return loadInProgress();
@@ -602,7 +602,7 @@ class _$LoadInProgressImpl implements _LoadInProgress {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loadInProgress,
-    TResult? Function(KtList<User> friendRequests)? loadSuccess,
+    TResult? Function(KtList<User> users)? loadSuccess,
     TResult? Function(UserFailure failure)? loadFailure,
   }) {
     return loadInProgress?.call();
@@ -613,7 +613,7 @@ class _$LoadInProgressImpl implements _LoadInProgress {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loadInProgress,
-    TResult Function(KtList<User> friendRequests)? loadSuccess,
+    TResult Function(KtList<User> users)? loadSuccess,
     TResult Function(UserFailure failure)? loadFailure,
     required TResult orElse(),
   }) {
@@ -671,7 +671,7 @@ abstract class _$$LoadSuccessImplCopyWith<$Res> {
           _$LoadSuccessImpl value, $Res Function(_$LoadSuccessImpl) then) =
       __$$LoadSuccessImplCopyWithImpl<$Res>;
   @useResult
-  $Res call({KtList<User> friendRequests});
+  $Res call({KtList<User> users});
 }
 
 /// @nodoc
@@ -685,12 +685,12 @@ class __$$LoadSuccessImplCopyWithImpl<$Res>
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? friendRequests = null,
+    Object? users = null,
   }) {
     return _then(_$LoadSuccessImpl(
-      null == friendRequests
-          ? _value.friendRequests
-          : friendRequests // ignore: cast_nullable_to_non_nullable
+      null == users
+          ? _value.users
+          : users // ignore: cast_nullable_to_non_nullable
               as KtList<User>,
     ));
   }
@@ -699,14 +699,14 @@ class __$$LoadSuccessImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$LoadSuccessImpl implements _LoadSuccess {
-  const _$LoadSuccessImpl(this.friendRequests);
+  const _$LoadSuccessImpl(this.users);
 
   @override
-  final KtList<User> friendRequests;
+  final KtList<User> users;
 
   @override
   String toString() {
-    return 'UsersWatcherState.loadSuccess(friendRequests: $friendRequests)';
+    return 'UsersWatcherState.loadSuccess(users: $users)';
   }
 
   @override
@@ -714,12 +714,11 @@ class _$LoadSuccessImpl implements _LoadSuccess {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$LoadSuccessImpl &&
-            (identical(other.friendRequests, friendRequests) ||
-                other.friendRequests == friendRequests));
+            (identical(other.users, users) || other.users == users));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, friendRequests);
+  int get hashCode => Object.hash(runtimeType, users);
 
   @JsonKey(ignore: true)
   @override
@@ -732,10 +731,10 @@ class _$LoadSuccessImpl implements _LoadSuccess {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loadInProgress,
-    required TResult Function(KtList<User> friendRequests) loadSuccess,
+    required TResult Function(KtList<User> users) loadSuccess,
     required TResult Function(UserFailure failure) loadFailure,
   }) {
-    return loadSuccess(friendRequests);
+    return loadSuccess(users);
   }
 
   @override
@@ -743,10 +742,10 @@ class _$LoadSuccessImpl implements _LoadSuccess {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loadInProgress,
-    TResult? Function(KtList<User> friendRequests)? loadSuccess,
+    TResult? Function(KtList<User> users)? loadSuccess,
     TResult? Function(UserFailure failure)? loadFailure,
   }) {
-    return loadSuccess?.call(friendRequests);
+    return loadSuccess?.call(users);
   }
 
   @override
@@ -754,12 +753,12 @@ class _$LoadSuccessImpl implements _LoadSuccess {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loadInProgress,
-    TResult Function(KtList<User> friendRequests)? loadSuccess,
+    TResult Function(KtList<User> users)? loadSuccess,
     TResult Function(UserFailure failure)? loadFailure,
     required TResult orElse(),
   }) {
     if (loadSuccess != null) {
-      return loadSuccess(friendRequests);
+      return loadSuccess(users);
     }
     return orElse();
   }
@@ -803,10 +802,9 @@ class _$LoadSuccessImpl implements _LoadSuccess {
 }
 
 abstract class _LoadSuccess implements UsersWatcherState {
-  const factory _LoadSuccess(final KtList<User> friendRequests) =
-      _$LoadSuccessImpl;
+  const factory _LoadSuccess(final KtList<User> users) = _$LoadSuccessImpl;
 
-  KtList<User> get friendRequests;
+  KtList<User> get users;
   @JsonKey(ignore: true)
   _$$LoadSuccessImplCopyWith<_$LoadSuccessImpl> get copyWith =>
       throw _privateConstructorUsedError;
@@ -878,7 +876,7 @@ class _$LoadFailureImpl implements _LoadFailure {
   TResult when<TResult extends Object?>({
     required TResult Function() initial,
     required TResult Function() loadInProgress,
-    required TResult Function(KtList<User> friendRequests) loadSuccess,
+    required TResult Function(KtList<User> users) loadSuccess,
     required TResult Function(UserFailure failure) loadFailure,
   }) {
     return loadFailure(failure);
@@ -889,7 +887,7 @@ class _$LoadFailureImpl implements _LoadFailure {
   TResult? whenOrNull<TResult extends Object?>({
     TResult? Function()? initial,
     TResult? Function()? loadInProgress,
-    TResult? Function(KtList<User> friendRequests)? loadSuccess,
+    TResult? Function(KtList<User> users)? loadSuccess,
     TResult? Function(UserFailure failure)? loadFailure,
   }) {
     return loadFailure?.call(failure);
@@ -900,7 +898,7 @@ class _$LoadFailureImpl implements _LoadFailure {
   TResult maybeWhen<TResult extends Object?>({
     TResult Function()? initial,
     TResult Function()? loadInProgress,
-    TResult Function(KtList<User> friendRequests)? loadSuccess,
+    TResult Function(KtList<User> users)? loadSuccess,
     TResult Function(UserFailure failure)? loadFailure,
     required TResult orElse(),
   }) {

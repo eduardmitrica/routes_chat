@@ -6,9 +6,9 @@ class UsersWatcherState with _$UsersWatcherState {
 
   const factory UsersWatcherState.loadInProgress() = _LoadInProgress;
 
-  const factory UsersWatcherState.loadSuccess(
-      KtList<User> friendRequests) = _LoadSuccess;
+  const factory UsersWatcherState.loadSuccess(KtList<User> users) =
+      _LoadSuccess;
 
-  const factory UsersWatcherState.loadFailure(
-      UserFailure failure) = _LoadFailure;
+  const factory UsersWatcherState.loadFailure(UserFailure failure) =
+      _LoadFailure;
 }

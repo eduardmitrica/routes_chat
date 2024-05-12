@@ -12,12 +12,13 @@ class ReceivedFriendRequestsTabBody extends StatelessWidget {
   final KtList<FriendRequest> receivedFriendRequests;
   final ValueGetter<Future<void>> onRefresh;
 
-  const ReceivedFriendRequestsTabBody(this.receivedFriendRequests, this.onRefresh, {super.key});
+  const ReceivedFriendRequestsTabBody(
+      this.receivedFriendRequests, this.onRefresh,
+      {super.key});
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<UsersWatcherBloc,
-        UsersWatcherState>(
+    return BlocBuilder<UsersWatcherBloc, UsersWatcherState>(
       builder: (context, state) => state.map(
           initial: (state) => const SizedBox(),
           loadInProgress: (state) => const Center(
@@ -29,7 +30,7 @@ class ReceivedFriendRequestsTabBody extends StatelessWidget {
                     itemCount: receivedFriendRequests.size,
                     itemBuilder: (context, index) {
                       final friendRequest = receivedFriendRequests[index];
-                      final sendingUser = state.friendRequests.find((user) =>
+                      final sendingUser = state.users.find((user) =>
                           user.id.getOrCrash() ==
                           friendRequest.senderId.getOrCrash());
                       if (friendRequest.failureOption.isSome()) {
@@ -49,22 +50,32 @@ class ReceivedFriendRequestsTabBody extends StatelessWidget {
                                     padding: const EdgeInsets.all(10.0),
                                     child: Column(
                                       mainAxisSize: MainAxisSize.min,
-                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
                                       children: [
                                         CircleAvatar(
                                           radius: 80,
                                           foregroundImage: NetworkImage(
                                               sendingUser?.imageUrl
-                                                  .getOrCrash() ??
+                                                      .getOrCrash() ??
                                                   getIt<PlaceholderFetcherBloc>()
                                                       .state
                                                       .imagePath
                                                       .getOrCrash()),
                                         ),
-                                        const SizedBox(height: 10,),
-                                        Text(sendingUser?.username.getOrCrash() ?? '', style: const TextStyle(color: Colors.deepPurpleAccent),),
+                                        const SizedBox(
+                                          height: 10,
+                                        ),
+                                        Text(
+                                          sendingUser?.username.getOrCrash() ??
+                                              '',
+                                          style: const TextStyle(
+                                              color: Colors.deepPurpleAccent),
+                                        ),
                                         const SizedBox(height: 10),
-                                        Text(sendingUser?.description.getOrCrash() ?? ''),
+                                        Text(sendingUser?.description
+                                                .getOrCrash() ??
+                                            ''),
                                       ],
                                     ),
                                   ),

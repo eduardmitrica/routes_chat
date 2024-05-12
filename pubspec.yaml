@@ -54,6 +54,7 @@ dependencies:
   google_fonts: ^6.2.1
   rxdart: ^0.27.7
   kt_dart: ^1.1.0
+  flutter_webrtc: ^0.10.4
 
 dev_dependencies:
   flutter_test:
@@ -65,7 +66,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   freezed: ^2.5.2
-  flutter_lints: ^3.0.2
+  flutter_lints: ^4.0.0
   build_runner: ^2.4.9
   injectable_generator: ^2.6.1
   json_serializable: ^6.8.0

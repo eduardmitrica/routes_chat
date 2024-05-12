@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
-import 'package:routes_chat/domain/authentication/value_objects.dart';
 import 'package:routes_chat/presentation/home/home_page.dart';
+
+import '../../domain/shared/user/value_objects.dart';
 
 class RegisterWithGooglePage extends StatelessWidget {
   static const registerWithGooglePageRoute =

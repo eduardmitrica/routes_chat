@@ -3,10 +3,10 @@ import 'package:dartz/dartz.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:injectable/injectable.dart';
 
-import '../../../domain/authentication/user.dart';
-import '../../../domain/authentication/user_facade_interface.dart';
-import '../../../domain/authentication/user_failure.dart';
-import '../../../domain/authentication/value_objects.dart';
+import '../../../domain/shared/user/user.dart';
+import '../../../domain/shared/user/user_failure.dart';
+import '../../../domain/shared/user/user_repository_interface.dart';
+import '../../../domain/shared/user/value_objects.dart';
 
 part 'user_form_event.dart';
 
@@ -16,10 +16,10 @@ part 'user_form_bloc.freezed.dart';
 
 @injectable
 class UserFormBloc extends Bloc<UserFormEvent, UserFormState> {
-  final IUserFacade _userFacade;
+  final IUserRepository _userRepository;
   var _unalteredUser = User.empty();
 
-  UserFormBloc(this._userFacade) : super(UserFormState.initial()) {
+  UserFormBloc(this._userRepository) : super(UserFormState.initial()) {
     on<UserFormEvent>((event, emit) async {
       await event.map(initialized: (event) async {
         emit(
@@ -101,7 +101,7 @@ class UserFormBloc extends Bloc<UserFormEvent, UserFormState> {
         if (changesAreValid || imageChangedButUsernameDidNot) {
           final newUser =
               user.copyWith(imageUrl: ImageUrl(state.imagePath.getOrCrash()));
-          failureOrSuccess = await _userFacade.update(newUser);
+          failureOrSuccess = await _userRepository.update(newUser);
         }
 
         emit(

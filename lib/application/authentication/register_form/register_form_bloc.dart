@@ -3,9 +3,9 @@ import 'package:dartz/dartz.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:routes_chat/domain/authentication/registration_failure.dart';
-import 'package:routes_chat/domain/authentication/value_objects.dart';
 
 import '../../../domain/authentication/authentication_facade_interface.dart';
+import '../../../domain/shared/user/value_objects.dart';
 
 part 'register_form_event.dart';
 

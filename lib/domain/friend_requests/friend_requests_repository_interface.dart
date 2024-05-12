@@ -13,6 +13,9 @@ abstract class IFriendRequestsRepository {
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
       watchReceivedForCurrentUser();
 
+  Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
+      watchFriendsForCurrentUser();
+
   Future<Either<FriendRequestFailure, Unit>> create(
       FriendRequest friendRequest);
 

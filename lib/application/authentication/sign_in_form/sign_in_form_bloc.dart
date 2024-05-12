@@ -5,7 +5,7 @@ import 'package:injectable/injectable.dart';
 import 'package:routes_chat/domain/authentication/sign_in_failure.dart';
 
 import '../../../domain/authentication/authentication_facade_interface.dart';
-import '../../../domain/authentication/value_objects.dart';
+import '../../../domain/shared/user/value_objects.dart';
 
 part 'sign_in_form_event.dart';
 

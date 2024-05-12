@@ -1,5 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/friend_requests/value_objects.dart';
 
@@ -40,4 +41,8 @@ abstract class FriendRequest with _$FriendRequest {
           return none();
         }
       });
+}
+
+extension FriendRequestsX on KtList<FriendRequest> {
+  Option<ValueFailure<dynamic>> get failureOption => none();
 }

@@ -1,8 +1,9 @@
 import 'package:dartz/dartz.dart';
 import 'package:routes_chat/domain/authentication/registration_failure.dart';
 import 'package:routes_chat/domain/authentication/sign_in_failure.dart';
-import 'package:routes_chat/domain/authentication/user.dart';
-import 'package:routes_chat/domain/authentication/value_objects.dart';
+import 'package:routes_chat/domain/shared/user/user.dart';
+
+import '../shared/user/value_objects.dart';
 
 abstract interface class IAuthFacade {
   Future<Either<RegistrationFailure, Unit>> register(

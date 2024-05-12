@@ -1,9 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:injectable/injectable.dart';
-import 'package:routes_chat/domain/authentication/user.dart';
-import 'package:routes_chat/domain/authentication/user_facade_interface.dart';
-import 'package:routes_chat/domain/authentication/value_objects.dart';
+import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/friend_requests/failures.dart';
 import 'package:routes_chat/domain/friend_requests/value_objects.dart';
@@ -11,6 +9,8 @@ import 'package:routes_chat/domain/friend_requests/value_objects.dart';
 import '../../../domain/authentication/authentication_facade_interface.dart';
 import '../../../domain/friend_requests/friend_request.dart';
 import '../../../domain/friend_requests/friend_requests_repository_interface.dart';
+import '../../../domain/shared/user/user_repository_interface.dart';
+import '../../../domain/shared/user/value_objects.dart';
 
 part 'friend_request_actor_event.dart';
 
@@ -22,7 +22,7 @@ part 'friend_request_actor_bloc.freezed.dart';
 class FriendRequestActorBloc
     extends Bloc<FriendRequestActorEvent, FriendRequestActorState> {
   final IFriendRequestsRepository _friendRequestRepository;
-  final IUserFacade _userRepository;
+  final IUserRepository _userRepository;
   final IAuthFacade _authFacade;
 
   FriendRequestActorBloc(

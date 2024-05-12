@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:routes_chat/application/authentication/authentication_bloc.dart';
 import 'package:routes_chat/application/user/user_form/user_form_bloc.dart';
-import 'package:routes_chat/presentation/chats/chats_page.dart';
-import 'package:routes_chat/presentation/friend_requests/friend_requests_page.dart';
-import 'package:routes_chat/presentation/profile/profile_page.dart';
-import 'package:routes_chat/presentation/search/search_page.dart';
+import 'package:routes_chat/presentation/home/profile/profile_page.dart';
+import 'package:routes_chat/presentation/home/search/search_page.dart';
 import 'package:routes_chat/presentation/sign_in/sign_in_page.dart';
 
 import '../../application/friend_requests/friend_request_actor/friend_request_actor_bloc.dart';
 import '../../injection.dart';
+import 'chats/chats_page.dart';
+import 'friend_requests/friend_requests_page.dart';
 
 class HomePage extends StatefulWidget {
   static const homePageRoute = '/home';

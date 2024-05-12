@@ -13,12 +13,12 @@ import 'package:routes_chat/domain/authentication/authentication_facade_interfac
 import 'package:routes_chat/domain/authentication/registration_failure.dart'
     as registration_failure;
 import 'package:routes_chat/domain/authentication/sign_in_failure.dart';
-import 'package:routes_chat/domain/authentication/user.dart' as domain_user;
-import 'package:routes_chat/domain/authentication/user_utils_interface.dart';
-import 'package:routes_chat/domain/authentication/value_objects.dart';
-import 'package:routes_chat/infrastructure/authentication/firebase_user_mapper.dart';
+import 'package:routes_chat/domain/shared/user/user.dart' as domain_user;
+import 'package:routes_chat/infrastructure/shared/user/firebase_user_mapper.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../domain/shared/user/user_utils_interface.dart';
+import '../../domain/shared/user/value_objects.dart';
 import '../../injection.dart';
 
 @Singleton(as: IAuthFacade)

@@ -1,7 +1,7 @@
 import 'package:dartz/dartz.dart';
-import 'package:routes_chat/domain/authentication/user_utils_interface.dart';
 
 import '../../injection.dart';
+import '../shared/user/user_utils_interface.dart';
 import 'failures.dart';
 
 Either<ValueFailure<String>, String> validateEmailAddress(String input) {

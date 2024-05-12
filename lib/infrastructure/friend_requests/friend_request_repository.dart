@@ -177,4 +177,42 @@ class FriendRequestRepository implements IFriendRequestsRepository {
       }
     });
   }
+
+  @override
+  Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
+      watchFriendsForCurrentUser() async* {
+    final userDocument = await _firestore.userDocument;
+    yield* _firestore
+        .collection('friendRequests')
+        .orderBy('serverTimeStamp', descending: true)
+        .snapshots()
+        .map(
+          (snapShot) => snapShot.docs.map(
+            (document) =>
+                FriendRequestDataTransferObject.fromFirestore(document)
+                    .toDomain(),
+          ),
+        )
+        .map(
+          (friendRequests) =>
+              right<FriendRequestFailure, KtList<FriendRequest>>(
+            friendRequests
+                .where((friendRequest) =>
+                    (friendRequest.senderId.getOrCrash() == userDocument.id ||
+                        friendRequest.receiverId.getOrCrash() ==
+                            userDocument.id) &&
+                    friendRequest.status.getOrCrash().runtimeType ==
+                        Accepted().runtimeType)
+                .toImmutableList(),
+          ),
+        )
+        .onErrorReturnWith((exception, stackTrace) {
+      if (exception is PlatformException &&
+          exception.message!.contains('PERMISSION_DENIED')) {
+        return left(InsufficientPermissions());
+      } else {
+        return left(Unexpected());
+      }
+    });
+  }
 }

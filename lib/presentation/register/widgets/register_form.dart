@@ -5,7 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:routes_chat/application/authentication/authentication_bloc.dart';
 import 'package:routes_chat/application/authentication/register_form/register_form_bloc.dart';
-import 'package:routes_chat/application/authentication/shared/placeholder_fetcher_bloc.dart';
+import 'package:routes_chat/application/shared/picture_placeholder_fetcher/placeholder_fetcher_bloc.dart';
 import 'package:routes_chat/domain/authentication/registration_failure.dart';
 import 'package:routes_chat/domain/core/failures.dart';
 import 'package:routes_chat/presentation/home/home_page.dart';

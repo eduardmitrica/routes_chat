@@ -4,10 +4,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dartz/dartz.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:injectable/injectable.dart';
-import 'package:routes_chat/domain/authentication/user_failure.dart';
+import 'package:routes_chat/domain/shared/user/user_failure.dart';
 
-import '../../../domain/authentication/user.dart';
-import '../../../domain/authentication/user_facade_interface.dart';
+import '../../../domain/shared/user/user.dart';
+import '../../../domain/shared/user/user_repository_interface.dart';
 
 part 'user_watcher_event.dart';
 
@@ -17,15 +17,15 @@ part 'user_watcher_bloc.freezed.dart';
 
 @injectable
 class UserWatcherBloc extends Bloc<UserWatcherEvent, UserWatcherState> {
-  final IUserFacade _userFacade;
+  final IUserRepository _userRepository;
 
   StreamSubscription<Either<UserFailure, User>>? _userSubscription;
 
-  UserWatcherBloc(this._userFacade) : super(const UserWatcherState.initial()) {
+  UserWatcherBloc(this._userRepository) : super(const UserWatcherState.initial()) {
     on<UserWatcherEvent>((event, emit) {
       event.map(watchStarted: (event) {
         emit(const UserWatcherState.loadInProgress());
-        _userSubscription = _userFacade.watch().listen(
+        _userSubscription = _userRepository.watch().listen(
               (failureOrUser) => add(
                 UserWatcherEvent.userReceived(failureOrUser),
               ),

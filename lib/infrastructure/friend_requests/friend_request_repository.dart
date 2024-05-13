@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
-import 'package:routes_chat/domain/friend_requests/errors.dart';
 import 'package:routes_chat/domain/friend_requests/failures.dart';
 import 'package:routes_chat/domain/friend_requests/friend_request.dart';
 import 'package:routes_chat/domain/friend_requests/friend_requests_repository_interface.dart';
@@ -88,10 +87,6 @@ class FriendRequestRepository implements IFriendRequestsRepository {
 
       final docs = friendRequestQueryResult.docs;
       if (docs.isNotEmpty) {
-        if (docs.length > 1) {
-          throw MoreThanOneUniqueEntity();
-        }
-
         return Right(FriendRequestDataTransferObject.fromFirestore(docs.first)
             .toDomain());
       } else {

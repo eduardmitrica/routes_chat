@@ -44,5 +44,59 @@ abstract class FriendRequest with _$FriendRequest {
 }
 
 extension FriendRequestsX on KtList<FriendRequest> {
-  Option<ValueFailure<dynamic>> get failureOption => none();
+  Option<ValueFailure<dynamic>> get failureOption {
+    if (isEmpty()) {
+      return none();
+    }
+
+    final duplicateFriendRequestByIds = find((friendRequest) {
+      final duplicateFriendRequest = find(((correspondingFriendRequest) =>
+          (friendRequest.senderId.getOrCrash() ==
+                  correspondingFriendRequest.receiverId.getOrCrash() &&
+              friendRequest.receiverId.getOrCrash() ==
+                  correspondingFriendRequest.senderId.getOrCrash()) &&
+          (friendRequest.senderId.getOrCrash() !=
+                  correspondingFriendRequest.senderId.getOrCrash() &&
+              friendRequest.receiverId.getOrCrash() !=
+                  correspondingFriendRequest.receiverId.getOrCrash())));
+      if (duplicateFriendRequest != null) {
+        return true;
+      } else {
+        return false;
+      }
+    });
+
+    if (duplicateFriendRequestByIds != null) {
+      return some(
+          const UnacceptedCase(failedValue: 'Duplicated friend request'));
+    }
+
+    final duplicateFriendRequestByStatus = find((friendRequest) {
+      final duplicateFriendRequest = find((correspondingFriendRequest) =>
+          (friendRequest.senderId.getOrCrash() ==
+                  correspondingFriendRequest.senderId.getOrCrash() &&
+              friendRequest.receiverId.getOrCrash() ==
+                  correspondingFriendRequest.receiverId.getOrCrash()) &&
+          ((friendRequest.status.getOrCrash().runtimeType ==
+                      Pending().runtimeType &&
+                  correspondingFriendRequest.status.getOrCrash().runtimeType ==
+                      Accepted().runtimeType) ||
+              (friendRequest.status.getOrCrash().runtimeType ==
+                      Accepted().runtimeType &&
+                  correspondingFriendRequest.status.getOrCrash().runtimeType ==
+                      Pending().runtimeType)));
+      if (duplicateFriendRequest != null) {
+        return true;
+      } else {
+        return false;
+      }
+    });
+
+    if (duplicateFriendRequestByStatus != null) {
+      return some(
+          const UnacceptedCase(failedValue: 'Duplicated friend request'));
+    }
+
+    return none();
+  }
 }

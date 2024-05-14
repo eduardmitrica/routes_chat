@@ -84,7 +84,8 @@ class RegisterForm extends StatelessWidget {
         );
       },
       buildWhen: (previousState, currentState) =>
-          previousState.showErrorMessages != currentState.showErrorMessages,
+          previousState.showErrorMessages != currentState.showErrorMessages ||
+          previousState.imagePath.isValid() != currentState.imagePath.isValid(),
       builder: (context, state) {
         return Form(
           child: ListView(
@@ -281,16 +282,18 @@ class RegisterForm extends StatelessWidget {
               BlocBuilder<RegisterFormBloc, RegisterFormState>(
                 buildWhen: (previousState, currentState) =>
                     previousState.isSubmitting != currentState.isSubmitting,
-                builder: (context, state) => state.isSubmitting?  const Column(
-                  children: [
-                    SizedBox(
-                      height: 10.0,
-                    ),
-                    LinearProgressIndicator(
-                      value: null,
-                    )
-                  ],
-                ) : const Column(),
+                builder: (context, state) => state.isSubmitting
+                    ? const Column(
+                        children: [
+                          SizedBox(
+                            height: 10.0,
+                          ),
+                          LinearProgressIndicator(
+                            value: null,
+                          )
+                        ],
+                      )
+                    : const Column(),
               ),
             ],
           ),

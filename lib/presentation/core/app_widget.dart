@@ -29,27 +29,7 @@ class AppWidget extends StatelessWidget {
           create: (_) => getIt<SignInFormBloc>(),
         ),
         BlocProvider(
-          create: (context) {
-            if (BlocProvider.of<PlaceholderFetcherBloc>(context)
-                .state
-                .imagePath
-                .isValid()) {
-              return getIt<RegisterFormBloc>()
-                ..add(
-                  RegisterFormEvent.imageFetchedFromDb(
-                    BlocProvider.of<PlaceholderFetcherBloc>(context)
-                        .state
-                        .imagePath
-                        .getOrCrash(),
-                  ),
-                );
-            } else {
-              return getIt<RegisterFormBloc>()
-                ..add(
-                  const RegisterFormEvent.userImagePlaceholderRequested(),
-                );
-            }
-          },
+          create: (_) => getIt<RegisterFormBloc>(),
           lazy: false,
         ),
       ],

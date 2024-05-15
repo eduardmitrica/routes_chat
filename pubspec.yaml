@@ -54,7 +54,8 @@ dependencies:
   google_fonts: ^6.2.1
   rxdart: ^0.27.7
   kt_dart: ^1.1.0
-  flutter_webrtc: ^0.10.4
+  flutter_webrtc: ^0.10.6
+  chat_bubbles: ^1.6.0
 
 dev_dependencies:
   flutter_test:
@@ -65,7 +66,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  freezed: ^2.5.2
+  freezed: ^2.5.3
   flutter_lints: ^4.0.0
   build_runner: ^2.4.9
   injectable_generator: ^2.6.1

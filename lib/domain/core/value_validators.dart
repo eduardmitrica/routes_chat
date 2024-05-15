@@ -1,4 +1,6 @@
 import 'package:dartz/dartz.dart';
+import 'package:kt_dart/collection.dart';
+import 'package:routes_chat/domain/core/value_objects.dart';
 
 import '../../injection.dart';
 import '../shared/user/user_utils_interface.dart';
@@ -69,24 +71,39 @@ Either<ValueFailure<String>, String> validateStringNotEmpty(String input) {
   }
 }
 
-Future<Either<ValueFailure<String>, String>> validateUsernameDoesNotAlreadyExist(String input) async{
-  final usernameAlreadyExists = await getIt<IUserUtils>().checkIfUsernameAlreadyExists(input);
+Future<Either<ValueFailure<String>, String>>
+    validateUsernameDoesNotAlreadyExist(String input) async {
+  final usernameAlreadyExists =
+      await getIt<IUserUtils>().checkIfUsernameAlreadyExists(input);
 
   if (!usernameAlreadyExists) {
     return Right(input);
-  }
-  else {
+  } else {
     return Left(UsernameAlreadyExists(failedValue: input));
   }
 }
 
-Future<Either<ValueFailure<String>, String>> validateUsernameExistsOnlyOnce(String input) async {
-  final usernameExistsMoreThanOnce = await getIt<IUserUtils>().checkIfUsernameExistsMoreThanOnce(input);
+Future<Either<ValueFailure<String>, String>> validateUsernameExistsOnlyOnce(
+    String input) async {
+  final usernameExistsMoreThanOnce =
+      await getIt<IUserUtils>().checkIfUsernameExistsMoreThanOnce(input);
 
   if (!usernameExistsMoreThanOnce) {
-  return Right(input);
+    return Right(input);
+  } else {
+    return Left(UsernameExistsMoreThanOnce(failedValue: input));
   }
-  else {
-  return Left(UsernameExistsMoreThanOnce(failedValue: input));
+}
+
+Either<ValueFailure<KtList<Tuple2<UniqueId, UniqueId>>>,
+        KtList<Tuple2<UniqueId, UniqueId>>>
+    validateParticipantsList(KtList<Tuple2<UniqueId, UniqueId>> ids) {
+  final userIds = ids.map((id) => id.value1);
+  final duplicateIds = userIds.toMutableList()
+    ..removeAll(userIds.toSet().toList());
+  if (duplicateIds.isEmpty()) {
+    return Right(ids);
+  } else {
+    return Left(DuplicateIds(failedValue: ids));
   }
 }

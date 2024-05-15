@@ -1,3 +1,7 @@
+import 'package:dartz/dartz.dart';
+import 'package:kt_dart/collection.dart';
+import 'package:routes_chat/domain/core/value_objects.dart';
+
 import '../friend_requests/value_objects.dart';
 
 sealed class ValueFailure<T> {
@@ -44,4 +48,8 @@ final class IncorrectStatus extends ValueFailure<FriendRequestStatus>{
 
 final class UnacceptedCase extends ValueFailure<String>{
   const UnacceptedCase({required failedValue}) : super(failedValue);
+}
+
+final class DuplicateIds extends ValueFailure<KtList<Tuple2<UniqueId, UniqueId>>> {
+  const DuplicateIds({required failedValue}) : super(failedValue);
 }

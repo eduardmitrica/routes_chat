@@ -1,3 +1,4 @@
+import 'package:chat_bubbles/chat_bubbles.dart';
 import 'package:flutter/material.dart';
 import 'package:routes_chat/domain/shared/user/user.dart';
 
@@ -24,6 +25,14 @@ class ChatPage extends StatelessWidget {
           ),
         ],
       ),
+      body: Column(mainAxisAlignment: MainAxisAlignment.end,children: [
+        MessageBar(
+          messageBarColor: Colors.deepPurpleAccent,
+          messageBarHintText: 'Start typing...',
+          onSend: (value) {
+          },
+        ),
+      ],),
     );
   }
 }

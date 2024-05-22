@@ -23,7 +23,8 @@ ChatDataTransferObject _$ChatDataTransferObjectFromJson(
 mixin _$ChatDataTransferObject {
   @JsonKey(includeToJson: false, includeFromJson: false)
   String? get id => throw _privateConstructorUsedError;
-  List<(String, String)> get participants => throw _privateConstructorUsedError;
+  List<Map<String, String>> get participants =>
+      throw _privateConstructorUsedError;
   List<MessageDataTransferObject> get messages =>
       throw _privateConstructorUsedError;
   @ServerTimestampConverter()
@@ -43,7 +44,7 @@ abstract class $ChatDataTransferObjectCopyWith<$Res> {
   @useResult
   $Res call(
       {@JsonKey(includeToJson: false, includeFromJson: false) String? id,
-      List<(String, String)> participants,
+      List<Map<String, String>> participants,
       List<MessageDataTransferObject> messages,
       @ServerTimestampConverter() FieldValue serverTimeStamp});
 }
@@ -75,7 +76,7 @@ class _$ChatDataTransferObjectCopyWithImpl<$Res,
       participants: null == participants
           ? _value.participants
           : participants // ignore: cast_nullable_to_non_nullable
-              as List<(String, String)>,
+              as List<Map<String, String>>,
       messages: null == messages
           ? _value.messages
           : messages // ignore: cast_nullable_to_non_nullable
@@ -99,7 +100,7 @@ abstract class _$$ChatDataTransferObjectImplCopyWith<$Res>
   @useResult
   $Res call(
       {@JsonKey(includeToJson: false, includeFromJson: false) String? id,
-      List<(String, String)> participants,
+      List<Map<String, String>> participants,
       List<MessageDataTransferObject> messages,
       @ServerTimestampConverter() FieldValue serverTimeStamp});
 }
@@ -130,7 +131,7 @@ class __$$ChatDataTransferObjectImplCopyWithImpl<$Res>
       participants: null == participants
           ? _value._participants
           : participants // ignore: cast_nullable_to_non_nullable
-              as List<(String, String)>,
+              as List<Map<String, String>>,
       messages: null == messages
           ? _value._messages
           : messages // ignore: cast_nullable_to_non_nullable
@@ -148,7 +149,7 @@ class __$$ChatDataTransferObjectImplCopyWithImpl<$Res>
 class _$ChatDataTransferObjectImpl extends _ChatDataTransferObject {
   const _$ChatDataTransferObjectImpl(
       {@JsonKey(includeToJson: false, includeFromJson: false) this.id,
-      required final List<(String, String)> participants,
+      required final List<Map<String, String>> participants,
       required final List<MessageDataTransferObject> messages,
       @ServerTimestampConverter() required this.serverTimeStamp})
       : _participants = participants,
@@ -161,9 +162,9 @@ class _$ChatDataTransferObjectImpl extends _ChatDataTransferObject {
   @override
   @JsonKey(includeToJson: false, includeFromJson: false)
   final String? id;
-  final List<(String, String)> _participants;
+  final List<Map<String, String>> _participants;
   @override
-  List<(String, String)> get participants {
+  List<Map<String, String>> get participants {
     if (_participants is EqualUnmodifiableListView) return _participants;
     // ignore: implicit_dynamic_type
     return EqualUnmodifiableListView(_participants);
@@ -226,7 +227,7 @@ class _$ChatDataTransferObjectImpl extends _ChatDataTransferObject {
 abstract class _ChatDataTransferObject extends ChatDataTransferObject {
   const factory _ChatDataTransferObject(
       {@JsonKey(includeToJson: false, includeFromJson: false) final String? id,
-      required final List<(String, String)> participants,
+      required final List<Map<String, String>> participants,
       required final List<MessageDataTransferObject> messages,
       @ServerTimestampConverter()
       required final FieldValue
@@ -240,7 +241,7 @@ abstract class _ChatDataTransferObject extends ChatDataTransferObject {
   @JsonKey(includeToJson: false, includeFromJson: false)
   String? get id;
   @override
-  List<(String, String)> get participants;
+  List<Map<String, String>> get participants;
   @override
   List<MessageDataTransferObject> get messages;
   @override

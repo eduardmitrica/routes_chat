@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kt_dart/collection.dart';
+import 'package:routes_chat/application/chats/chats_watcher/chats_watcher_bloc.dart';
 import 'package:routes_chat/presentation/home/chats/widgets/chat_page.dart';
 
 import '../../../../../application/shared/picture_placeholder_fetcher/placeholder_fetcher_bloc.dart';
@@ -59,8 +60,7 @@ class _FriendsSearchPageBodyState extends State<FriendsSearchPageBody> {
                     loadInProgress: (state) => const Center(
                       child: CircularProgressIndicator(),
                     ),
-                    loadSuccess: (state) => SizedBox(
-                      height: 300,
+                    loadSuccess: (state) => Expanded(
                       child: state.users.find((user) => user.username
                                   .getOrCrash()
                                   .toLowerCase()
@@ -117,9 +117,19 @@ class _FriendsSearchPageBodyState extends State<FriendsSearchPageBody> {
                                           user?.description.getOrCrash() ?? ''),
                                       onTap: () => user != null
                                           ? Navigator.of(context)
-                                              .pushReplacementNamed(
-                                                  ChatPage.chatPageRoute,
-                                                  arguments: user)
+                                              .pushReplacement(
+                                              MaterialPageRoute(
+                                                builder: (ctx) =>
+                                                    BlocProvider.value(
+                                                  value: BlocProvider.of<
+                                                          ChatsWatcherBloc>(
+                                                      context),
+                                                  child: const ChatPage(),
+                                                ),
+                                                settings: RouteSettings(
+                                                    arguments: user),
+                                              ),
+                                            )
                                           : null,
                                     );
                                   } else {

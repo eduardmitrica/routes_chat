@@ -12,10 +12,10 @@ class ParticipantsList extends ValueObject<KtList<Tuple2<UniqueId, UniqueId>>> {
     return ParticipantsList._(validateParticipantsList(ids));
   }
 
-  factory ParticipantsList.fromListOfTuples(List<(String, String)> tuplesList) {
-    final list = tuplesList.map((tuple) {
-      final (userId, lastSeenMessageId) = tuple;
-      return Tuple2(UniqueId.fromUniqueString(userId), UniqueId.fromUniqueString(lastSeenMessageId));
+  factory ParticipantsList.fromListOfMaps(List<Map<String,String>> participants) {
+    final list = participants.map((participantMap) {
+      final entry = participantMap.entries.first;
+      return Tuple2(UniqueId.fromUniqueString(entry.key), UniqueId.fromUniqueString(entry.value));
     }).toImmutableList();
     return ParticipantsList(list);
   }

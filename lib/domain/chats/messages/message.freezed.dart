@@ -22,7 +22,7 @@ mixin _$Message {
   KtList<UniqueId> get reactions => throw _privateConstructorUsedError;
   Content get content => throw _privateConstructorUsedError;
   UniqueId get repliedMessageId => throw _privateConstructorUsedError;
-  DateTime get lastUpdatedAt => throw _privateConstructorUsedError;
+  DateTime? get lastUpdatedAt => throw _privateConstructorUsedError;
   bool get isEdited => throw _privateConstructorUsedError;
 
   @JsonKey(ignore: true)
@@ -41,7 +41,7 @@ abstract class $MessageCopyWith<$Res> {
       KtList<UniqueId> reactions,
       Content content,
       UniqueId repliedMessageId,
-      DateTime lastUpdatedAt,
+      DateTime? lastUpdatedAt,
       bool isEdited});
 }
 
@@ -64,7 +64,7 @@ class _$MessageCopyWithImpl<$Res, $Val extends Message>
     Object? reactions = null,
     Object? content = null,
     Object? repliedMessageId = null,
-    Object? lastUpdatedAt = null,
+    Object? lastUpdatedAt = freezed,
     Object? isEdited = null,
   }) {
     return _then(_value.copyWith(
@@ -92,10 +92,10 @@ class _$MessageCopyWithImpl<$Res, $Val extends Message>
           ? _value.repliedMessageId
           : repliedMessageId // ignore: cast_nullable_to_non_nullable
               as UniqueId,
-      lastUpdatedAt: null == lastUpdatedAt
+      lastUpdatedAt: freezed == lastUpdatedAt
           ? _value.lastUpdatedAt
           : lastUpdatedAt // ignore: cast_nullable_to_non_nullable
-              as DateTime,
+              as DateTime?,
       isEdited: null == isEdited
           ? _value.isEdited
           : isEdited // ignore: cast_nullable_to_non_nullable
@@ -118,7 +118,7 @@ abstract class _$$MessageImplCopyWith<$Res> implements $MessageCopyWith<$Res> {
       KtList<UniqueId> reactions,
       Content content,
       UniqueId repliedMessageId,
-      DateTime lastUpdatedAt,
+      DateTime? lastUpdatedAt,
       bool isEdited});
 }
 
@@ -139,7 +139,7 @@ class __$$MessageImplCopyWithImpl<$Res>
     Object? reactions = null,
     Object? content = null,
     Object? repliedMessageId = null,
-    Object? lastUpdatedAt = null,
+    Object? lastUpdatedAt = freezed,
     Object? isEdited = null,
   }) {
     return _then(_$MessageImpl(
@@ -167,10 +167,10 @@ class __$$MessageImplCopyWithImpl<$Res>
           ? _value.repliedMessageId
           : repliedMessageId // ignore: cast_nullable_to_non_nullable
               as UniqueId,
-      lastUpdatedAt: null == lastUpdatedAt
+      lastUpdatedAt: freezed == lastUpdatedAt
           ? _value.lastUpdatedAt
           : lastUpdatedAt // ignore: cast_nullable_to_non_nullable
-              as DateTime,
+              as DateTime?,
       isEdited: null == isEdited
           ? _value.isEdited
           : isEdited // ignore: cast_nullable_to_non_nullable
@@ -205,7 +205,7 @@ class _$MessageImpl implements _Message {
   @override
   final UniqueId repliedMessageId;
   @override
-  final DateTime lastUpdatedAt;
+  final DateTime? lastUpdatedAt;
   @override
   final bool isEdited;
 
@@ -254,7 +254,7 @@ abstract class _Message implements Message {
       required final KtList<UniqueId> reactions,
       required final Content content,
       required final UniqueId repliedMessageId,
-      required final DateTime lastUpdatedAt,
+      required final DateTime? lastUpdatedAt,
       required final bool isEdited}) = _$MessageImpl;
 
   @override
@@ -270,7 +270,7 @@ abstract class _Message implements Message {
   @override
   UniqueId get repliedMessageId;
   @override
-  DateTime get lastUpdatedAt;
+  DateTime? get lastUpdatedAt;
   @override
   bool get isEdited;
   @override

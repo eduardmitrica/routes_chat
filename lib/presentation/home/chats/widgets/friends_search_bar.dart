@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:routes_chat/application/chats/chats_watcher/chats_watcher_bloc.dart';
 
 import '../friends_search_page/friends_search_page.dart';
 
@@ -8,8 +10,14 @@ class FriendsSearchBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () => Navigator.of(context)
-          .pushNamed(FriendsSearchPage.friendsSearchPageRoute),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (ctx) => BlocProvider.value(
+            value: BlocProvider.of<ChatsWatcherBloc>(context),
+            child: const FriendsSearchPage(),
+          ),
+        ),
+      ),
       borderRadius: BorderRadius.circular(20),
       child: Container(
         height: 60,

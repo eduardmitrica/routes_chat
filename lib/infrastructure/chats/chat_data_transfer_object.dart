@@ -19,7 +19,7 @@ abstract class ChatDataTransferObject implements _$ChatDataTransferObject {
 
   const factory ChatDataTransferObject(
           {@JsonKey(includeToJson: false, includeFromJson: false) String? id,
-          required List<(String, String)> participants,
+          required List<Map<String, String>> participants,
           required List<MessageDataTransferObject> messages,
           @ServerTimestampConverter() required FieldValue serverTimeStamp}) =
       _ChatDataTransferObject;
@@ -29,7 +29,7 @@ abstract class ChatDataTransferObject implements _$ChatDataTransferObject {
 
   Chat toDomain() => Chat(
         id: UniqueId.fromUniqueString(id!),
-        participantsList: ParticipantsList.fromListOfTuples(participants),
+        participantsList: ParticipantsList.fromListOfMaps(participants),
         messages:
             messages.map((message) => message.toDomain()).toImmutableList(),
       );
@@ -39,10 +39,9 @@ abstract class ChatDataTransferObject implements _$ChatDataTransferObject {
       id: chat.id.getOrCrash(),
       participants: chat.participantsList
           .getOrCrash()
-          .map((participant) => (
-                participant.value1.getOrCrash(),
-                participant.value2.getOrCrash()
-              ))
+          .map((participant) => {
+                participant.value1.getOrCrash(): participant.value2.getOrCrash()
+              })
           .asList(),
       messages: chat.messages
           .map((message) => MessageDataTransferObject.fromDomain(message))

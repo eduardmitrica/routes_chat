@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:routes_chat/application/chats/chats_watcher/chats_watcher_bloc.dart';
 import 'package:routes_chat/application/chats/friends_watcher/friends_watcher_bloc.dart';
 import 'package:routes_chat/application/shared/users_watcher/users_watcher_bloc.dart';
 import 'package:routes_chat/presentation/home/chats/friends_search_page/widgets/friends_search_page_body.dart';
@@ -13,9 +14,18 @@ class FriendsSearchPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (_) => getIt<FriendsWatcherBloc>()
-        ..add(const FriendsWatcherEvent.watchAllStarted()),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (_) => getIt<FriendsWatcherBloc>()
+            ..add(
+              const FriendsWatcherEvent.watchAllStarted(),
+            ),
+        ),
+        BlocProvider.value(
+          value: BlocProvider.of<ChatsWatcherBloc>(context),
+        ),
+      ],
       child: Scaffold(
         appBar: AppBar(
           title: const Text('search'),

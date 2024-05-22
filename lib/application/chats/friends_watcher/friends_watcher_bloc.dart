@@ -77,11 +77,6 @@ class FriendsWatcherBloc
     );
   }
 
-  Future<void> refreshSubscription() async {
-    _acceptedFriendRequestsSubscription?.cancel();
-    add(const FriendsWatcherEvent.watchAllStarted());
-  }
-
   @override
   Future<void> close() async {
     await _acceptedFriendRequestsSubscription?.cancel();

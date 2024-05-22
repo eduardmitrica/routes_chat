@@ -5,4 +5,6 @@ import 'package:routes_chat/domain/chats/chat_failure.dart';
 
 abstract interface class IChatRepository {
   Stream<Either<ChatFailure, KtList<Chat>>> watchAllForCurrentUser();
-} 
+  Future<Either<ChatFailure, Unit>> create(Chat chat);
+  Future<Either<ChatFailure, Unit>> update(Chat chat);
+}

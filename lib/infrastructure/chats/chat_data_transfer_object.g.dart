@@ -10,13 +10,7 @@ _$ChatDataTransferObjectImpl _$$ChatDataTransferObjectImplFromJson(
         Map<String, dynamic> json) =>
     _$ChatDataTransferObjectImpl(
       participants: (json['participants'] as List<dynamic>)
-          .map((e) => _$recordConvert(
-                e,
-                ($jsonValue) => (
-                  $jsonValue[r'$1'] as String,
-                  $jsonValue[r'$2'] as String,
-                ),
-              ))
+          .map((e) => Map<String, String>.from(e as Map))
           .toList(),
       messages: (json['messages'] as List<dynamic>)
           .map((e) =>
@@ -29,19 +23,8 @@ _$ChatDataTransferObjectImpl _$$ChatDataTransferObjectImplFromJson(
 Map<String, dynamic> _$$ChatDataTransferObjectImplToJson(
         _$ChatDataTransferObjectImpl instance) =>
     <String, dynamic>{
-      'participants': instance.participants
-          .map((e) => <String, dynamic>{
-                r'$1': e.$1,
-                r'$2': e.$2,
-              })
-          .toList(),
-      'messages': instance.messages,
+      'participants': instance.participants,
+      'messages': instance.messages.map((m) => m.toJson()),
       'serverTimeStamp':
           const ServerTimestampConverter().toJson(instance.serverTimeStamp),
     };
-
-$Rec _$recordConvert<$Rec>(
-  Object? value,
-  $Rec Function(Map) convert,
-) =>
-    convert(value as Map<String, dynamic>);

@@ -16,6 +16,6 @@ abstract class Message with _$Message {
       required KtList<UniqueId> reactions,
       required Content content,
       required UniqueId repliedMessageId,
-      required DateTime lastUpdatedAt,
+      required DateTime? lastUpdatedAt,
       required bool isEdited}) = _Message;
 }

@@ -1,9 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
-
-import 'messages/message.dart';
 
 part 'chat.freezed.dart';
 
@@ -12,6 +9,5 @@ abstract class Chat with _$Chat {
   const factory Chat({
     required UniqueId id,
     required ParticipantsList participantsList,
-    required KtList<Message> messages,
 }) = _Chat;
 }

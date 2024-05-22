@@ -5,6 +5,8 @@ import 'package:routes_chat/application/shared/users_watcher/users_watcher_bloc.
 import 'package:routes_chat/domain/chats/chat.dart';
 import 'package:routes_chat/presentation/home/chats/widgets/chat_page.dart';
 
+import '../../../../application/chats/chats_watcher/chats_watcher_bloc.dart';
+
 class ChatsList extends StatelessWidget {
   final KtList<Chat> chats;
 
@@ -39,9 +41,16 @@ class ChatsList extends StatelessWidget {
                     key: ValueKey(
                       chat.id.getOrCrash(),
                     ),
-                    onTap: () => Navigator.of(context).pushNamed(
-                        ChatPage.chatPageRoute,
-                        arguments: chatParticipants.first()),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (ctx) => BlocProvider.value(
+                          value: BlocProvider.of<ChatsWatcherBloc>(context),
+                          child: const ChatPage(),
+                        ),
+                        settings:
+                            RouteSettings(arguments: chatParticipants.first()),
+                      ),
+                    ),
                     title: Text('Chat with ${chatParticipants.size}'),
                   );
                 },

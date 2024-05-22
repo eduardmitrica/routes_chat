@@ -44,17 +44,18 @@ class ChatActorBloc extends Bloc<ChatActorEvent, ChatActorState> {
                   ..add(UniqueId.fromUniqueString(userId));
 
             final chat = Chat(
-                id: UniqueId(),
-                participantsList: ParticipantsList(
-                  participantsWithCurrentUserIdIncluded.map(
-                    (participantId) => Tuple2(
-                      participantId,
-                      UniqueId.fromUniqueString('No message seen'),
-                    ),
+              id: UniqueId(),
+              participantsList: ParticipantsList(
+                participantsWithCurrentUserIdIncluded.map(
+                  (participantId) => Tuple2(
+                    participantId,
+                    UniqueId.fromUniqueString('No message seen'),
                   ),
                 ),
-                messages: [event.firstMessage].toImmutableList());
-            final operationResult = await _chatRepository.create(chat);
+              ),
+            );
+            final operationResult =
+                await _chatRepository.create(chat, event.firstMessage);
             emit(operationResult.fold(
                 (failure) => ChatActorState.creationFailure(failure),
                 (_) => const ChatActorState.creationSuccess()));

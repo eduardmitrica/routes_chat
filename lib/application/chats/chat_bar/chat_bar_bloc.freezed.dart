@@ -21,6 +21,8 @@ mixin _$ChatBarEvent {
     required TResult Function(String contentString) messageContentChanged,
     required TResult Function(KtList<UniqueId> otherThanCurrentParticipantIds)
         newChatCreated,
+    required TResult Function(String content, UniqueId chatId)
+        newMessageAddedToChatWithId,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -28,6 +30,8 @@ mixin _$ChatBarEvent {
     TResult? Function(String contentString)? messageContentChanged,
     TResult? Function(KtList<UniqueId> otherThanCurrentParticipantIds)?
         newChatCreated,
+    TResult? Function(String content, UniqueId chatId)?
+        newMessageAddedToChatWithId,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
@@ -35,6 +39,8 @@ mixin _$ChatBarEvent {
     TResult Function(String contentString)? messageContentChanged,
     TResult Function(KtList<UniqueId> otherThanCurrentParticipantIds)?
         newChatCreated,
+    TResult Function(String content, UniqueId chatId)?
+        newMessageAddedToChatWithId,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
@@ -43,18 +49,24 @@ mixin _$ChatBarEvent {
     required TResult Function(_MessageContentChanged value)
         messageContentChanged,
     required TResult Function(_NewChatCreated value) newChatCreated,
+    required TResult Function(_NewMessageAddedToChatWithId value)
+        newMessageAddedToChatWithId,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_MessageContentChanged value)? messageContentChanged,
     TResult? Function(_NewChatCreated value)? newChatCreated,
+    TResult? Function(_NewMessageAddedToChatWithId value)?
+        newMessageAddedToChatWithId,
   }) =>
       throw _privateConstructorUsedError;
   @optionalTypeArgs
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_MessageContentChanged value)? messageContentChanged,
     TResult Function(_NewChatCreated value)? newChatCreated,
+    TResult Function(_NewMessageAddedToChatWithId value)?
+        newMessageAddedToChatWithId,
     required TResult orElse(),
   }) =>
       throw _privateConstructorUsedError;
@@ -148,6 +160,8 @@ class _$MessageContentChangedImpl implements _MessageContentChanged {
     required TResult Function(String contentString) messageContentChanged,
     required TResult Function(KtList<UniqueId> otherThanCurrentParticipantIds)
         newChatCreated,
+    required TResult Function(String content, UniqueId chatId)
+        newMessageAddedToChatWithId,
   }) {
     return messageContentChanged(contentString);
   }
@@ -158,6 +172,8 @@ class _$MessageContentChangedImpl implements _MessageContentChanged {
     TResult? Function(String contentString)? messageContentChanged,
     TResult? Function(KtList<UniqueId> otherThanCurrentParticipantIds)?
         newChatCreated,
+    TResult? Function(String content, UniqueId chatId)?
+        newMessageAddedToChatWithId,
   }) {
     return messageContentChanged?.call(contentString);
   }
@@ -168,6 +184,8 @@ class _$MessageContentChangedImpl implements _MessageContentChanged {
     TResult Function(String contentString)? messageContentChanged,
     TResult Function(KtList<UniqueId> otherThanCurrentParticipantIds)?
         newChatCreated,
+    TResult Function(String content, UniqueId chatId)?
+        newMessageAddedToChatWithId,
     required TResult orElse(),
   }) {
     if (messageContentChanged != null) {
@@ -182,6 +200,8 @@ class _$MessageContentChangedImpl implements _MessageContentChanged {
     required TResult Function(_MessageContentChanged value)
         messageContentChanged,
     required TResult Function(_NewChatCreated value) newChatCreated,
+    required TResult Function(_NewMessageAddedToChatWithId value)
+        newMessageAddedToChatWithId,
   }) {
     return messageContentChanged(this);
   }
@@ -191,6 +211,8 @@ class _$MessageContentChangedImpl implements _MessageContentChanged {
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_MessageContentChanged value)? messageContentChanged,
     TResult? Function(_NewChatCreated value)? newChatCreated,
+    TResult? Function(_NewMessageAddedToChatWithId value)?
+        newMessageAddedToChatWithId,
   }) {
     return messageContentChanged?.call(this);
   }
@@ -200,6 +222,8 @@ class _$MessageContentChangedImpl implements _MessageContentChanged {
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_MessageContentChanged value)? messageContentChanged,
     TResult Function(_NewChatCreated value)? newChatCreated,
+    TResult Function(_NewMessageAddedToChatWithId value)?
+        newMessageAddedToChatWithId,
     required TResult orElse(),
   }) {
     if (messageContentChanged != null) {
@@ -290,6 +314,8 @@ class _$NewChatCreatedImpl implements _NewChatCreated {
     required TResult Function(String contentString) messageContentChanged,
     required TResult Function(KtList<UniqueId> otherThanCurrentParticipantIds)
         newChatCreated,
+    required TResult Function(String content, UniqueId chatId)
+        newMessageAddedToChatWithId,
   }) {
     return newChatCreated(otherThanCurrentParticipantIds);
   }
@@ -300,6 +326,8 @@ class _$NewChatCreatedImpl implements _NewChatCreated {
     TResult? Function(String contentString)? messageContentChanged,
     TResult? Function(KtList<UniqueId> otherThanCurrentParticipantIds)?
         newChatCreated,
+    TResult? Function(String content, UniqueId chatId)?
+        newMessageAddedToChatWithId,
   }) {
     return newChatCreated?.call(otherThanCurrentParticipantIds);
   }
@@ -310,6 +338,8 @@ class _$NewChatCreatedImpl implements _NewChatCreated {
     TResult Function(String contentString)? messageContentChanged,
     TResult Function(KtList<UniqueId> otherThanCurrentParticipantIds)?
         newChatCreated,
+    TResult Function(String content, UniqueId chatId)?
+        newMessageAddedToChatWithId,
     required TResult orElse(),
   }) {
     if (newChatCreated != null) {
@@ -324,6 +354,8 @@ class _$NewChatCreatedImpl implements _NewChatCreated {
     required TResult Function(_MessageContentChanged value)
         messageContentChanged,
     required TResult Function(_NewChatCreated value) newChatCreated,
+    required TResult Function(_NewMessageAddedToChatWithId value)
+        newMessageAddedToChatWithId,
   }) {
     return newChatCreated(this);
   }
@@ -333,6 +365,8 @@ class _$NewChatCreatedImpl implements _NewChatCreated {
   TResult? mapOrNull<TResult extends Object?>({
     TResult? Function(_MessageContentChanged value)? messageContentChanged,
     TResult? Function(_NewChatCreated value)? newChatCreated,
+    TResult? Function(_NewMessageAddedToChatWithId value)?
+        newMessageAddedToChatWithId,
   }) {
     return newChatCreated?.call(this);
   }
@@ -342,6 +376,8 @@ class _$NewChatCreatedImpl implements _NewChatCreated {
   TResult maybeMap<TResult extends Object?>({
     TResult Function(_MessageContentChanged value)? messageContentChanged,
     TResult Function(_NewChatCreated value)? newChatCreated,
+    TResult Function(_NewMessageAddedToChatWithId value)?
+        newMessageAddedToChatWithId,
     required TResult orElse(),
   }) {
     if (newChatCreated != null) {
@@ -360,6 +396,170 @@ abstract class _NewChatCreated implements ChatBarEvent {
   @JsonKey(ignore: true)
   _$$NewChatCreatedImplCopyWith<_$NewChatCreatedImpl> get copyWith =>
       throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$NewMessageAddedToChatWithIdImplCopyWith<$Res> {
+  factory _$$NewMessageAddedToChatWithIdImplCopyWith(
+          _$NewMessageAddedToChatWithIdImpl value,
+          $Res Function(_$NewMessageAddedToChatWithIdImpl) then) =
+      __$$NewMessageAddedToChatWithIdImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({String content, UniqueId chatId});
+}
+
+/// @nodoc
+class __$$NewMessageAddedToChatWithIdImplCopyWithImpl<$Res>
+    extends _$ChatBarEventCopyWithImpl<$Res, _$NewMessageAddedToChatWithIdImpl>
+    implements _$$NewMessageAddedToChatWithIdImplCopyWith<$Res> {
+  __$$NewMessageAddedToChatWithIdImplCopyWithImpl(
+      _$NewMessageAddedToChatWithIdImpl _value,
+      $Res Function(_$NewMessageAddedToChatWithIdImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? content = null,
+    Object? chatId = null,
+  }) {
+    return _then(_$NewMessageAddedToChatWithIdImpl(
+      null == content
+          ? _value.content
+          : content // ignore: cast_nullable_to_non_nullable
+              as String,
+      null == chatId
+          ? _value.chatId
+          : chatId // ignore: cast_nullable_to_non_nullable
+              as UniqueId,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$NewMessageAddedToChatWithIdImpl
+    implements _NewMessageAddedToChatWithId {
+  const _$NewMessageAddedToChatWithIdImpl(this.content, this.chatId);
+
+  @override
+  final String content;
+  @override
+  final UniqueId chatId;
+
+  @override
+  String toString() {
+    return 'ChatBarEvent.newMessageAddedToChatWithId(content: $content, chatId: $chatId)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$NewMessageAddedToChatWithIdImpl &&
+            (identical(other.content, content) || other.content == content) &&
+            (identical(other.chatId, chatId) || other.chatId == chatId));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, content, chatId);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$NewMessageAddedToChatWithIdImplCopyWith<_$NewMessageAddedToChatWithIdImpl>
+      get copyWith => __$$NewMessageAddedToChatWithIdImplCopyWithImpl<
+          _$NewMessageAddedToChatWithIdImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(String contentString) messageContentChanged,
+    required TResult Function(KtList<UniqueId> otherThanCurrentParticipantIds)
+        newChatCreated,
+    required TResult Function(String content, UniqueId chatId)
+        newMessageAddedToChatWithId,
+  }) {
+    return newMessageAddedToChatWithId(content, chatId);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(String contentString)? messageContentChanged,
+    TResult? Function(KtList<UniqueId> otherThanCurrentParticipantIds)?
+        newChatCreated,
+    TResult? Function(String content, UniqueId chatId)?
+        newMessageAddedToChatWithId,
+  }) {
+    return newMessageAddedToChatWithId?.call(content, chatId);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(String contentString)? messageContentChanged,
+    TResult Function(KtList<UniqueId> otherThanCurrentParticipantIds)?
+        newChatCreated,
+    TResult Function(String content, UniqueId chatId)?
+        newMessageAddedToChatWithId,
+    required TResult orElse(),
+  }) {
+    if (newMessageAddedToChatWithId != null) {
+      return newMessageAddedToChatWithId(content, chatId);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(_MessageContentChanged value)
+        messageContentChanged,
+    required TResult Function(_NewChatCreated value) newChatCreated,
+    required TResult Function(_NewMessageAddedToChatWithId value)
+        newMessageAddedToChatWithId,
+  }) {
+    return newMessageAddedToChatWithId(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(_MessageContentChanged value)? messageContentChanged,
+    TResult? Function(_NewChatCreated value)? newChatCreated,
+    TResult? Function(_NewMessageAddedToChatWithId value)?
+        newMessageAddedToChatWithId,
+  }) {
+    return newMessageAddedToChatWithId?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(_MessageContentChanged value)? messageContentChanged,
+    TResult Function(_NewChatCreated value)? newChatCreated,
+    TResult Function(_NewMessageAddedToChatWithId value)?
+        newMessageAddedToChatWithId,
+    required TResult orElse(),
+  }) {
+    if (newMessageAddedToChatWithId != null) {
+      return newMessageAddedToChatWithId(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class _NewMessageAddedToChatWithId implements ChatBarEvent {
+  const factory _NewMessageAddedToChatWithId(
+          final String content, final UniqueId chatId) =
+      _$NewMessageAddedToChatWithIdImpl;
+
+  String get content;
+  UniqueId get chatId;
+  @JsonKey(ignore: true)
+  _$$NewMessageAddedToChatWithIdImplCopyWith<_$NewMessageAddedToChatWithIdImpl>
+      get copyWith => throw _privateConstructorUsedError;
 }
 
 /// @nodoc

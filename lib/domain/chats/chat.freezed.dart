@@ -18,7 +18,6 @@ final _privateConstructorUsedError = UnsupportedError(
 mixin _$Chat {
   UniqueId get id => throw _privateConstructorUsedError;
   ParticipantsList get participantsList => throw _privateConstructorUsedError;
-  KtList<Message> get messages => throw _privateConstructorUsedError;
 
   @JsonKey(ignore: true)
   $ChatCopyWith<Chat> get copyWith => throw _privateConstructorUsedError;
@@ -29,10 +28,7 @@ abstract class $ChatCopyWith<$Res> {
   factory $ChatCopyWith(Chat value, $Res Function(Chat) then) =
       _$ChatCopyWithImpl<$Res, Chat>;
   @useResult
-  $Res call(
-      {UniqueId id,
-      ParticipantsList participantsList,
-      KtList<Message> messages});
+  $Res call({UniqueId id, ParticipantsList participantsList});
 }
 
 /// @nodoc
@@ -50,7 +46,6 @@ class _$ChatCopyWithImpl<$Res, $Val extends Chat>
   $Res call({
     Object? id = null,
     Object? participantsList = null,
-    Object? messages = null,
   }) {
     return _then(_value.copyWith(
       id: null == id
@@ -61,10 +56,6 @@ class _$ChatCopyWithImpl<$Res, $Val extends Chat>
           ? _value.participantsList
           : participantsList // ignore: cast_nullable_to_non_nullable
               as ParticipantsList,
-      messages: null == messages
-          ? _value.messages
-          : messages // ignore: cast_nullable_to_non_nullable
-              as KtList<Message>,
     ) as $Val);
   }
 }
@@ -76,10 +67,7 @@ abstract class _$$ChatImplCopyWith<$Res> implements $ChatCopyWith<$Res> {
       __$$ChatImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call(
-      {UniqueId id,
-      ParticipantsList participantsList,
-      KtList<Message> messages});
+  $Res call({UniqueId id, ParticipantsList participantsList});
 }
 
 /// @nodoc
@@ -94,7 +82,6 @@ class __$$ChatImplCopyWithImpl<$Res>
   $Res call({
     Object? id = null,
     Object? participantsList = null,
-    Object? messages = null,
   }) {
     return _then(_$ChatImpl(
       id: null == id
@@ -105,10 +92,6 @@ class __$$ChatImplCopyWithImpl<$Res>
           ? _value.participantsList
           : participantsList // ignore: cast_nullable_to_non_nullable
               as ParticipantsList,
-      messages: null == messages
-          ? _value.messages
-          : messages // ignore: cast_nullable_to_non_nullable
-              as KtList<Message>,
     ));
   }
 }
@@ -116,21 +99,16 @@ class __$$ChatImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$ChatImpl implements _Chat {
-  const _$ChatImpl(
-      {required this.id,
-      required this.participantsList,
-      required this.messages});
+  const _$ChatImpl({required this.id, required this.participantsList});
 
   @override
   final UniqueId id;
   @override
   final ParticipantsList participantsList;
-  @override
-  final KtList<Message> messages;
 
   @override
   String toString() {
-    return 'Chat(id: $id, participantsList: $participantsList, messages: $messages)';
+    return 'Chat(id: $id, participantsList: $participantsList)';
   }
 
   @override
@@ -140,13 +118,11 @@ class _$ChatImpl implements _Chat {
             other is _$ChatImpl &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.participantsList, participantsList) ||
-                other.participantsList == participantsList) &&
-            (identical(other.messages, messages) ||
-                other.messages == messages));
+                other.participantsList == participantsList));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, id, participantsList, messages);
+  int get hashCode => Object.hash(runtimeType, id, participantsList);
 
   @JsonKey(ignore: true)
   @override
@@ -158,15 +134,12 @@ class _$ChatImpl implements _Chat {
 abstract class _Chat implements Chat {
   const factory _Chat(
       {required final UniqueId id,
-      required final ParticipantsList participantsList,
-      required final KtList<Message> messages}) = _$ChatImpl;
+      required final ParticipantsList participantsList}) = _$ChatImpl;
 
   @override
   UniqueId get id;
   @override
   ParticipantsList get participantsList;
-  @override
-  KtList<Message> get messages;
   @override
   @JsonKey(ignore: true)
   _$$ChatImplCopyWith<_$ChatImpl> get copyWith =>

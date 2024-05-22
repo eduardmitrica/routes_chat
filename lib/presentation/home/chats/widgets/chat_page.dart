@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/application/chats/chat_bar/chat_bar_bloc.dart';
 import 'package:routes_chat/application/chats/chats_watcher/chats_watcher_bloc.dart';
+import 'package:routes_chat/application/chats/messages/messages_watcher/messages_watcher_bloc.dart';
 import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/injection.dart';
 
@@ -48,13 +49,42 @@ class ChatPage extends StatelessWidget {
                       ),
                     if (chat != null)
                       Expanded(
-                        child: BubbleSpecialThree(
-                          text: chat.messages.first().content.getOrCrash(),
-                          color: const Color(0xFF1B97F3),
-                          tail: false,
-                          textStyle: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16
+                        child: BlocProvider(
+                          create: (_) => getIt<MessagesWatcherBloc>()
+                            ..add(
+                              MessagesWatcherEvent.watchAllStartedForChatWithId(
+                                  chat.id),
+                            ),
+                          child: BlocBuilder<MessagesWatcherBloc,
+                              MessagesWatcherState>(
+                            builder: (context, state) {
+                              return state.map(
+                                initial: (state) => const SizedBox(),
+                                loadInProgress: (state) => const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                                loadSuccess: (state) => ListView.builder(
+                                  itemCount: state.messages.size,
+                                  itemBuilder: (context, index) {
+                                    final message = state.messages[index];
+                                    return BubbleSpecialThree(
+                                      color: Colors.deepPurpleAccent,
+                                      textStyle:
+                                          const TextStyle(color: Colors.white),
+                                      tail: false,
+                                      text: message.content.getOrCrash(),
+                                      isSender: message.senderId.getOrCrash() !=
+                                          user.id.getOrCrash(),
+                                    );
+                                  },
+                                ),
+                                loadFailure: (state) => Center(
+                                  child: Text(
+                                    state.failure.toString(),
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ),
@@ -79,6 +109,10 @@ class ChatPage extends StatelessWidget {
                                 BlocProvider.of<ChatBarBloc>(context).add(
                                     ChatBarEvent.newChatCreated(
                                         [user.id].toImmutableList()));
+                              } else if (value.isNotEmpty) {
+                                BlocProvider.of<ChatBarBloc>(context).add(
+                                    ChatBarEvent.newMessageAddedToChatWithId(
+                                        value, chat.id));
                               }
                             },
                           );

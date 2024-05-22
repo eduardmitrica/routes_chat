@@ -7,8 +7,6 @@ import 'package:routes_chat/domain/chats/chat.dart';
 import 'package:routes_chat/domain/chats/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 
-import 'messages/message_data_transfer_object.dart';
-
 part 'chat_data_transfer_object.freezed.dart';
 
 part 'chat_data_transfer_object.g.dart';
@@ -20,7 +18,6 @@ abstract class ChatDataTransferObject implements _$ChatDataTransferObject {
   const factory ChatDataTransferObject(
           {@JsonKey(includeToJson: false, includeFromJson: false) String? id,
           required List<Map<String, String>> participants,
-          required List<MessageDataTransferObject> messages,
           @ServerTimestampConverter() required FieldValue serverTimeStamp}) =
       _ChatDataTransferObject;
 
@@ -30,8 +27,6 @@ abstract class ChatDataTransferObject implements _$ChatDataTransferObject {
   Chat toDomain() => Chat(
         id: UniqueId.fromUniqueString(id!),
         participantsList: ParticipantsList.fromListOfMaps(participants),
-        messages:
-            messages.map((message) => message.toDomain()).toImmutableList(),
       );
 
   factory ChatDataTransferObject.fromDomain(Chat chat) {
@@ -42,9 +37,6 @@ abstract class ChatDataTransferObject implements _$ChatDataTransferObject {
           .map((participant) => {
                 participant.value1.getOrCrash(): participant.value2.getOrCrash()
               })
-          .asList(),
-      messages: chat.messages
-          .map((message) => MessageDataTransferObject.fromDomain(message))
           .asList(),
       serverTimeStamp: FieldValue.serverTimestamp(),
     );

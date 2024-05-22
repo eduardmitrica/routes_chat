@@ -25,8 +25,6 @@ mixin _$ChatDataTransferObject {
   String? get id => throw _privateConstructorUsedError;
   List<Map<String, String>> get participants =>
       throw _privateConstructorUsedError;
-  List<MessageDataTransferObject> get messages =>
-      throw _privateConstructorUsedError;
   @ServerTimestampConverter()
   FieldValue get serverTimeStamp => throw _privateConstructorUsedError;
 
@@ -45,7 +43,6 @@ abstract class $ChatDataTransferObjectCopyWith<$Res> {
   $Res call(
       {@JsonKey(includeToJson: false, includeFromJson: false) String? id,
       List<Map<String, String>> participants,
-      List<MessageDataTransferObject> messages,
       @ServerTimestampConverter() FieldValue serverTimeStamp});
 }
 
@@ -65,7 +62,6 @@ class _$ChatDataTransferObjectCopyWithImpl<$Res,
   $Res call({
     Object? id = freezed,
     Object? participants = null,
-    Object? messages = null,
     Object? serverTimeStamp = null,
   }) {
     return _then(_value.copyWith(
@@ -77,10 +73,6 @@ class _$ChatDataTransferObjectCopyWithImpl<$Res,
           ? _value.participants
           : participants // ignore: cast_nullable_to_non_nullable
               as List<Map<String, String>>,
-      messages: null == messages
-          ? _value.messages
-          : messages // ignore: cast_nullable_to_non_nullable
-              as List<MessageDataTransferObject>,
       serverTimeStamp: null == serverTimeStamp
           ? _value.serverTimeStamp
           : serverTimeStamp // ignore: cast_nullable_to_non_nullable
@@ -101,7 +93,6 @@ abstract class _$$ChatDataTransferObjectImplCopyWith<$Res>
   $Res call(
       {@JsonKey(includeToJson: false, includeFromJson: false) String? id,
       List<Map<String, String>> participants,
-      List<MessageDataTransferObject> messages,
       @ServerTimestampConverter() FieldValue serverTimeStamp});
 }
 
@@ -120,7 +111,6 @@ class __$$ChatDataTransferObjectImplCopyWithImpl<$Res>
   $Res call({
     Object? id = freezed,
     Object? participants = null,
-    Object? messages = null,
     Object? serverTimeStamp = null,
   }) {
     return _then(_$ChatDataTransferObjectImpl(
@@ -132,10 +122,6 @@ class __$$ChatDataTransferObjectImplCopyWithImpl<$Res>
           ? _value._participants
           : participants // ignore: cast_nullable_to_non_nullable
               as List<Map<String, String>>,
-      messages: null == messages
-          ? _value._messages
-          : messages // ignore: cast_nullable_to_non_nullable
-              as List<MessageDataTransferObject>,
       serverTimeStamp: null == serverTimeStamp
           ? _value.serverTimeStamp
           : serverTimeStamp // ignore: cast_nullable_to_non_nullable
@@ -150,10 +136,8 @@ class _$ChatDataTransferObjectImpl extends _ChatDataTransferObject {
   const _$ChatDataTransferObjectImpl(
       {@JsonKey(includeToJson: false, includeFromJson: false) this.id,
       required final List<Map<String, String>> participants,
-      required final List<MessageDataTransferObject> messages,
       @ServerTimestampConverter() required this.serverTimeStamp})
       : _participants = participants,
-        _messages = messages,
         super._();
 
   factory _$ChatDataTransferObjectImpl.fromJson(Map<String, dynamic> json) =>
@@ -170,21 +154,13 @@ class _$ChatDataTransferObjectImpl extends _ChatDataTransferObject {
     return EqualUnmodifiableListView(_participants);
   }
 
-  final List<MessageDataTransferObject> _messages;
-  @override
-  List<MessageDataTransferObject> get messages {
-    if (_messages is EqualUnmodifiableListView) return _messages;
-    // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_messages);
-  }
-
   @override
   @ServerTimestampConverter()
   final FieldValue serverTimeStamp;
 
   @override
   String toString() {
-    return 'ChatDataTransferObject(id: $id, participants: $participants, messages: $messages, serverTimeStamp: $serverTimeStamp)';
+    return 'ChatDataTransferObject(id: $id, participants: $participants, serverTimeStamp: $serverTimeStamp)';
   }
 
   @override
@@ -195,19 +171,14 @@ class _$ChatDataTransferObjectImpl extends _ChatDataTransferObject {
             (identical(other.id, id) || other.id == id) &&
             const DeepCollectionEquality()
                 .equals(other._participants, _participants) &&
-            const DeepCollectionEquality().equals(other._messages, _messages) &&
             (identical(other.serverTimeStamp, serverTimeStamp) ||
                 other.serverTimeStamp == serverTimeStamp));
   }
 
   @JsonKey(ignore: true)
   @override
-  int get hashCode => Object.hash(
-      runtimeType,
-      id,
-      const DeepCollectionEquality().hash(_participants),
-      const DeepCollectionEquality().hash(_messages),
-      serverTimeStamp);
+  int get hashCode => Object.hash(runtimeType, id,
+      const DeepCollectionEquality().hash(_participants), serverTimeStamp);
 
   @JsonKey(ignore: true)
   @override
@@ -228,7 +199,6 @@ abstract class _ChatDataTransferObject extends ChatDataTransferObject {
   const factory _ChatDataTransferObject(
       {@JsonKey(includeToJson: false, includeFromJson: false) final String? id,
       required final List<Map<String, String>> participants,
-      required final List<MessageDataTransferObject> messages,
       @ServerTimestampConverter()
       required final FieldValue
           serverTimeStamp}) = _$ChatDataTransferObjectImpl;
@@ -242,8 +212,6 @@ abstract class _ChatDataTransferObject extends ChatDataTransferObject {
   String? get id;
   @override
   List<Map<String, String>> get participants;
-  @override
-  List<MessageDataTransferObject> get messages;
   @override
   @ServerTimestampConverter()
   FieldValue get serverTimeStamp;

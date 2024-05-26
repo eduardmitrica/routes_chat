@@ -79,6 +79,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
                 ),
               ),
             ),
+            lastMessage: message,
           );
           failureOrSuccess = await _chatRepository.create(chat, message);
         }

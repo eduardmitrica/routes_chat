@@ -52,13 +52,20 @@ class MessageRepository implements IMessageRepository {
   @override
   Future<Either<MessageFailure, Unit>> addMessageToChatWithId(
       Message message, UniqueId chatId) async {
+    final messageDto = MessageDataTransferObject.fromDomain(message);
+
+    final chatRef = _firestore.collection('chats').doc(chatId.getOrCrash());
+    final messageRef = _firestore
+        .collection('chats')
+        .doc(chatId.getOrCrash())
+        .collection('messages')
+        .doc(message.id.getOrCrash());
     try {
-      await _firestore
-          .collection('chats')
-          .doc(chatId.getOrCrash())
-          .collection('messages')
-          .doc(message.id.getOrCrash())
-          .set(MessageDataTransferObject.fromDomain(message).toJson());
+      await _firestore.runTransaction((transaction) async {
+        transaction.set(messageRef, messageDto.toJson());
+        transaction.update(chatRef, {'lastMessage': messageDto.toJsonWithId()});
+      });
+
       return const Right(unit);
     } on PlatformException catch (exception) {
       if (exception.message!.contains('PERMISSION_DENIED')) {

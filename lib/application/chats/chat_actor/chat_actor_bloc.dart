@@ -11,6 +11,7 @@ import '../../../domain/authentication/authentication_facade_interface.dart';
 import '../../../domain/chats/chat.dart';
 import '../../../domain/chats/chat_repository_interface.dart';
 import '../../../domain/chats/messages/message.dart';
+import '../../../domain/chats/messages/value_objects.dart';
 import '../../../domain/shared/user/user.dart';
 
 part 'chat_actor_event.dart';
@@ -43,17 +44,27 @@ class ChatActorBloc extends Bloc<ChatActorEvent, ChatActorState> {
                 event.otherThanCurrentParticipantIds.toMutableList()
                   ..add(UniqueId.fromUniqueString(userId));
 
+            final message = Message(
+                id: UniqueId(),
+                senderId: UniqueId.fromUniqueString(userId),
+                imageUrls: const KtList.empty(),
+                reactions: const KtList.empty(),
+                content: Content('idk'),
+                repliedMessageId: UniqueId.empty(),
+                lastUpdatedAt: null,
+                isEdited: false);
+
             final chat = Chat(
-              id: UniqueId(),
-              participantsList: ParticipantsList(
-                participantsWithCurrentUserIdIncluded.map(
-                  (participantId) => Tuple2(
-                    participantId,
-                    UniqueId.fromUniqueString('No message seen'),
+                id: UniqueId(),
+                participantsList: ParticipantsList(
+                  participantsWithCurrentUserIdIncluded.map(
+                    (participantId) => Tuple2(
+                      participantId,
+                      UniqueId.fromUniqueString('No message seen'),
+                    ),
                   ),
                 ),
-              ),
-            );
+                lastMessage: message);
             final operationResult =
                 await _chatRepository.create(chat, event.firstMessage);
             emit(operationResult.fold(

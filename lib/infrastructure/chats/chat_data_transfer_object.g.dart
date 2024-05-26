@@ -12,6 +12,8 @@ _$ChatDataTransferObjectImpl _$$ChatDataTransferObjectImplFromJson(
       participants: (json['participants'] as List<dynamic>)
           .map((e) => Map<String, String>.from(e as Map))
           .toList(),
+      lastMessage: const MessageDataTransferObjectConverter()
+          .fromJson(json['lastMessage'] as Map<String, dynamic>),
       serverTimeStamp: const ServerTimestampConverter()
           .fromJson(json['serverTimeStamp'] as Object),
     );
@@ -20,6 +22,8 @@ Map<String, dynamic> _$$ChatDataTransferObjectImplToJson(
         _$ChatDataTransferObjectImpl instance) =>
     <String, dynamic>{
       'participants': instance.participants,
+      'lastMessage': const MessageDataTransferObjectConverter()
+          .toJson(instance.lastMessage),
       'serverTimeStamp':
           const ServerTimestampConverter().toJson(instance.serverTimeStamp),
     };

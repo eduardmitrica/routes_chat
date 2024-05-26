@@ -32,6 +32,8 @@ abstract class MessageDataTransferObject
   factory MessageDataTransferObject.fromJson(Map<String, dynamic> json) =>
       _$MessageDataTransferObjectFromJson(json);
 
+  Map<String, dynamic> toJsonWithId() => toJson()..putIfAbsent('id', () => id);
+
   Message toDomain() => Message(
       id: UniqueId.fromUniqueString(id!),
       senderId: UniqueId.fromUniqueString(senderId),

@@ -18,6 +18,7 @@ final _privateConstructorUsedError = UnsupportedError(
 mixin _$Chat {
   UniqueId get id => throw _privateConstructorUsedError;
   ParticipantsList get participantsList => throw _privateConstructorUsedError;
+  Message get lastMessage => throw _privateConstructorUsedError;
 
   @JsonKey(ignore: true)
   $ChatCopyWith<Chat> get copyWith => throw _privateConstructorUsedError;
@@ -28,7 +29,10 @@ abstract class $ChatCopyWith<$Res> {
   factory $ChatCopyWith(Chat value, $Res Function(Chat) then) =
       _$ChatCopyWithImpl<$Res, Chat>;
   @useResult
-  $Res call({UniqueId id, ParticipantsList participantsList});
+  $Res call(
+      {UniqueId id, ParticipantsList participantsList, Message lastMessage});
+
+  $MessageCopyWith<$Res> get lastMessage;
 }
 
 /// @nodoc
@@ -46,6 +50,7 @@ class _$ChatCopyWithImpl<$Res, $Val extends Chat>
   $Res call({
     Object? id = null,
     Object? participantsList = null,
+    Object? lastMessage = null,
   }) {
     return _then(_value.copyWith(
       id: null == id
@@ -56,7 +61,19 @@ class _$ChatCopyWithImpl<$Res, $Val extends Chat>
           ? _value.participantsList
           : participantsList // ignore: cast_nullable_to_non_nullable
               as ParticipantsList,
+      lastMessage: null == lastMessage
+          ? _value.lastMessage
+          : lastMessage // ignore: cast_nullable_to_non_nullable
+              as Message,
     ) as $Val);
+  }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $MessageCopyWith<$Res> get lastMessage {
+    return $MessageCopyWith<$Res>(_value.lastMessage, (value) {
+      return _then(_value.copyWith(lastMessage: value) as $Val);
+    });
   }
 }
 
@@ -67,7 +84,11 @@ abstract class _$$ChatImplCopyWith<$Res> implements $ChatCopyWith<$Res> {
       __$$ChatImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({UniqueId id, ParticipantsList participantsList});
+  $Res call(
+      {UniqueId id, ParticipantsList participantsList, Message lastMessage});
+
+  @override
+  $MessageCopyWith<$Res> get lastMessage;
 }
 
 /// @nodoc
@@ -82,6 +103,7 @@ class __$$ChatImplCopyWithImpl<$Res>
   $Res call({
     Object? id = null,
     Object? participantsList = null,
+    Object? lastMessage = null,
   }) {
     return _then(_$ChatImpl(
       id: null == id
@@ -92,6 +114,10 @@ class __$$ChatImplCopyWithImpl<$Res>
           ? _value.participantsList
           : participantsList // ignore: cast_nullable_to_non_nullable
               as ParticipantsList,
+      lastMessage: null == lastMessage
+          ? _value.lastMessage
+          : lastMessage // ignore: cast_nullable_to_non_nullable
+              as Message,
     ));
   }
 }
@@ -99,16 +125,21 @@ class __$$ChatImplCopyWithImpl<$Res>
 /// @nodoc
 
 class _$ChatImpl implements _Chat {
-  const _$ChatImpl({required this.id, required this.participantsList});
+  const _$ChatImpl(
+      {required this.id,
+      required this.participantsList,
+      required this.lastMessage});
 
   @override
   final UniqueId id;
   @override
   final ParticipantsList participantsList;
+  @override
+  final Message lastMessage;
 
   @override
   String toString() {
-    return 'Chat(id: $id, participantsList: $participantsList)';
+    return 'Chat(id: $id, participantsList: $participantsList, lastMessage: $lastMessage)';
   }
 
   @override
@@ -118,11 +149,14 @@ class _$ChatImpl implements _Chat {
             other is _$ChatImpl &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.participantsList, participantsList) ||
-                other.participantsList == participantsList));
+                other.participantsList == participantsList) &&
+            (identical(other.lastMessage, lastMessage) ||
+                other.lastMessage == lastMessage));
   }
 
   @override
-  int get hashCode => Object.hash(runtimeType, id, participantsList);
+  int get hashCode =>
+      Object.hash(runtimeType, id, participantsList, lastMessage);
 
   @JsonKey(ignore: true)
   @override
@@ -134,12 +168,15 @@ class _$ChatImpl implements _Chat {
 abstract class _Chat implements Chat {
   const factory _Chat(
       {required final UniqueId id,
-      required final ParticipantsList participantsList}) = _$ChatImpl;
+      required final ParticipantsList participantsList,
+      required final Message lastMessage}) = _$ChatImpl;
 
   @override
   UniqueId get id;
   @override
   ParticipantsList get participantsList;
+  @override
+  Message get lastMessage;
   @override
   @JsonKey(ignore: true)
   _$$ChatImplCopyWith<_$ChatImpl> get copyWith =>

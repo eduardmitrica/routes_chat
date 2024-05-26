@@ -56,18 +56,21 @@ class ChatRepository implements IChatRepository {
   Future<Either<ChatFailure, Unit>> create(
       Chat chat, Message firstMessage) async {
     final chatDto = ChatDataTransferObject.fromDomain(chat);
-    try {
-      await _firestore
-          .collection('chats')
-          .doc(chat.id.getOrCrash())
-          .set(chatDto.toJson());
+    final messageDto = MessageDataTransferObject.fromDomain(firstMessage);
 
-      await _firestore
-          .collection('chats')
-          .doc(chat.id.getOrCrash())
-          .collection('messages')
-          .doc(firstMessage.id.getOrCrash())
-          .set(MessageDataTransferObject.fromDomain(firstMessage).toJson());
+    final chatsRef = _firestore.collection('chats').doc(chat.id.getOrCrash());
+    final messageRef = _firestore
+        .collection('chats')
+        .doc(chat.id.getOrCrash())
+        .collection('messages')
+        .doc(firstMessage.id.getOrCrash());
+    try {
+      await _firestore.runTransaction((transaction) async {
+        //TODO: Check if chat with these participants exists, if it doesn't
+        // then continue, else update the chat and set the message
+        transaction.set(chatsRef, chatDto.toJson());
+        transaction.set(messageRef, messageDto.toJson());
+      });
 
       return const Right(unit);
     } on PlatformException catch (exception) {

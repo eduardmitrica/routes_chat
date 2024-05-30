@@ -22,12 +22,42 @@ class FriendRequestRepository implements IFriendRequestsRepository {
   @override
   Future<Either<FriendRequestFailure, Unit>> create(
       FriendRequest friendRequest) async {
+    final friendRequestDto =
+        FriendRequestDataTransferObject.fromDomain(friendRequest);
+
+    final friendRequestRef = _firestore
+        .collection('friendRequests')
+        .doc(friendRequest.id.getOrCrash());
+
+    final matchingPendingFriendRequestRef = _firestore
+        .collection('friendRequests')
+        .where('senderId', isEqualTo: friendRequestDto.senderId)
+        .where('receiverId', isEqualTo: friendRequestDto.receiverId);
+    final matchingReceivingFriendRequestRef = _firestore
+        .collection('friendRequests')
+        .where('senderId', isEqualTo: friendRequestDto.receiverId)
+        .where('receiverId', isEqualTo: friendRequestDto.senderId);
     try {
-      await _firestore
-          .collection('friendRequests')
-          .doc(friendRequest.id.getOrCrash())
-          .set(FriendRequestDataTransferObject.fromDomain(friendRequest)
-              .toJson());
+      await _firestore.runTransaction((transaction) async {
+        final pendingFriendsRequestsMatchResult =
+            await matchingPendingFriendRequestRef.get();
+        final receivingFriendsRequestsMatchResult =
+            await matchingReceivingFriendRequestRef.get();
+
+        DocumentReference? foundFriendRequestRef;
+        if (pendingFriendsRequestsMatchResult.docs.isNotEmpty) {
+          foundFriendRequestRef =
+              pendingFriendsRequestsMatchResult.docs.first.reference;
+        }
+        if (receivingFriendsRequestsMatchResult.docs.isNotEmpty) {
+          foundFriendRequestRef =
+              receivingFriendsRequestsMatchResult.docs.first.reference;
+        }
+
+        if (foundFriendRequestRef == null) {
+          transaction.set(friendRequestRef, friendRequestDto.toJson());
+        }
+      });
       return const Right(unit);
     } on PlatformException catch (exception) {
       if (exception.message!.contains('PERMISSION_DENIED')) {

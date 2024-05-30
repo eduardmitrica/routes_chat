@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/services.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/chat.dart';
@@ -58,18 +59,53 @@ class ChatRepository implements IChatRepository {
     final chatDto = ChatDataTransferObject.fromDomain(chat);
     final messageDto = MessageDataTransferObject.fromDomain(firstMessage);
 
-    final chatsRef = _firestore.collection('chats').doc(chat.id.getOrCrash());
+    final chatRef = _firestore.collection('chats').doc(chat.id.getOrCrash());
     final messageRef = _firestore
         .collection('chats')
         .doc(chat.id.getOrCrash())
         .collection('messages')
         .doc(firstMessage.id.getOrCrash());
+
+    final chatsOfCurrentUserRef = _firestore
+        .collection('chats')
+        .where('participants', whereIn: chatDto.participants);
     try {
       await _firestore.runTransaction((transaction) async {
-        //TODO: Check if chat with these participants exists, if it doesn't
-        // then continue, else update the chat and set the message
-        transaction.set(chatsRef, chatDto.toJson());
-        transaction.set(messageRef, messageDto.toJson());
+        final chatsOfCurrentUser = await chatsOfCurrentUserRef.get();
+        final chatsThatMatchTheChatDtoParticipants =
+            chatsOfCurrentUser.docs.where((chat) {
+          final chatParticipants = (chat.data()['participants']
+              as List<Map<String, String>>)
+            ..sort((first, second) =>
+                first.keys.first.compareTo(second.keys.first));
+
+          final pendingChatParticipants = chatDto.participants;
+          pendingChatParticipants.sort(
+              (first, second) => first.keys.first.compareTo(second.keys.first));
+          return const DeepCollectionEquality()
+              .equals(chatParticipants, pendingChatParticipants);
+        });
+
+        DocumentReference? existingChatRef;
+        if (chatsThatMatchTheChatDtoParticipants.isNotEmpty) {
+          existingChatRef =
+              chatsThatMatchTheChatDtoParticipants.first.reference;
+        }
+
+        if (existingChatRef != null) {
+          final chatWithTheSpecifiedParticipants =
+              await transaction.get(existingChatRef);
+          if (chatWithTheSpecifiedParticipants.exists == false) {
+            transaction.set(chatRef, chatDto.toJson());
+            transaction.set(messageRef, messageDto.toJson());
+          } else {
+            transaction.update(chatRef, chatDto.toJson());
+            transaction.set(messageRef, messageDto.toJson());
+          }
+        } else {
+          transaction.set(chatRef, chatDto.toJson());
+          transaction.set(messageRef, messageDto.toJson());
+        }
       });
 
       return const Right(unit);

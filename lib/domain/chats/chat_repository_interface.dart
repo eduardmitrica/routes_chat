@@ -8,5 +8,4 @@ import 'messages/message.dart';
 abstract interface class IChatRepository {
   Stream<Either<ChatFailure, KtList<Chat>>> watchAllForCurrentUser();
   Future<Either<ChatFailure, Unit>> create(Chat chat, Message message);
-  Future<Either<ChatFailure, Unit>> update(Chat chat);
 }

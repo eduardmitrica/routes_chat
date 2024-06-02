@@ -37,7 +37,7 @@ class ReceivedFriendRequestsTabBody extends StatelessWidget {
                         if (friendRequest.failureOption.isSome()) {
                           return ListTile(
                             key: UniqueKey(),
-                            title: const Text('Fucked up'),
+                            title: const Text('Error occurred'),
                           );
                         } else {
                           return ListTile(

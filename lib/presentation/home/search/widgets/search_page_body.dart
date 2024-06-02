@@ -74,12 +74,19 @@ class SearchPageBody extends StatelessWidget {
                   height: 20.0,
                 ),
                 ElevatedButton(
-                  onPressed: () =>
-                      BlocProvider.of<FriendRequestActorBloc>(context).add(
-                    FriendRequestActorEvent.sent(searchController.text),
-                  ),
+                  onPressed: state.maybeMap(
+                          actionInProgress: (state) => true,
+                          orElse: () => false)
+                      ? null
+                      : () =>
+                          BlocProvider.of<FriendRequestActorBloc>(context).add(
+                            FriendRequestActorEvent.sent(searchController.text),
+                          ),
                   child: const Text('Send friend request'),
-                )
+                ),
+                state.maybeMap(
+                    actionInProgress: (_) => const LinearProgressIndicator(),
+                    orElse: () => const SizedBox()),
               ],
             ),
           ),

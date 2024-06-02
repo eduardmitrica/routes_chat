@@ -6,13 +6,13 @@ import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/chat_failure.dart';
 import 'package:routes_chat/domain/chats/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
+import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
 
-import '../../../domain/authentication/authentication_facade_interface.dart';
 import '../../../domain/chats/chat.dart';
 import '../../../domain/chats/chat_repository_interface.dart';
 import '../../../domain/chats/messages/message.dart';
 import '../../../domain/chats/messages/value_objects.dart';
-import '../../../domain/shared/user/user.dart';
+import '../../../injection.dart';
 
 part 'chat_actor_event.dart';
 
@@ -23,18 +23,14 @@ part 'chat_actor_bloc.freezed.dart';
 @injectable
 class ChatActorBloc extends Bloc<ChatActorEvent, ChatActorState> {
   final IChatRepository _chatRepository;
-  final IAuthFacade _authFacade;
   var userId = '';
 
-  ChatActorBloc(this._chatRepository, this._authFacade)
+  ChatActorBloc(this._chatRepository)
       : super(const ChatActorState.initial()) {
     on<ChatActorEvent>(
       (event, emit) async {
         if (userId.isEmpty) {
-          userId = (await _authFacade.getSignedInUser())
-              .getOrElse(() => User.empty())
-              .id
-              .getOrCrash();
+          userId = getIt<CurrentUseInformationPersistent>().id;
         }
 
         await event.map(

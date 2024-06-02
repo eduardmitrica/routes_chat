@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
-import 'package:flutter/services.dart';
 import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
 
@@ -40,8 +39,8 @@ class MessageRepository implements IMessageRepository {
               messages.toImmutableList()),
         )
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is PlatformException &&
-          exception.message!.contains('PERMISSION_DENIED')) {
+      if (exception is FirebaseException &&
+          exception.code.contains('permission-denied')) {
         return left(InsufficientPermissions());
       } else {
         return left(Unexpected());
@@ -67,8 +66,8 @@ class MessageRepository implements IMessageRepository {
       });
 
       return const Right(unit);
-    } on PlatformException catch (exception) {
-      if (exception.message!.contains('PERMISSION_DENIED')) {
+    } on FirebaseException catch (exception) {
+      if (exception.code.contains('permission-denied')) {
         return Left(InsufficientPermissions());
       } else {
         return Left(Unexpected());

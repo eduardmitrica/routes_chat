@@ -29,7 +29,7 @@ mixin _$MessageDataTransferObject {
   String get content => throw _privateConstructorUsedError;
   String get repliedMessageId => throw _privateConstructorUsedError;
   bool get isEdited => throw _privateConstructorUsedError;
-  @JsonKey(includeToJson: false, includeFromJson: true)
+  @JsonKey(includeToJson: false, includeFromJson: false)
   DateTime? get timeStamp => throw _privateConstructorUsedError;
   @ServerTimestampConverter()
   FieldValue get serverTimeStamp => throw _privateConstructorUsedError;
@@ -54,7 +54,8 @@ abstract class $MessageDataTransferObjectCopyWith<$Res> {
       String content,
       String repliedMessageId,
       bool isEdited,
-      @JsonKey(includeToJson: false, includeFromJson: true) DateTime? timeStamp,
+      @JsonKey(includeToJson: false, includeFromJson: false)
+      DateTime? timeStamp,
       @ServerTimestampConverter() FieldValue serverTimeStamp});
 }
 
@@ -140,7 +141,8 @@ abstract class _$$MessageDataTransferObjectImplCopyWith<$Res>
       String content,
       String repliedMessageId,
       bool isEdited,
-      @JsonKey(includeToJson: false, includeFromJson: true) DateTime? timeStamp,
+      @JsonKey(includeToJson: false, includeFromJson: false)
+      DateTime? timeStamp,
       @ServerTimestampConverter() FieldValue serverTimeStamp});
 }
 
@@ -219,7 +221,7 @@ class _$MessageDataTransferObjectImpl extends _MessageDataTransferObject {
       required this.content,
       required this.repliedMessageId,
       required this.isEdited,
-      @JsonKey(includeToJson: false, includeFromJson: true) this.timeStamp,
+      @JsonKey(includeToJson: false, includeFromJson: false) this.timeStamp,
       @ServerTimestampConverter() required this.serverTimeStamp})
       : _imageUrls = imageUrls,
         _reactions = reactions,
@@ -256,7 +258,7 @@ class _$MessageDataTransferObjectImpl extends _MessageDataTransferObject {
   @override
   final bool isEdited;
   @override
-  @JsonKey(includeToJson: false, includeFromJson: true)
+  @JsonKey(includeToJson: false, includeFromJson: false)
   final DateTime? timeStamp;
   @override
   @ServerTimestampConverter()
@@ -328,7 +330,7 @@ abstract class _MessageDataTransferObject extends MessageDataTransferObject {
       required final String content,
       required final String repliedMessageId,
       required final bool isEdited,
-      @JsonKey(includeToJson: false, includeFromJson: true)
+      @JsonKey(includeToJson: false, includeFromJson: false)
       final DateTime? timeStamp,
       @ServerTimestampConverter()
       required final FieldValue
@@ -354,7 +356,7 @@ abstract class _MessageDataTransferObject extends MessageDataTransferObject {
   @override
   bool get isEdited;
   @override
-  @JsonKey(includeToJson: false, includeFromJson: true)
+  @JsonKey(includeToJson: false, includeFromJson: false)
   DateTime? get timeStamp;
   @override
   @ServerTimestampConverter()

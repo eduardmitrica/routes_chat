@@ -25,7 +25,7 @@ abstract class MessageDataTransferObject
       required String content,
       required String repliedMessageId,
       required bool isEdited,
-      @JsonKey(includeToJson: false, includeFromJson: true) DateTime? timeStamp,
+      @JsonKey(includeToJson: false, includeFromJson: false) DateTime? timeStamp,
       @ServerTimestampConverter()
       required FieldValue serverTimeStamp}) = _MessageDataTransferObject;
 

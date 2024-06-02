@@ -15,37 +15,37 @@ import 'package:get_it/get_it.dart' as _i1;
 import 'package:google_sign_in/google_sign_in.dart' as _i3;
 import 'package:injectable/injectable.dart' as _i2;
 
-import 'application/authentication/authentication_bloc.dart' as _i20;
+import 'application/authentication/authentication_bloc.dart' as _i19;
 import 'application/authentication/register_form/register_form_bloc.dart'
-    as _i21;
-import 'application/authentication/sign_in_form/sign_in_form_bloc.dart' as _i22;
-import 'application/chats/chat_actor/chat_actor_bloc.dart' as _i29;
-import 'application/chats/chat_bar/chat_bar_bloc.dart' as _i33;
-import 'application/chats/chats_watcher/chats_watcher_bloc.dart' as _i28;
-import 'application/chats/friends_watcher/friends_watcher_bloc.dart' as _i30;
+    as _i20;
+import 'application/authentication/sign_in_form/sign_in_form_bloc.dart' as _i21;
+import 'application/chats/chat_actor/chat_actor_bloc.dart' as _i24;
+import 'application/chats/chat_bar/chat_bar_bloc.dart' as _i30;
+import 'application/chats/chats_watcher/chats_watcher_bloc.dart' as _i23;
+import 'application/chats/friends_watcher/friends_watcher_bloc.dart' as _i31;
 import 'application/chats/messages/messages_watcher/messages_watcher_bloc.dart'
-    as _i27;
+    as _i28;
 import 'application/friend_requests/friend_request_actor/friend_request_actor_bloc.dart'
-    as _i17;
+    as _i29;
 import 'application/friend_requests/pending_friend_requests_watcher/pending_friend_requests_watcher_bloc.dart'
-    as _i31;
-import 'application/friend_requests/received_friend_requests_watcher/received_friend_requests_watcher_bloc.dart'
     as _i32;
+import 'application/friend_requests/received_friend_requests_watcher/received_friend_requests_watcher_bloc.dart'
+    as _i33;
 import 'application/shared/picture_placeholder_fetcher/placeholder_fetcher_bloc.dart'
-    as _i23;
-import 'application/shared/users_watcher/users_watcher_bloc.dart' as _i24;
-import 'application/user/user_form/user_form_bloc.dart' as _i25;
-import 'application/user/user_watcher/user_watcher_bloc.dart' as _i26;
+    as _i22;
+import 'application/shared/users_watcher/users_watcher_bloc.dart' as _i25;
+import 'application/user/user_form/user_form_bloc.dart' as _i26;
+import 'application/user/user_watcher/user_watcher_bloc.dart' as _i27;
 import 'domain/authentication/authentication_facade_interface.dart' as _i15;
 import 'domain/chats/chat_repository_interface.dart' as _i11;
-import 'domain/chats/messages/message_repository_interface.dart' as _i18;
+import 'domain/chats/messages/message_repository_interface.dart' as _i17;
 import 'domain/friend_requests/friend_requests_repository_interface.dart'
     as _i13;
 import 'domain/shared/user/user_repository_interface.dart' as _i9;
 import 'domain/shared/user/user_utils_interface.dart' as _i7;
 import 'infrastructure/authentication/authentication_facade.dart' as _i16;
 import 'infrastructure/chats/chat_repository.dart' as _i12;
-import 'infrastructure/chats/messages/message_repository.dart' as _i19;
+import 'infrastructure/chats/messages/message_repository.dart' as _i18;
 import 'infrastructure/core/firebase_injectable_module.dart' as _i34;
 import 'infrastructure/friend_requests/friend_request_repository.dart' as _i14;
 import 'infrastructure/shared/user/user_repository.dart' as _i10;
@@ -84,52 +84,44 @@ extension GetItInjectableX on _i1.GetIt {
           gh<_i5.FirebaseFirestore>(),
           gh<_i6.FirebaseStorage>(),
         ));
-    gh.factory<_i17.FriendRequestActorBloc>(() => _i17.FriendRequestActorBloc(
+    gh.lazySingleton<_i17.IMessageRepository>(
+        () => _i18.MessageRepository(gh<_i5.FirebaseFirestore>()));
+    gh.factory<_i19.AuthenticationBloc>(
+        () => _i19.AuthenticationBloc(gh<_i15.IAuthFacade>()));
+    gh.factory<_i20.RegisterFormBloc>(
+        () => _i20.RegisterFormBloc(gh<_i15.IAuthFacade>()));
+    gh.factory<_i21.SignInFormBloc>(
+        () => _i21.SignInFormBloc(gh<_i15.IAuthFacade>()));
+    gh.factory<_i22.PlaceholderFetcherBloc>(
+        () => _i22.PlaceholderFetcherBloc(gh<_i15.IAuthFacade>()));
+    gh.factory<_i23.ChatsWatcherBloc>(
+        () => _i23.ChatsWatcherBloc(gh<_i11.IChatRepository>()));
+    gh.factory<_i24.ChatActorBloc>(
+        () => _i24.ChatActorBloc(gh<_i11.IChatRepository>()));
+    gh.factory<_i25.UsersWatcherBloc>(
+        () => _i25.UsersWatcherBloc(gh<_i9.IUserRepository>()));
+    gh.factory<_i26.UserFormBloc>(
+        () => _i26.UserFormBloc(gh<_i9.IUserRepository>()));
+    gh.factory<_i27.UserWatcherBloc>(
+        () => _i27.UserWatcherBloc(gh<_i9.IUserRepository>()));
+    gh.factory<_i28.MessagesWatcherBloc>(
+        () => _i28.MessagesWatcherBloc(gh<_i17.IMessageRepository>()));
+    gh.factory<_i29.FriendRequestActorBloc>(() => _i29.FriendRequestActorBloc(
           gh<_i13.IFriendRequestsRepository>(),
           gh<_i9.IUserRepository>(),
-          gh<_i15.IAuthFacade>(),
         ));
-    gh.lazySingleton<_i18.IMessageRepository>(
-        () => _i19.MessageRepository(gh<_i5.FirebaseFirestore>()));
-    gh.factory<_i20.AuthenticationBloc>(
-        () => _i20.AuthenticationBloc(gh<_i15.IAuthFacade>()));
-    gh.factory<_i21.RegisterFormBloc>(
-        () => _i21.RegisterFormBloc(gh<_i15.IAuthFacade>()));
-    gh.factory<_i22.SignInFormBloc>(
-        () => _i22.SignInFormBloc(gh<_i15.IAuthFacade>()));
-    gh.factory<_i23.PlaceholderFetcherBloc>(
-        () => _i23.PlaceholderFetcherBloc(gh<_i15.IAuthFacade>()));
-    gh.factory<_i24.UsersWatcherBloc>(
-        () => _i24.UsersWatcherBloc(gh<_i9.IUserRepository>()));
-    gh.factory<_i25.UserFormBloc>(
-        () => _i25.UserFormBloc(gh<_i9.IUserRepository>()));
-    gh.factory<_i26.UserWatcherBloc>(
-        () => _i26.UserWatcherBloc(gh<_i9.IUserRepository>()));
-    gh.factory<_i27.MessagesWatcherBloc>(
-        () => _i27.MessagesWatcherBloc(gh<_i18.IMessageRepository>()));
-    gh.factory<_i28.ChatsWatcherBloc>(() => _i28.ChatsWatcherBloc(
+    gh.factory<_i30.ChatBarBloc>(() => _i30.ChatBarBloc(
           gh<_i11.IChatRepository>(),
-          gh<_i15.IAuthFacade>(),
+          gh<_i17.IMessageRepository>(),
         ));
-    gh.factory<_i29.ChatActorBloc>(() => _i29.ChatActorBloc(
-          gh<_i11.IChatRepository>(),
-          gh<_i15.IAuthFacade>(),
-        ));
-    gh.factory<_i30.FriendsWatcherBloc>(() => _i30.FriendsWatcherBloc(
-          gh<_i13.IFriendRequestsRepository>(),
-          gh<_i15.IAuthFacade>(),
-        ));
-    gh.factory<_i31.PendingFriendRequestsWatcherBloc>(() =>
-        _i31.PendingFriendRequestsWatcherBloc(
+    gh.factory<_i31.FriendsWatcherBloc>(
+        () => _i31.FriendsWatcherBloc(gh<_i13.IFriendRequestsRepository>()));
+    gh.factory<_i32.PendingFriendRequestsWatcherBloc>(() =>
+        _i32.PendingFriendRequestsWatcherBloc(
             gh<_i13.IFriendRequestsRepository>()));
-    gh.factory<_i32.ReceivedFriendRequestsWatcherBloc>(() =>
-        _i32.ReceivedFriendRequestsWatcherBloc(
+    gh.factory<_i33.ReceivedFriendRequestsWatcherBloc>(() =>
+        _i33.ReceivedFriendRequestsWatcherBloc(
             gh<_i13.IFriendRequestsRepository>()));
-    gh.factory<_i33.ChatBarBloc>(() => _i33.ChatBarBloc(
-          gh<_i11.IChatRepository>(),
-          gh<_i15.IAuthFacade>(),
-          gh<_i18.IMessageRepository>(),
-        ));
     return this;
   }
 }

@@ -7,11 +7,11 @@ import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/chat_failure.dart';
 import 'package:routes_chat/domain/chats/chat_repository_interface.dart';
+import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
+import 'package:routes_chat/injection.dart';
 
-import '../../../domain/authentication/authentication_facade_interface.dart';
 import '../../../domain/chats/chat.dart';
 import '../../../domain/core/value_objects.dart';
-import '../../../domain/shared/user/user.dart';
 
 part 'chats_watcher_event.dart';
 
@@ -23,16 +23,15 @@ part 'chats_watcher_bloc.freezed.dart';
 class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
   final IChatRepository _chatRepository;
 
-  final IAuthFacade _authFacade;
   var userId = '';
 
   StreamSubscription<Either<ChatFailure, KtList<Chat>>>? _chatsSubscription;
 
-  ChatsWatcherBloc(this._chatRepository, this._authFacade)
+  ChatsWatcherBloc(this._chatRepository)
       : super(const ChatsWatcherState.initial()) {
     on<ChatsWatcherEvent>(
-      (event, emit) async {
-        await event.map(
+      (event, emit) {
+        event.map(
           watchAllStarted: (event) {
             emit(const ChatsWatcherState.loadInProgress());
             _chatsSubscription = _chatRepository
@@ -43,11 +42,10 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
                   ),
                 );
           },
-          chatsReceived: (event) async {
+          chatsReceived: (event) {
             if (userId.isEmpty) {
-              final userOption = await _authFacade.getSignedInUser();
-              final user = userOption.getOrElse(() => User.empty());
-              userId = user.id.getOrCrash();
+              final fetchedUserId = getIt<CurrentUseInformationPersistent>().id;
+              userId = fetchedUserId;
             }
             emit(
               event.failureOrFriendRequests.fold(
@@ -73,6 +71,11 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
         );
       },
     );
+  }
+
+  Future<void> refreshSubscription() async {
+    _chatsSubscription?.cancel();
+    add(const ChatsWatcherEvent.watchAllStarted());
   }
 
   @override

@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:dartz/dartz.dart';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:injectable/injectable.dart';
@@ -13,8 +12,10 @@ import 'package:routes_chat/domain/authentication/authentication_facade_interfac
 import 'package:routes_chat/domain/authentication/registration_failure.dart'
     as registration_failure;
 import 'package:routes_chat/domain/authentication/sign_in_failure.dart';
+import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/user.dart' as domain_user;
 import 'package:routes_chat/infrastructure/shared/user/firebase_user_mapper.dart';
+import 'package:routes_chat/infrastructure/shared/user/user_data_transfer_object.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../domain/shared/user/user_utils_interface.dart';
@@ -55,29 +56,34 @@ class AuthFacade implements IAuthFacade {
             .child('user_images')
             .child('${userCredentials.user!.uid}.jpg');
 
-        await storageRef.putFile(File(imagePathString)).whenComplete(() async {
-          final imageUrl = await storageRef.getDownloadURL();
-
-          await _firebaseFirestore
-              .collection('users')
-              .doc(userCredentials.user!.uid)
-              .set({
-            'emailAddress': emailAddressString,
-            'username': usernameString,
-            'imageUrl': imageUrl,
-            'description': descriptionString,
-          });
-        });
+        await storageRef.putFile(File(imagePathString)).whenComplete(
+          () async {
+            final imageUrl = await storageRef.getDownloadURL();
+            final user = domain_user.User(
+              id: UniqueId.fromUniqueString(userCredentials.user!.uid),
+              emailAddress: EmailAddress(emailAddressString),
+              imageUrl: ImageUrl(imageUrl),
+              username: Username(usernameString),
+              description: Description(descriptionString),
+            );
+            await _firebaseFirestore
+                .collection('users')
+                .doc(userCredentials.user!.uid)
+                .set(UserDataTransferObject.fromDomain(user).toJson());
+          },
+        );
       } else {
+        final user = domain_user.User(
+          id: UniqueId.fromUniqueString(userCredentials.user!.uid),
+          emailAddress: EmailAddress(emailAddressString),
+          imageUrl: ImageUrl(imagePathString),
+          username: Username(usernameString),
+          description: Description(descriptionString),
+        );
         await _firebaseFirestore
             .collection('users')
             .doc(userCredentials.user!.uid)
-            .set({
-          'emailAddress': emailAddressString,
-          'username': usernameString,
-          'imageUrl': imagePathString,
-          'description': descriptionString,
-        });
+            .set(UserDataTransferObject.fromDomain(user).toJson());
       }
 
       return const Right(unit);
@@ -139,37 +145,44 @@ class AuthFacade implements IAuthFacade {
             Username(generatedUsername.substring(generatedUsername.length - 12))
                 .getOrCrash();
         final descriptionString = Description('').getOrCrash();
+        final user = domain_user.User(
+          id: UniqueId.fromUniqueString(userCredentials.user!.uid),
+          emailAddress: EmailAddress(emailAddressString),
+          imageUrl: ImageUrl(imageUrlString),
+          username: Username(usernameString),
+          description: Description(descriptionString),
+        );
 
         await _firebaseFirestore
             .collection('users')
             .doc(userCredentials.user!.uid)
-            .set({
-          'emailAddress': emailAddressString,
-          'username': usernameString,
-          'imageUrl': imageUrlString,
-          'description': descriptionString,
-        });
+            .set(UserDataTransferObject.fromDomain(user).toJson());
+
         return Right(EmailAddress(emailAddressString));
       } else {
         await _googleSignIn.signOut();
         return Left(registration_failure.UserAlreadyRegistered());
       }
-    } on FirebaseAuthException catch (_) {
-      await _googleSignIn.signOut();
-      return Left(registration_failure.ServerError());
-    } on PlatformException catch (error) {
+    } on FirebaseAuthException catch (error) {
       if (error.code == 'sign_in_failed') {
         return Left(registration_failure.SignInWithGoogleFailed());
       } else {
         return Left(registration_failure.GoogleError());
       }
+    } on FirebaseException catch (_) {
+      await _googleSignIn.signOut();
+      return Left(registration_failure.ServerError());
     }
   }
 
   @override
   Future<Option<domain_user.User>> getSignedInUser() async {
-    return optionOf(
-        await _firebaseAuth.currentUser?.toDomain(_firebaseFirestore));
+    final user = await _firebaseAuth.currentUser?.toDomain(_firebaseFirestore);
+    if (user != null && user.emailAddress.isValid()) {
+      return optionOf(user);
+    } else {
+      return none();
+    }
   }
 
   @override
@@ -210,15 +223,15 @@ class AuthFacade implements IAuthFacade {
         await _googleSignIn.signOut();
         return Left(InvalidUser());
       }
-    } on FirebaseAuthException catch (_) {
-      await _googleSignIn.signOut();
-      return Left(ServerError());
-    } on PlatformException catch (error) {
+    } on FirebaseAuthException catch (error) {
       if (error.code == 'sign_in_failed') {
         return Left(SignInFailed());
       } else {
         return Left(GoogleError());
       }
+    } on FirebaseException catch (_) {
+      await _googleSignIn.signOut();
+      return Left(ServerError());
     }
   }
 }

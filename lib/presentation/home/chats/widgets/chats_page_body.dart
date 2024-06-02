@@ -31,7 +31,10 @@ class ChatsPageBody extends StatelessWidget {
                   height: 20,
                 ),
                 Expanded(
-                  child: ChatsList(state.chats),
+                  child: ChatsList(
+                      state.chats,
+                      BlocProvider.of<ChatsWatcherBloc>(context)
+                          .refreshSubscription),
                 ),
               ],
             ),

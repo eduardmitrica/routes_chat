@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/services.dart';
 import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
 
@@ -29,7 +28,7 @@ class UserFacade implements IUserRepository {
 
   @override
   Stream<Either<UserFailure, User>> watch() async* {
-    final userDocument = await _firestore.userDocument;
+    final userDocument = _firestore.userDocument;
     yield* userDocument
         .snapshots()
         .map((snapshot) => right<UserFailure, User>(
@@ -37,8 +36,8 @@ class UserFacade implements IUserRepository {
                     snapshot as DocumentSnapshot<Map<String, dynamic>>)
                 .toDomain()))
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is PlatformException &&
-          exception.message!.contains('PERMISSION_DENIED')) {
+      if (exception is FirebaseException &&
+          exception.code.contains('permission-denied')) {
         return left(InsufficientPermission());
       } else {
         return left(Unexpected());
@@ -49,7 +48,7 @@ class UserFacade implements IUserRepository {
   @override
   Future<Either<UserFailure, Unit>> update(User user) async {
     try {
-      final userDocument = await _firestore.userDocument;
+      final userDocument = _firestore.userDocument;
 
       await user.imageUrl.value.fold((failure) async {
         final storageRef = _firebaseStorage
@@ -72,10 +71,10 @@ class UserFacade implements IUserRepository {
         await userDocument.update(userDto.toJson());
       });
       return const Right(unit);
-    } on PlatformException catch (exception) {
-      if (exception.message!.contains('PERMISSION_DENIED')) {
+    } on FirebaseException catch (exception) {
+      if (exception.code.contains('permission-denied')) {
         return Left(InsufficientPermission());
-      } else if (exception.message!.contains('NOT_FOUND')) {
+      } else if (exception.code.contains('not-found')) {
         return Left(UnableToUpdate());
       } else {
         return Left(Unexpected());
@@ -122,8 +121,8 @@ class UserFacade implements IUserRepository {
           ),
         )
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is PlatformException &&
-          exception.message!.contains('PERMISSION_DENIED')) {
+      if (exception is FirebaseException &&
+          exception.code.contains('permission-denied')) {
         return left(InsufficientPermission());
       } else {
         return left(Unexpected());

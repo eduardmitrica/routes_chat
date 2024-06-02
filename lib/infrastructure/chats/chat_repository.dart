@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
-import 'package:flutter/services.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
@@ -22,7 +21,7 @@ class ChatRepository implements IChatRepository {
 
   @override
   Stream<Either<ChatFailure, KtList<Chat>>> watchAllForCurrentUser() async* {
-    final userDocument = await _firestore.userDocument;
+    final userDocument = _firestore.userDocument;
     yield* _firestore
         .collection('chats')
         .orderBy('serverTimeStamp', descending: true)
@@ -44,8 +43,8 @@ class ChatRepository implements IChatRepository {
           ),
         )
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is PlatformException &&
-          exception.message!.contains('PERMISSION_DENIED')) {
+      if (exception is FirebaseException &&
+          exception.code.contains('permission-denied')) {
         return left(InsufficientPermissions());
       } else {
         return left(Unexpected());
@@ -109,25 +108,8 @@ class ChatRepository implements IChatRepository {
       });
 
       return const Right(unit);
-    } on PlatformException catch (exception) {
-      if (exception.message!.contains('PERMISSION_DENIED')) {
-        return Left(InsufficientPermissions());
-      } else {
-        return Left(Unexpected());
-      }
-    }
-  }
-
-  @override
-  Future<Either<ChatFailure, Unit>> update(Chat chat) async {
-    try {
-      await _firestore
-          .collection('chats')
-          .doc(chat.id.getOrCrash())
-          .update(ChatDataTransferObject.fromDomain(chat).toJson());
-      return const Right(unit);
-    } on PlatformException catch (exception) {
-      if (exception.message!.contains('PERMISSION_DENIED')) {
+    } on FirebaseException catch (exception) {
+      if (exception.code.contains('permission-denied')) {
         return Left(InsufficientPermissions());
       } else {
         return Left(Unexpected());

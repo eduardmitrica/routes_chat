@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
-import 'package:flutter/services.dart';
 import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
@@ -59,8 +58,8 @@ class FriendRequestRepository implements IFriendRequestsRepository {
         }
       });
       return const Right(unit);
-    } on PlatformException catch (exception) {
-      if (exception.message!.contains('PERMISSION_DENIED')) {
+    } on FirebaseException catch (exception) {
+      if (exception.code.contains('permission-denied')) {
         return Left(InsufficientPermissions());
       } else {
         return Left(Unexpected());
@@ -77,8 +76,8 @@ class FriendRequestRepository implements IFriendRequestsRepository {
           .doc(friendRequest.id.getOrCrash())
           .delete();
       return const Right(unit);
-    } on PlatformException catch (exception) {
-      if (exception.message!.contains('PERMISSION_DENIED')) {
+    } on FirebaseException catch (exception) {
+      if (exception.code.contains('permission-denied')) {
         return Left(InsufficientPermissions());
       } else {
         return Left(Unexpected());
@@ -96,8 +95,8 @@ class FriendRequestRepository implements IFriendRequestsRepository {
           .update(FriendRequestDataTransferObject.fromDomain(friendRequest)
               .toJson());
       return const Right(unit);
-    } on PlatformException catch (exception) {
-      if (exception.message!.contains('PERMISSION_DENIED')) {
+    } on FirebaseException catch (exception) {
+      if (exception.code.contains('permission-denied')) {
         return Left(InsufficientPermissions());
       } else {
         return Left(Unexpected());
@@ -122,8 +121,8 @@ class FriendRequestRepository implements IFriendRequestsRepository {
       } else {
         return Left(NotFound());
       }
-    } on PlatformException catch (exception) {
-      if (exception.message!.contains('PERMISSION_DENIED')) {
+    } on FirebaseException catch (exception) {
+      if (exception.code.contains('permission-denied')) {
         return Left(InsufficientPermissions());
       } else {
         return Left(Unexpected());
@@ -134,7 +133,7 @@ class FriendRequestRepository implements IFriendRequestsRepository {
   @override
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
       watchPendingFromCurrentUser() async* {
-    final userDocument = await _firestore.userDocument;
+    final userDocument = _firestore.userDocument;
     yield* _firestore
         .collection('friendRequests')
         .orderBy('serverTimeStamp', descending: true)
@@ -158,8 +157,8 @@ class FriendRequestRepository implements IFriendRequestsRepository {
           ),
         )
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is PlatformException &&
-          exception.message!.contains('PERMISSION_DENIED')) {
+      if (exception is FirebaseException &&
+          exception.code.contains('permission-denied')) {
         return left(InsufficientPermissions());
       } else {
         return left(Unexpected());
@@ -170,7 +169,7 @@ class FriendRequestRepository implements IFriendRequestsRepository {
   @override
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
       watchReceivedForCurrentUser() async* {
-    final userDocument = await _firestore.userDocument;
+    final userDocument = _firestore.userDocument;
     yield* _firestore
         .collection('friendRequests')
         .orderBy('serverTimeStamp', descending: true)
@@ -194,8 +193,8 @@ class FriendRequestRepository implements IFriendRequestsRepository {
           ),
         )
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is PlatformException &&
-          exception.message!.contains('PERMISSION_DENIED')) {
+      if (exception is FirebaseException &&
+          exception.code.contains('permission-denied')) {
         return left(InsufficientPermissions());
       } else {
         return left(Unexpected());
@@ -206,7 +205,7 @@ class FriendRequestRepository implements IFriendRequestsRepository {
   @override
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
       watchFriendsForCurrentUser() async* {
-    final userDocument = await _firestore.userDocument;
+    final userDocument = _firestore.userDocument;
     yield* _firestore
         .collection('friendRequests')
         .orderBy('serverTimeStamp', descending: true)
@@ -232,8 +231,8 @@ class FriendRequestRepository implements IFriendRequestsRepository {
           ),
         )
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is PlatformException &&
-          exception.message!.contains('PERMISSION_DENIED')) {
+      if (exception is FirebaseException &&
+          exception.code.contains('permission-denied')) {
         return left(InsufficientPermissions());
       } else {
         return left(Unexpected());

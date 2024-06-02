@@ -7,8 +7,20 @@ import '../../../domain/shared/user/value_objects.dart';
 
 extension FirebaseUserMapper on User {
   Future<domain_user.User> toDomain(FirebaseFirestore fireStore) async {
-    final documentSnapshot = await fireStore.collection('users').doc(uid).get();
-    final username = await Username.checkAgainstDatabaseWhenFetching(documentSnapshot['username']);
+    DocumentSnapshot<Map<String, dynamic>> documentSnapshot;
+    try {
+      documentSnapshot = await fireStore.collection('users').doc(uid).get();
+    } on FirebaseException catch (_) {
+      return domain_user.User(
+          id: UniqueId(),
+          description: Description(''),
+          emailAddress: EmailAddress(''),
+          imageUrl: ImageUrl(''),
+          username: Username(''));
+    }
+
+    final username = await Username.checkAgainstDatabaseWhenFetching(
+        documentSnapshot['username']);
     final usernameString = username.getOrCrash();
 
     return domain_user.User(

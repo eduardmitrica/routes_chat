@@ -33,7 +33,7 @@ class SignInFormBloc extends Bloc<SignInFormEvent, SignInFormState> {
             signInFailureOrSuccessOption: none(),
           ),
         );
-      }, registerPressed: (event) async {
+      }, signInPressed: (event) async {
         Either<SignInFailure, Unit>? failureOrSuccess;
 
         final isEmailAddressValid = state.emailAddress.isValid();

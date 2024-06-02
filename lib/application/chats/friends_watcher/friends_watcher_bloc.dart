@@ -5,8 +5,8 @@ import 'package:dartz/dartz.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
-import 'package:routes_chat/domain/authentication/authentication_facade_interface.dart';
-import 'package:routes_chat/domain/shared/user/user.dart';
+import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
+import 'package:routes_chat/injection.dart';
 
 import '../../../domain/core/value_objects.dart';
 import '../../../domain/friend_requests/failures.dart';
@@ -23,17 +23,16 @@ part 'friends_watcher_bloc.freezed.dart';
 class FriendsWatcherBloc
     extends Bloc<FriendsWatcherEvent, FriendsWatcherState> {
   final IFriendRequestsRepository _friendRequestRepository;
-  final IAuthFacade _authFacade;
   var userId = '';
 
   StreamSubscription<Either<FriendRequestFailure, KtList<FriendRequest>>>?
       _acceptedFriendRequestsSubscription;
 
-  FriendsWatcherBloc(this._friendRequestRepository, this._authFacade)
+  FriendsWatcherBloc(this._friendRequestRepository)
       : super(const FriendsWatcherState.initial()) {
     on<FriendsWatcherEvent>(
-      (event, emit) async {
-        await event.map(
+      (event, emit) {
+        event.map(
           watchAllStarted: (event) {
             emit(const FriendsWatcherState.loadInProgress());
             _acceptedFriendRequestsSubscription =
@@ -44,11 +43,10 @@ class FriendsWatcherBloc
                       ),
                     );
           },
-          friendRequestsReceived: (event) async {
+          friendRequestsReceived: (event) {
             if (userId.isEmpty) {
-              final userOption = await _authFacade.getSignedInUser();
-              final user = userOption.getOrElse(() => User.empty());
-              userId = user.id.getOrCrash();
+              final fetchedUserId = getIt<CurrentUseInformationPersistent>().id;
+              userId = fetchedUserId;
             }
             emit(
               event.failureOrFriendRequests
@@ -68,7 +66,8 @@ class FriendsWatcherBloc
                         .map((friendRequest) => friendRequest.receiverId);
                 final friendsIds = receivingUsersIds + sendingUsersIds;
 
-                return FriendsWatcherState.loadSuccess(friendRequests, friendsIds);
+                return FriendsWatcherState.loadSuccess(
+                    friendRequests, friendsIds);
               }),
             );
           },

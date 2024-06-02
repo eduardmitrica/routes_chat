@@ -17,9 +17,6 @@ _$MessageDataTransferObjectImpl _$$MessageDataTransferObjectImplFromJson(
       content: json['content'] as String,
       repliedMessageId: json['repliedMessageId'] as String,
       isEdited: json['isEdited'] as bool,
-      timeStamp: json['timeStamp'] == null
-          ? null
-          : DateTime.parse(json['timeStamp'] as String),
       serverTimeStamp: const ServerTimestampConverter()
           .fromJson(json['serverTimeStamp'] as Object),
     );

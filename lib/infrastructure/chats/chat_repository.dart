@@ -92,13 +92,18 @@ class ChatRepository implements IChatRepository {
         }
 
         if (existingChatRef != null) {
-          final chatWithTheSpecifiedParticipants =
-              await transaction.get(existingChatRef);
+          final chatWithTheSpecifiedParticipants = await transaction
+              .get(existingChatRef) as DocumentSnapshot<Map<String, dynamic>>;
           if (chatWithTheSpecifiedParticipants.exists == false) {
             transaction.set(chatRef, chatDto.toJson());
             transaction.set(messageRef, messageDto.toJson());
           } else {
-            transaction.update(chatRef, chatDto.toJson());
+            transaction.update(
+                existingChatRef,
+                ChatDataTransferObject.fromFirestore(
+                        chatWithTheSpecifiedParticipants)
+                    .copyWith(lastMessage: chatDto.lastMessage)
+                    .toJson());
             transaction.set(messageRef, messageDto.toJson());
           }
         } else {

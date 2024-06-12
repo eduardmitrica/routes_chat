@@ -72,12 +72,12 @@ abstract class MessageDataTransferObject
 }
 
 // from Json, to Json
-class ServerTimestampConverter implements JsonConverter<FieldValue, Object> {
+class ServerTimestampConverter implements JsonConverter<FieldValue, Object?> {
   // For annotation it has to be constant
   const ServerTimestampConverter();
 
   @override
-  FieldValue fromJson(Object json) {
+  FieldValue fromJson(Object? json) {
     return FieldValue.serverTimestamp();
   }
 

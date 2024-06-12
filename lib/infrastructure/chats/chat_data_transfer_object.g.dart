@@ -14,8 +14,8 @@ _$ChatDataTransferObjectImpl _$$ChatDataTransferObjectImplFromJson(
           .toList(),
       lastMessage: const MessageDataTransferObjectConverter()
           .fromJson(json['lastMessage'] as Map<String, dynamic>),
-      serverTimeStamp: const ServerTimestampConverter()
-          .fromJson(json['serverTimeStamp'] as Object),
+      serverTimeStamp:
+          const ServerTimestampConverter().fromJson(json['serverTimeStamp']),
     );
 
 Map<String, dynamic> _$$ChatDataTransferObjectImplToJson(

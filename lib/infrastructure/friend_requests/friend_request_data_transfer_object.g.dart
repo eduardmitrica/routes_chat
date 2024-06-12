@@ -13,7 +13,7 @@ _$FriendRequestDataTransferObjectImpl
           receiverId: json['receiverId'] as String,
           status: json['status'] as String,
           serverTimeStamp: const ServerTimestampConverter()
-              .fromJson(json['serverTimeStamp'] as Object),
+              .fromJson(json['serverTimeStamp']),
         );
 
 Map<String, dynamic> _$$FriendRequestDataTransferObjectImplToJson(

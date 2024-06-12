@@ -139,3 +139,4 @@ app.*.symbols
 
 firebase.json
 firebase_options.dart
+devtools_options.yaml

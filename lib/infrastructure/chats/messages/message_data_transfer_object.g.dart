@@ -17,8 +17,8 @@ _$MessageDataTransferObjectImpl _$$MessageDataTransferObjectImplFromJson(
       content: json['content'] as String,
       repliedMessageId: json['repliedMessageId'] as String,
       isEdited: json['isEdited'] as bool,
-      serverTimeStamp: const ServerTimestampConverter()
-          .fromJson(json['serverTimeStamp'] as Object),
+      serverTimeStamp:
+          const ServerTimestampConverter().fromJson(json['serverTimeStamp']),
     );
 
 Map<String, dynamic> _$$MessageDataTransferObjectImplToJson(

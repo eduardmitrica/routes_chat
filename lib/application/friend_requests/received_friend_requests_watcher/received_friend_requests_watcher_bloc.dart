@@ -56,9 +56,16 @@ class ReceivedFriendRequestsWatcherBloc extends Bloc<
     );
   }
 
-  Future<void> refreshSubscription() async{
-    _receivedFriendRequestsSubscription?.cancel();
+  Future<void> refreshSubscription() async {
+    await _receivedFriendRequestsSubscription?.cancel();
+    Future loadSuccessOrFailureState = stream
+        .where((state) => state.maybeMap(
+            loadSuccess: (_) => true,
+            loadFailure: (_) => true,
+            orElse: () => false))
+        .first;
     add(const ReceivedFriendRequestsWatcherEvent.watchAllStarted());
+    await loadSuccessOrFailureState;
   }
 
   @override

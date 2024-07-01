@@ -74,8 +74,15 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
   }
 
   Future<void> refreshSubscription() async {
-    _chatsSubscription?.cancel();
+    await _chatsSubscription?.cancel();
+    Future loadSuccessOrFailureState = stream
+        .where((state) => state.maybeMap(
+            loadSuccess: (_) => true,
+            loadFailure: (_) => true,
+            orElse: () => false))
+        .first;
     add(const ChatsWatcherEvent.watchAllStarted());
+    await loadSuccessOrFailureState;
   }
 
   @override

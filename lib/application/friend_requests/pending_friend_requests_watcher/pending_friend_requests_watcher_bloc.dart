@@ -11,27 +11,31 @@ import '../../../domain/friend_requests/friend_request.dart';
 import '../../../domain/friend_requests/friend_requests_repository_interface.dart';
 
 part 'pending_friend_requests_watcher_event.dart';
+
 part 'pending_friend_requests_watcher_state.dart';
+
 part 'pending_friend_requests_watcher_bloc.freezed.dart';
 
 @injectable
-class PendingFriendRequestsWatcherBloc extends Bloc<PendingFriendRequestsWatcherEvent, PendingFriendRequestsWatcherState> {
+class PendingFriendRequestsWatcherBloc extends Bloc<
+    PendingFriendRequestsWatcherEvent, PendingFriendRequestsWatcherState> {
   final IFriendRequestsRepository _friendRequestRepository;
 
   StreamSubscription<Either<FriendRequestFailure, KtList<FriendRequest>>>?
-  _pendingFriendRequestsSubscription;
+      _pendingFriendRequestsSubscription;
 
   PendingFriendRequestsWatcherBloc(this._friendRequestRepository)
       : super(const PendingFriendRequestsWatcherState.initial()) {
     on<PendingFriendRequestsWatcherEvent>(
-          (event, emit) {
+      (event, emit) {
         event.map(
           watchAllStarted: (event) {
             emit(const PendingFriendRequestsWatcherState.loadInProgress());
-            _pendingFriendRequestsSubscription =
-                _friendRequestRepository.watchPendingFromCurrentUser().listen(
-                      (failureOrFriendRequests) => add(
-                        PendingFriendRequestsWatcherEvent.friendRequestsReceived(
+            _pendingFriendRequestsSubscription = _friendRequestRepository
+                .watchPendingFromCurrentUser()
+                .listen(
+                  (failureOrFriendRequests) => add(
+                    PendingFriendRequestsWatcherEvent.friendRequestsReceived(
                         failureOrFriendRequests),
                   ),
                 );
@@ -39,9 +43,11 @@ class PendingFriendRequestsWatcherBloc extends Bloc<PendingFriendRequestsWatcher
           friendRequestsReceived: (event) {
             emit(
               event.failureOrFriendRequests.fold(
-                    (failure) => PendingFriendRequestsWatcherState.loadFailure(failure),
-                    (friendRequests) =>
-                        PendingFriendRequestsWatcherState.loadSuccess(friendRequests),
+                (failure) =>
+                    PendingFriendRequestsWatcherState.loadFailure(failure),
+                (friendRequests) =>
+                    PendingFriendRequestsWatcherState.loadSuccess(
+                        friendRequests),
               ),
             );
           },
@@ -50,9 +56,16 @@ class PendingFriendRequestsWatcherBloc extends Bloc<PendingFriendRequestsWatcher
     );
   }
 
-  Future<void> refreshSubscription() async{
-    _pendingFriendRequestsSubscription?.cancel();
+  Future<void> refreshSubscription() async {
+    await _pendingFriendRequestsSubscription?.cancel();
+    Future loadSuccessOrFailureState = stream
+        .where((state) => state.maybeMap(
+            loadSuccess: (_) => true,
+            loadFailure: (_) => true,
+            orElse: () => false))
+        .first;
     add(const PendingFriendRequestsWatcherEvent.watchAllStarted());
+    await loadSuccessOrFailureState;
   }
 
   @override

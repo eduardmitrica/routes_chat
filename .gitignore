@@ -140,3 +140,7 @@ app.*.symbols
 firebase.json
 firebase_options.dart
 devtools_options.yaml
+web/index.html
+.firebase/hosting.*.cache
+android/app/.cxx
+android/.kotlin/sessions

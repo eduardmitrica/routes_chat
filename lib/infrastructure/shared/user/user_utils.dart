@@ -1,9 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:injectable/injectable.dart';
 
 import '../../../domain/shared/user/user_utils_interface.dart';
+import '../../core/firestore_helpers.dart';
 
-@Singleton(as: IUserUtils)
 class UserUtils implements IUserUtils {
   final FirebaseFirestore _firebaseFirestore;
 
@@ -11,16 +10,10 @@ class UserUtils implements IUserUtils {
 
   @override
   Future<bool> checkIfUsernameAlreadyExists(String usernameInput) async {
-    final userDocsWithGivenUsername = await _firebaseFirestore
-        .collection('users')
-        .where('username', isEqualTo: usernameInput)
-        .get();
-
-    if (userDocsWithGivenUsername.docs.isEmpty) {
-      return false;
-    } else {
-      return true;
-    }
+    // Reads the public index instead of querying `users`: this runs before
+    // the account exists, and `users` is only readable once signed in.
+    final claim = await _firebaseFirestore.usernameDocument(usernameInput).get();
+    return claim.exists;
   }
 
   @override
@@ -33,21 +26,6 @@ class UserUtils implements IUserUtils {
     if (userDocsWithGivenUsername.docs.length == 1) {
       return false;
     } else {
-      return true;
-    }
-  }
-
-  @override
-  Future<bool> checkIfEmailAddressAlreadyExists(String emailAddress) async {
-    final userDocsWithGivenEmailAddress = await _firebaseFirestore
-        .collection('users')
-        .where('emailAddress', isEqualTo: emailAddress)
-        .get();
-
-    if (userDocsWithGivenEmailAddress.docs.isEmpty) {
-      return false;
-    }
-    else {
       return true;
     }
   }

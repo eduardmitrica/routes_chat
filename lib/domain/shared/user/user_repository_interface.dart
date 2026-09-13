@@ -8,7 +8,9 @@ import '../../core/value_objects.dart';
 
 abstract interface class IUserRepository {
   Stream<Either<UserFailure, User>> watch();
-  Stream<Either<UserFailure, KtList<User>>> watchUsersWithIds(KtList<UniqueId> ids);
+  Stream<Either<UserFailure, KtList<User>>> watchUsersWithIds(
+    KtList<UniqueId> ids,
+  );
   Future<Either<UserFailure, Unit>> update(User user);
   Future<Either<UserFailure, User>> findUserByUsername(Username username);
 }

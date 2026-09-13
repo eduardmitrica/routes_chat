@@ -22,33 +22,37 @@ class RegisterWithGoogleForm extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
                   IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.photo_album_outlined)),
+                    onPressed: () {},
+                    icon: const Icon(Icons.photo_album_outlined),
+                  ),
                   if (state.imagePath.isValid())
                     CircleAvatar(
                       backgroundColor: Colors.purple,
-                      foregroundImage:
-                          NetworkImage(state.imagePath.getOrCrash()),
+                      foregroundImage: NetworkImage(
+                        state.imagePath.getOrCrash(),
+                      ),
                       radius: 80,
                     ),
                   IconButton(
-                      onPressed: () {},
-                      icon: const Icon(Icons.camera_alt_outlined)),
+                    onPressed: () {},
+                    icon: const Icon(Icons.camera_alt_outlined),
+                  ),
                 ],
               ),
-              const SizedBox(
-                height: 20,
-              ),
+              const SizedBox(height: 20),
               TextFormField(
                 initialValue: state.username.value.fold(
-                    (failure) => failure.failedValue, (success) => success),
+                  (failure) => failure.failedValue,
+                  (success) => success,
+                ),
                 autovalidateMode: state.showErrorMessages
                     ? AutovalidateMode.always
                     : AutovalidateMode.disabled,
                 decoration: const InputDecoration(labelText: 'Username'),
                 onChanged: (value) {
-                  BlocProvider.of<RegisterFormBloc>(context)
-                      .add(RegisterFormEvent.usernameChanged(value));
+                  BlocProvider.of<RegisterFormBloc>(
+                    context,
+                  ).add(RegisterFormEvent.usernameChanged(value));
                 },
                 onTapOutside: (_) =>
                     FocusManager.instance.primaryFocus?.unfocus(),
@@ -58,26 +62,32 @@ class RegisterWithGoogleForm extends StatelessWidget {
                     .username
                     .value
                     .fold(
-                        (failure) => switch (failure) {
-                              EmptyString() => 'This field is mandatory',
-                              ExceedingLength() =>
-                                'The username must have at most 12 characters',
-                              UsernameAlreadyExists() =>
-                                'This username already exists',
-                              _ => null,
-                            },
-                        (_) => null),
+                      (failure) => switch (failure) {
+                        EmptyString() => 'This field is mandatory',
+                        ExceedingLength() =>
+                          'The username must have at most 12 characters',
+                        UsernameAlreadyExists() =>
+                          'This username already exists',
+                        InvalidUsernameCharacters() =>
+                          'This username is not allowed',
+                        _ => null,
+                      },
+                      (_) => null,
+                    ),
               ),
               TextFormField(
                 initialValue: state.description.value.fold(
-                        (failure) => failure.failedValue, (success) => success),
+                  (failure) => failure.failedValue,
+                  (success) => success,
+                ),
                 autovalidateMode: state.showErrorMessages
                     ? AutovalidateMode.always
                     : AutovalidateMode.disabled,
                 decoration: const InputDecoration(labelText: 'Description'),
                 onChanged: (value) {
-                  BlocProvider.of<RegisterFormBloc>(context)
-                      .add(RegisterFormEvent.descriptionChanged(value));
+                  BlocProvider.of<RegisterFormBloc>(
+                    context,
+                  ).add(RegisterFormEvent.descriptionChanged(value));
                 },
                 onTapOutside: (_) =>
                     FocusManager.instance.primaryFocus?.unfocus(),
@@ -86,24 +96,23 @@ class RegisterWithGoogleForm extends StatelessWidget {
                     .description
                     .value
                     .fold(
-                        (failure) => switch (failure) {
-                      ExceedingLength() =>
-                      'The description must have at most 30 characters',
-                      _ => null,
-                    },
-                        (_) => null),
+                      (failure) => switch (failure) {
+                        ExceedingLength() =>
+                          'The description must have at most 30 characters',
+                        _ => null,
+                      },
+                      (_) => null,
+                    ),
               ),
-              const SizedBox(
-                height: 20,
-              ),
+              const SizedBox(height: 20),
               Row(
                 children: [
-                  const Spacer(flex: 1,),
+                  const Spacer(flex: 1),
                   ElevatedButton(
                     onPressed: () {},
                     child: const Text('Continue'),
                   ),
-                  const Spacer(flex: 1,),
+                  const Spacer(flex: 1),
                 ],
               ),
             ],

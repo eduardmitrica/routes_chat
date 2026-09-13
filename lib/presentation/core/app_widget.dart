@@ -16,30 +16,27 @@ class AppWidget extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (_) => getIt<PlaceholderFetcherBloc>()
-            ..add(
-              const PlaceholderFetcherEvent.started(),
-            ),
+          create: (_) =>
+              getIt<PlaceholderFetcherBloc>()
+                ..add(const PlaceholderFetcherEvent.started()),
           lazy: false,
         ),
         BlocProvider(
-            create: (_) => getIt<AuthenticationBloc>()
-              ..add(const AuthenticationEvent.authenticationRequested())),
-        BlocProvider(
-          create: (_) => getIt<SignInFormBloc>(),
+          create: (_) =>
+              getIt<AuthenticationBloc>()
+                ..add(const AuthenticationEvent.authenticationRequested()),
         ),
-        BlocProvider(
-          create: (_) => getIt<RegisterFormBloc>(),
-          lazy: false,
-        ),
+        BlocProvider(create: (_) => getIt<SignInFormBloc>()),
+        BlocProvider(create: (_) => getIt<RegisterFormBloc>(), lazy: false),
       ],
       child: MaterialApp(
-          title: 'Routes Chat',
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-            useMaterial3: true,
-          ),
-          routes: routes),
+        title: 'Routes Chat',
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+          useMaterial3: true,
+        ),
+        routes: routes,
+      ),
     );
   }
 }

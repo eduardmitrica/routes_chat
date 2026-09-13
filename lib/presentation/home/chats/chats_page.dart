@@ -14,17 +14,15 @@ class ChatsPage extends StatelessWidget {
       providers: [
         BlocProvider(create: (_) => getIt<UsersWatcherBloc>()),
         BlocProvider(
-          create: (_) => getIt<ChatsWatcherBloc>()
-            ..add(
-              const ChatsWatcherEvent.watchAllStarted(),
-            ),
+          create: (_) =>
+              getIt<ChatsWatcherBloc>()
+                ..add(const ChatsWatcherEvent.watchAllStarted()),
         ),
       ],
       child: Scaffold(
-          appBar: AppBar(
-            title: const Text('Chats'),
-          ),
-          body: const ChatsPageBody()),
+        appBar: AppBar(title: const Text('Chats')),
+        body: const ChatsPageBody(),
+      ),
     );
   }
 }

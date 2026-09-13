@@ -40,128 +40,144 @@ class _FriendsSearchPageBodyState extends State<FriendsSearchPageBody> {
                   decoration: InputDecoration(
                     prefixIcon: const Icon(Icons.search_rounded),
                     enabledBorder: OutlineInputBorder(
-                      borderSide:
-                          const BorderSide(color: Colors.deepPurpleAccent),
+                      borderSide: const BorderSide(
+                        color: Colors.deepPurpleAccent,
+                      ),
                       borderRadius: BorderRadius.circular(20.0),
                     ),
                     border: OutlineInputBorder(
-                      borderSide:
-                          const BorderSide(color: Colors.deepPurpleAccent),
+                      borderSide: const BorderSide(
+                        color: Colors.deepPurpleAccent,
+                      ),
                       borderRadius: BorderRadius.circular(20.0),
                     ),
                   ),
                 ),
-                const SizedBox(
-                  height: 20,
-                ),
+                const SizedBox(height: 20),
                 BlocBuilder<UsersWatcherBloc, UsersWatcherState>(
-                  builder: (context, state) => state.map(
-                    initial: (state) => const SizedBox(),
-                    loadInProgress: (state) => const Center(
+                  builder: (context, state) => switch (state) {
+                    UsersWatcherInitial() => const SizedBox(),
+                    UsersWatcherLoadInProgress() => const Center(
                       child: CircularProgressIndicator(),
                     ),
-                    loadSuccess: (state) => Expanded(
-                      child: state.users.size > 0
-                          ? state.users.find((user) => user.username
-                                      .getOrCrash()
-                                      .toLowerCase()
-                                      .contains(
-                                          textController.text.toLowerCase())) !=
-                                  null
-                              ? ListView.builder(
-                                  itemCount: widget.acceptedFriendRequests.size,
-                                  itemBuilder: (context, index) {
-                                    final friendRequest =
-                                        widget.acceptedFriendRequests[index];
-                                    final user = state.users.find((user) =>
-                                        (user.id.getOrCrash() ==
-                                                friendRequest.receiverId
-                                                    .getOrCrash() &&
-                                            user.id.getOrCrash() !=
-                                                friendRequest.senderId
-                                                    .getOrCrash()) ||
-                                        (user.id.getOrCrash() ==
-                                                friendRequest.senderId
-                                                    .getOrCrash() &&
-                                            user.id.getOrCrash() !=
-                                                friendRequest.receiverId
-                                                    .getOrCrash()));
-
-                                    if (friendRequest.failureOption.isSome()) {
-                                      return ListTile(
-                                        key: UniqueKey(),
-                                        title: const Text('Error occurred'),
-                                      );
-                                    } else {
-                                      if (user?.username
-                                              .getOrCrash()
-                                              .toLowerCase()
-                                              .contains(textController.text
-                                                  .toLowerCase()) ??
-                                          false) {
-                                        return ListTile(
-                                          key: ValueKey(
-                                              friendRequest.id.getOrCrash()),
-                                          leading: CircleAvatar(
-                                            backgroundColor:
-                                                Colors.deepPurpleAccent,
-                                            foregroundImage: NetworkImage(user
-                                                    ?.imageUrl
-                                                    .getOrCrash() ??
-                                                getIt<PlaceholderFetcherBloc>()
-                                                    .state
-                                                    .imagePath
-                                                    .getOrCrash()),
+                    UsersWatcherLoadSuccess(:final users) => Expanded(
+                      child: users.size > 0
+                          ? users.find(
+                                      (user) => user.username
+                                          .getOrCrash()
+                                          .toLowerCase()
+                                          .contains(
+                                            textController.text.toLowerCase(),
                                           ),
-                                          title: Text(
-                                              user?.username.getOrCrash() ??
-                                                  ''),
-                                          subtitle: Text(
-                                              user?.description.getOrCrash() ??
-                                                  ''),
-                                          onTap: () => user != null
-                                              ? Navigator.of(context)
-                                                  .pushReplacement(
-                                                  MaterialPageRoute(
-                                                    builder: (ctx) =>
-                                                        BlocProvider.value(
-                                                      value: BlocProvider.of<
-                                                              ChatsWatcherBloc>(
-                                                          context),
-                                                      child: const ChatPage(),
-                                                    ),
-                                                    settings: RouteSettings(
-                                                        arguments: user),
-                                                  ),
-                                                )
-                                              : null,
+                                    ) !=
+                                    null
+                                ? ListView.builder(
+                                    itemCount:
+                                        widget.acceptedFriendRequests.size,
+                                    itemBuilder: (context, index) {
+                                      final friendRequest =
+                                          widget.acceptedFriendRequests[index];
+                                      final user = users.find(
+                                        (user) =>
+                                            (user.id.getOrCrash() ==
+                                                    friendRequest.receiverId
+                                                        .getOrCrash() &&
+                                                user.id.getOrCrash() !=
+                                                    friendRequest.senderId
+                                                        .getOrCrash()) ||
+                                            (user.id.getOrCrash() ==
+                                                    friendRequest.senderId
+                                                        .getOrCrash() &&
+                                                user.id.getOrCrash() !=
+                                                    friendRequest.receiverId
+                                                        .getOrCrash()),
+                                      );
+
+                                      if (friendRequest.failureOption
+                                          .isSome()) {
+                                        return ListTile(
+                                          key: UniqueKey(),
+                                          title: const Text('Error occurred'),
                                         );
                                       } else {
-                                        return Container();
+                                        if (user?.username
+                                                .getOrCrash()
+                                                .toLowerCase()
+                                                .contains(
+                                                  textController.text
+                                                      .toLowerCase(),
+                                                ) ??
+                                            false) {
+                                          return ListTile(
+                                            key: ValueKey(
+                                              friendRequest.id.getOrCrash(),
+                                            ),
+                                            leading: CircleAvatar(
+                                              backgroundColor:
+                                                  Colors.deepPurpleAccent,
+                                              foregroundImage: NetworkImage(
+                                                user?.imageUrl.getOrCrash() ??
+                                                    getIt<
+                                                          PlaceholderFetcherBloc
+                                                        >()
+                                                        .state
+                                                        .imagePath
+                                                        .getOrCrash(),
+                                              ),
+                                            ),
+                                            title: Text(
+                                              user?.username.getOrCrash() ?? '',
+                                            ),
+                                            subtitle: Text(
+                                              user?.description.getOrCrash() ??
+                                                  '',
+                                            ),
+                                            onTap: () => user != null
+                                                ? Navigator.of(
+                                                    context,
+                                                  ).pushReplacement(
+                                                    MaterialPageRoute(
+                                                      builder: (ctx) =>
+                                                          BlocProvider.value(
+                                                            value:
+                                                                BlocProvider.of<
+                                                                  ChatsWatcherBloc
+                                                                >(context),
+                                                            child:
+                                                                const ChatPage(),
+                                                          ),
+                                                      settings: RouteSettings(
+                                                        arguments: user,
+                                                      ),
+                                                    ),
+                                                  )
+                                                : null,
+                                          );
+                                        } else {
+                                          return Container();
+                                        }
                                       }
-                                    }
-                                  })
-                              : const Center(
-                                  child: Text(
-                                      'Sorry, we could not find the user you were searching for'),
-                                )
+                                    },
+                                  )
+                                : const Center(
+                                    child: Text(
+                                      'Sorry, we could not find the user you were searching for',
+                                    ),
+                                  )
                           : const Center(
                               child: Text(
-                                  'You have no contacts so far. Start adding some'),
+                                'You have no contacts so far. Start adding some',
+                              ),
                             ),
                     ),
-                    loadFailure: (state) => Center(
-                      child: Text(
-                        state.failure.toString(),
-                      ),
+                    UsersWatcherLoadFailure(:final failure) => Center(
+                      child: Text(failure.toString()),
                     ),
-                  ),
+                  },
                 ),
               ],
             )
-          : const Center(
-              child: Text('Failed'),
-            ),
+          : const Center(child: Text('Failed')),
     );
   }
 }

@@ -9,13 +9,14 @@ part 'message.freezed.dart';
 
 @freezed
 abstract class Message with _$Message {
-  const factory Message(
-      {required UniqueId id,
-      required UniqueId senderId,
-      required KtList<ImageUrl> imageUrls,
-      required KtList<UniqueId> reactions,
-      required Content content,
-      required UniqueId repliedMessageId,
-      required DateTime? lastUpdatedAt,
-      required bool isEdited}) = _Message;
+  const factory Message({
+    required UniqueId id,
+    required UniqueId senderId,
+    required KtList<ImageUrl> imageUrls,
+    required KtList<UniqueId> reactions,
+    required Content content,
+    required UniqueId repliedMessageId,
+    required DateTime? lastUpdatedAt,
+    required bool isEdited,
+  }) = _Message;
 }

@@ -13,40 +13,40 @@ class ChatsPageBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocConsumer<ChatsWatcherBloc, ChatsWatcherState>(
       listener: (context, state) {
-        state.maybeMap(
-            loadSuccess: (state) => BlocProvider.of<UsersWatcherBloc>(context)
-              ..add(
-                UsersWatcherEvent.watchStarted(
-                    state.friendsThatCurrentUserHasChatsTo),
-              ),
-            orElse: () {});
+        if (state is ChatsWatcherLoadSuccess) {
+          BlocProvider.of<UsersWatcherBloc>(context).add(
+            UsersWatcherEvent.watchStarted(
+              state.friendsThatCurrentUserHasChatsTo,
+            ),
+          );
+        }
       },
-      builder: (context, state) => state.map(
-        initial: (state) => const SizedBox(),
-        loadInProgress: (state) => const Center(
+      builder: (context, state) => switch (state) {
+        ChatsWatcherInitial() => const SizedBox(),
+        ChatsWatcherLoadInProgress() => const Center(
           child: CircularProgressIndicator(),
         ),
-        loadSuccess: (state) => Padding(
+        ChatsWatcherLoadSuccess(:final chats) => Padding(
           padding: const EdgeInsets.all(10.0),
           child: Column(
             children: [
               const FriendsSearchBar(),
-              const SizedBox(
-                height: 20,
-              ),
+              const SizedBox(height: 20),
               Expanded(
                 child: ChatsList(
-                    state.chats,
-                    BlocProvider.of<ChatsWatcherBloc>(context)
-                        .refreshSubscription),
+                  chats,
+                  BlocProvider.of<ChatsWatcherBloc>(
+                    context,
+                  ).refreshSubscription,
+                ),
               ),
             ],
           ),
         ),
-        loadFailure: (state) => Center(
-          child: Text(state.failure.toString()),
+        ChatsWatcherLoadFailure(:final failure) => Center(
+          child: Text(failure.toString()),
         ),
-      ),
+      },
     );
   }
 }

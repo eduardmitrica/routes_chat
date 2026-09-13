@@ -19,25 +19,33 @@ class UserForm extends StatelessWidget {
 
   UserForm(this.user, {super.key});
 
-  _takePicture(BuildContext context) async {
+  Future<void> _takePicture(BuildContext context) async {
     final picker = ImagePicker();
     final pickedImage = await picker.pickImage(
-        source: ImageSource.camera, imageQuality: 50, maxHeight: 150);
+      source: ImageSource.camera,
+      imageQuality: 50,
+      maxHeight: 150,
+    );
 
     if (pickedImage?.path != null && context.mounted) {
-      BlocProvider.of<UserFormBloc>(context)
-          .add(UserFormEvent.profilePictureChanged(pickedImage!.path));
+      BlocProvider.of<UserFormBloc>(
+        context,
+      ).add(UserFormEvent.profilePictureChanged(pickedImage!.path));
     }
   }
 
-  _pickImage(BuildContext context) async {
+  Future<void> _pickImage(BuildContext context) async {
     final picker = ImagePicker();
     final pickedImage = await picker.pickImage(
-        source: ImageSource.gallery, imageQuality: 50, maxHeight: 150);
+      source: ImageSource.gallery,
+      imageQuality: 50,
+      maxHeight: 150,
+    );
 
     if (pickedImage?.path != null && context.mounted) {
-      BlocProvider.of<UserFormBloc>(context)
-          .add(UserFormEvent.profilePictureChanged(pickedImage!.path));
+      BlocProvider.of<UserFormBloc>(
+        context,
+      ).add(UserFormEvent.profilePictureChanged(pickedImage!.path));
     }
   }
 
@@ -52,28 +60,27 @@ class UserForm extends StatelessWidget {
             currentState.saveFailureOrSuccessOption,
         listener: (context, state) => state.saveFailureOrSuccessOption.fold(
           () {},
-          (either) => either.fold(
-            (failure) {
-              final failureMessage = switch (failure) {
-                Unexpected() => 'Unexpected',
-                InsufficientPermission() => 'Insufficient permissions',
-                UnableToUpdate() => 'Unable to update',
-                _ => '',
-              };
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(failureMessage),
-                ),
-              );
-            },
-            (_) {},
-          ),
+          (either) => either.fold((failure) {
+            final failureMessage = switch (failure) {
+              Unexpected() => 'Unexpected',
+              InsufficientPermission() => 'Insufficient permissions',
+              UnableToUpdate() => 'Unable to update',
+              _ => '',
+            };
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(failureMessage)));
+          }, (_) {}),
         ),
         builder: (context, state) {
-          usernameController.text = state.user.username.value
-              .fold((failure) => failure.failedValue, (success) => success);
-          descriptionController.text = state.user.description.value
-              .fold((failure) => failure.failedValue, (success) => success);
+          usernameController.text = state.user.username.value.fold(
+            (failure) => failure.failedValue,
+            (success) => success,
+          );
+          descriptionController.text = state.user.description.value.fold(
+            (failure) => failure.failedValue,
+            (success) => success,
+          );
 
           return Form(
             child: ListView(
@@ -83,8 +90,9 @@ class UserForm extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     IconButton(
-                        onPressed: () => _pickImage(context),
-                        icon: const Icon(Icons.photo_album_outlined)),
+                      onPressed: () => _pickImage(context),
+                      icon: const Icon(Icons.photo_album_outlined),
+                    ),
                     if (state.user.imageUrl.isValid())
                       BlocBuilder<UserFormBloc, UserFormState>(
                         buildWhen: (previousState, currentState) =>
@@ -93,26 +101,19 @@ class UserForm extends StatelessWidget {
                           return CircleAvatar(
                             backgroundColor: Colors.deepPurpleAccent,
                             foregroundImage: state.imagePath.comesFromUrl()
-                                ? NetworkImage(
-                                    state.user.imageUrl.getOrCrash(),
-                                  )
-                                : FileImage(
-                                    File(
-                                      state.imagePath.getOrCrash(),
-                                    ),
-                                  ),
+                                ? NetworkImage(state.user.imageUrl.getOrCrash())
+                                : FileImage(File(state.imagePath.getOrCrash())),
                             radius: 80,
                           );
                         },
                       ),
                     IconButton(
-                        onPressed: () => _takePicture(context),
-                        icon: const Icon(Icons.camera_alt_outlined)),
+                      onPressed: () => _takePicture(context),
+                      icon: const Icon(Icons.camera_alt_outlined),
+                    ),
                   ],
                 ),
-                const SizedBox(
-                  height: 20,
-                ),
+                const SizedBox(height: 20),
                 TextFormField(
                   controller: usernameController,
                   autovalidateMode: state.showErrorMessages
@@ -120,8 +121,9 @@ class UserForm extends StatelessWidget {
                       : AutovalidateMode.disabled,
                   decoration: const InputDecoration(labelText: 'Username'),
                   onChanged: (value) {
-                    BlocProvider.of<UserFormBloc>(context)
-                        .add(UserFormEvent.usernameChanged(value));
+                    BlocProvider.of<UserFormBloc>(
+                      context,
+                    ).add(UserFormEvent.usernameChanged(value));
                   },
                   onTapOutside: (_) =>
                       FocusManager.instance.primaryFocus?.unfocus(),
@@ -132,15 +134,18 @@ class UserForm extends StatelessWidget {
                       .username
                       .value
                       .fold(
-                          (failure) => switch (failure) {
-                                EmptyString() => 'This field is mandatory',
-                                ExceedingLength() =>
-                                  'The username must have at most 12 characters',
-                                UsernameAlreadyExists() =>
-                                  'This username already exists',
-                                _ => null,
-                              },
-                          (_) => null),
+                        (failure) => switch (failure) {
+                          EmptyString() => 'This field is mandatory',
+                          ExceedingLength() =>
+                            'The username must have at most 12 characters',
+                          UsernameAlreadyExists() =>
+                            'This username already exists',
+                          InvalidUsernameCharacters() =>
+                            'This username is not allowed',
+                          _ => null,
+                        },
+                        (_) => null,
+                      ),
                 ),
                 TextFormField(
                   controller: descriptionController,
@@ -149,8 +154,9 @@ class UserForm extends StatelessWidget {
                       : AutovalidateMode.disabled,
                   decoration: const InputDecoration(labelText: 'Description'),
                   onChanged: (value) {
-                    BlocProvider.of<UserFormBloc>(context)
-                        .add(UserFormEvent.descriptionChanged(value));
+                    BlocProvider.of<UserFormBloc>(
+                      context,
+                    ).add(UserFormEvent.descriptionChanged(value));
                   },
                   onTapOutside: (_) =>
                       FocusManager.instance.primaryFocus?.unfocus(),
@@ -160,50 +166,38 @@ class UserForm extends StatelessWidget {
                       .description
                       .value
                       .fold(
-                          (failure) => switch (failure) {
-                                ExceedingLength() =>
-                                  'The description must have at most 30 characters',
-                                _ => null,
-                              },
-                          (_) => null),
+                        (failure) => switch (failure) {
+                          ExceedingLength() =>
+                            'The description must have at most 30 characters',
+                          _ => null,
+                        },
+                        (_) => null,
+                      ),
                 ),
-                const SizedBox(
-                  height: 20,
-                ),
+                const SizedBox(height: 20),
                 Row(
                   children: [
-                    const Spacer(
-                      flex: 1,
-                    ),
+                    const Spacer(flex: 1),
                     ElevatedButton(
-                      onPressed: () => BlocProvider.of<UserFormBloc>(context)
-                          .add(const UserFormEvent.saved()),
+                      onPressed: () => BlocProvider.of<UserFormBloc>(
+                        context,
+                      ).add(const UserFormEvent.saved()),
                       child: const Text('Save changes'),
                     ),
-                    const Spacer(
-                      flex: 1,
-                    ),
+                    const Spacer(flex: 1),
                   ],
                 ),
-                const SizedBox(
-                  height: 10,
-                ),
+                const SizedBox(height: 10),
                 const SignOut(),
-                const SizedBox(
-                  height: 10,
-                ),
+                const SizedBox(height: 10),
                 BlocBuilder<UserFormBloc, UserFormState>(
                   buildWhen: (previousState, currentState) =>
                       previousState.isSaving != currentState.isSaving,
                   builder: (context, state) => state.isSaving
                       ? const Column(
                           children: [
-                            SizedBox(
-                              height: 10.0,
-                            ),
-                            LinearProgressIndicator(
-                              value: null,
-                            )
+                            SizedBox(height: 10.0),
+                            LinearProgressIndicator(value: null),
                           ],
                         )
                       : const Column(),

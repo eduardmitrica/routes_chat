@@ -30,9 +30,7 @@ class FriendsSearchBar extends StatelessWidget {
           padding: EdgeInsets.only(left: 10),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.start,
-            children: [
-              Icon(Icons.search_rounded),
-            ],
+            children: [Icon(Icons.search_rounded)],
           ),
         ),
       ),

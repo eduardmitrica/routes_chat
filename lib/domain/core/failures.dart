@@ -11,45 +11,57 @@ sealed class ValueFailure<T> {
 }
 
 final class InvalidEmail extends ValueFailure<String> {
-  InvalidEmail({required failedValue}) : super(failedValue);
+  InvalidEmail({required String failedValue}) : super(failedValue);
 }
 
 final class InvalidPassword extends ValueFailure<String> {
-  InvalidPassword({required failedValue}) : super(failedValue);
+  InvalidPassword({required String failedValue}) : super(failedValue);
 }
 
 final class InvalidImageUrl extends ValueFailure<String> {
-  InvalidImageUrl({required failedValue}) : super(failedValue);
+  InvalidImageUrl({required String failedValue}) : super(failedValue);
 }
 
 final class MultipleLines extends ValueFailure<String> {
-  MultipleLines({required failedValue}): super(failedValue);
+  MultipleLines({required String failedValue}) : super(failedValue);
 }
 
 final class ExceedingLength extends ValueFailure<String> {
-  ExceedingLength({required failedValue, required maximumLength}): super(failedValue);
+  ExceedingLength({required String failedValue, required int maximumLength})
+    : super(failedValue);
 }
 
 final class EmptyString extends ValueFailure<String> {
-  EmptyString({required failedValue}): super(failedValue);
+  EmptyString({required String failedValue}) : super(failedValue);
 }
 
 final class UsernameAlreadyExists extends ValueFailure<String> {
-  UsernameAlreadyExists({required failedValue}): super(failedValue);
+  UsernameAlreadyExists({required String failedValue}) : super(failedValue);
 }
 
 final class UsernameExistsMoreThanOnce extends ValueFailure<String> {
-  UsernameExistsMoreThanOnce({required failedValue}): super(failedValue);
+  UsernameExistsMoreThanOnce({required String failedValue})
+    : super(failedValue);
 }
 
-final class IncorrectStatus extends ValueFailure<FriendRequestStatus>{
-  const IncorrectStatus({required failedValue}) : super(failedValue);
+/// The username cannot be a Firestore document id, which the
+/// `usernames/{username}` uniqueness index requires: it contains `/`, is `.`
+/// or `..`, or has the reserved `__name__` shape.
+final class InvalidUsernameCharacters extends ValueFailure<String> {
+  InvalidUsernameCharacters({required String failedValue}) : super(failedValue);
 }
 
-final class UnacceptedCase extends ValueFailure<String>{
-  const UnacceptedCase({required failedValue}) : super(failedValue);
+final class IncorrectStatus extends ValueFailure<FriendRequestStatus> {
+  const IncorrectStatus({required FriendRequestStatus failedValue})
+    : super(failedValue);
 }
 
-final class DuplicateIds extends ValueFailure<KtList<Tuple2<UniqueId, UniqueId>>> {
-  const DuplicateIds({required failedValue}) : super(failedValue);
+final class UnacceptedCase extends ValueFailure<String> {
+  const UnacceptedCase({required String failedValue}) : super(failedValue);
+}
+
+final class DuplicateIds
+    extends ValueFailure<KtList<Tuple2<UniqueId, UniqueId>>> {
+  const DuplicateIds({required KtList<Tuple2<UniqueId, UniqueId>> failedValue})
+    : super(failedValue);
 }

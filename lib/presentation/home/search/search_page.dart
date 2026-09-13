@@ -4,7 +4,6 @@ import 'package:routes_chat/application/friend_requests/friend_request_actor/fri
 import 'package:routes_chat/presentation/home/search/widgets/search_page_body.dart';
 
 class SearchPage extends StatelessWidget {
-
   const SearchPage({super.key});
 
   @override
@@ -12,9 +11,7 @@ class SearchPage extends StatelessWidget {
     return BlocProvider.value(
       value: BlocProvider.of<FriendRequestActorBloc>(context),
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Discover'),
-        ),
+        appBar: AppBar(title: const Text('Discover')),
         body: SearchPageBody(),
       ),
     );

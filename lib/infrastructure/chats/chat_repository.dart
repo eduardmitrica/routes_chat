@@ -1,29 +1,36 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
-import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/chat.dart';
 import 'package:routes_chat/domain/chats/chat_failure.dart';
 import 'package:routes_chat/domain/chats/chat_repository_interface.dart';
 import 'package:routes_chat/infrastructure/chats/chat_data_transfer_object.dart';
 import 'package:routes_chat/infrastructure/chats/messages/message_data_transfer_object.dart';
-import 'package:routes_chat/infrastructure/core/firestore_helpers.dart';
+import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../domain/chats/messages/message.dart';
 
-@LazySingleton(as: IChatRepository)
 class ChatRepository implements IChatRepository {
   final FirebaseFirestore _firestore;
+  final ICurrentUserSession _session;
 
-  const ChatRepository(this._firestore);
+  const ChatRepository(this._firestore, this._session);
 
   @override
   Stream<Either<ChatFailure, KtList<Chat>>> watchAllForCurrentUser() async* {
-    final userDocument = _firestore.userDocument;
+    final currentUser = _session.current;
+    if (currentUser == null) {
+      yield left(InsufficientPermissions());
+      return;
+    }
+    // Scoped server-side rather than filtered in Dart, so the security rule
+    // `request.auth.uid in resource.data.participantIds` can be satisfied:
+    // Firestore validates a list query against what it *could* return, so an
+    // unscoped listen would be denied outright.
     yield* _firestore
         .collection('chats')
+        .where('participantIds', arrayContains: currentUser.id)
         .orderBy('serverTimeStamp', descending: true)
         .snapshots()
         .map(
@@ -33,28 +40,29 @@ class ChatRepository implements IChatRepository {
           ),
         )
         .map(
-          (chats) => right<ChatFailure, KtList<Chat>>(
-            chats
-                .where((chat) => chat.participantsList
-                    .getOrCrash()
-                    .map((tuple) => tuple.value1.getOrCrash())
-                    .contains(userDocument.id))
-                .toImmutableList(),
-          ),
+          (chats) =>
+              right<ChatFailure, KtList<Chat>>(chats.toImmutableList()),
         )
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is FirebaseException &&
-          exception.code.contains('permission-denied')) {
-        return left(InsufficientPermissions());
-      } else {
-        return left(Unexpected());
-      }
-    });
+          if (exception is FirebaseException &&
+              exception.code.contains('permission-denied')) {
+            return left(InsufficientPermissions());
+          } else {
+            return left(Unexpected());
+          }
+        });
   }
 
   @override
   Future<Either<ChatFailure, Unit>> create(
-      Chat chat, Message firstMessage) async {
+    Chat chat,
+    Message firstMessage,
+  ) async {
+    final currentUser = _session.current;
+    if (currentUser == null) {
+      return Left(InsufficientPermissions());
+    }
+
     final chatDto = ChatDataTransferObject.fromDomain(chat);
     final messageDto = MessageDataTransferObject.fromDomain(firstMessage);
 
@@ -67,23 +75,27 @@ class ChatRepository implements IChatRepository {
 
     final chatsOfCurrentUserRef = _firestore
         .collection('chats')
-        .where('participants', whereIn: chatDto.participants);
+        .where('participantIds', arrayContains: currentUser.id);
     try {
       await _firestore.runTransaction((transaction) async {
         final chatsOfCurrentUser = await chatsOfCurrentUserRef.get();
-        final chatsThatMatchTheChatDtoParticipants =
-            chatsOfCurrentUser.docs.where((chat) {
-          final chatParticipants = (chat.data()['participants']
-              as List<Map<String, String>>)
-            ..sort((first, second) =>
-                first.keys.first.compareTo(second.keys.first));
+        // Matched on participant ids alone. The `participants` maps carry each
+        // participant's last-seen message id as their value, which differs
+        // between a stored chat and the one being created, so comparing those
+        // maps never matches and every message would start a duplicate chat.
+        final pendingParticipantIds = chatDto.participantIds.toSet();
+        final chatsThatMatchTheChatDtoParticipants = chatsOfCurrentUser.docs
+            .where((chat) {
+              final storedParticipantIds =
+                  (chat.data()['participantIds'] as List<dynamic>? ??
+                          const <dynamic>[])
+                      .cast<String>()
+                      .toSet();
 
-          final pendingChatParticipants = chatDto.participants;
-          pendingChatParticipants.sort(
-              (first, second) => first.keys.first.compareTo(second.keys.first));
-          return const DeepCollectionEquality()
-              .equals(chatParticipants, pendingChatParticipants);
-        });
+              return storedParticipantIds.length ==
+                      pendingParticipantIds.length &&
+                  storedParticipantIds.containsAll(pendingParticipantIds);
+            });
 
         DocumentReference? existingChatRef;
         if (chatsThatMatchTheChatDtoParticipants.isNotEmpty) {
@@ -92,18 +104,19 @@ class ChatRepository implements IChatRepository {
         }
 
         if (existingChatRef != null) {
-          final chatWithTheSpecifiedParticipants = await transaction
-              .get(existingChatRef) as DocumentSnapshot<Map<String, dynamic>>;
+          final chatWithTheSpecifiedParticipants =
+              await transaction.get(existingChatRef)
+                  as DocumentSnapshot<Map<String, dynamic>>;
           if (chatWithTheSpecifiedParticipants.exists == false) {
             transaction.set(chatRef, chatDto.toJson());
             transaction.set(messageRef, messageDto.toJson());
           } else {
             transaction.update(
-                existingChatRef,
-                ChatDataTransferObject.fromFirestore(
-                        chatWithTheSpecifiedParticipants)
-                    .copyWith(lastMessage: chatDto.lastMessage)
-                    .toJson());
+              existingChatRef,
+              ChatDataTransferObject.fromFirestore(
+                chatWithTheSpecifiedParticipants,
+              ).copyWith(lastMessage: chatDto.lastMessage).toJson(),
+            );
             transaction.set(messageRef, messageDto.toJson());
           }
         } else {

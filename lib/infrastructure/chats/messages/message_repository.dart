@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
-import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
 
 import 'package:routes_chat/domain/chats/messages/message.dart';
@@ -13,7 +12,6 @@ import 'package:rxdart/rxdart.dart';
 
 import '../../../domain/chats/messages/message_repository_interface.dart';
 
-@LazySingleton(as: IMessageRepository)
 class MessageRepository implements IMessageRepository {
   final FirebaseFirestore _firestore;
 
@@ -21,7 +19,8 @@ class MessageRepository implements IMessageRepository {
 
   @override
   Stream<Either<MessageFailure, KtList<Message>>> watchAllForChatWithId(
-      UniqueId chatId) async* {
+    UniqueId chatId,
+  ) async* {
     yield* _firestore
         .collection('chats')
         .doc(chatId.getOrCrash())
@@ -36,21 +35,24 @@ class MessageRepository implements IMessageRepository {
         )
         .map(
           (messages) => right<MessageFailure, KtList<Message>>(
-              messages.toImmutableList()),
+            messages.toImmutableList(),
+          ),
         )
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is FirebaseException &&
-          exception.code.contains('permission-denied')) {
-        return left(InsufficientPermissions());
-      } else {
-        return left(Unexpected());
-      }
-    });
+          if (exception is FirebaseException &&
+              exception.code.contains('permission-denied')) {
+            return left(InsufficientPermissions());
+          } else {
+            return left(Unexpected());
+          }
+        });
   }
 
   @override
   Future<Either<MessageFailure, Unit>> addMessageToChatWithId(
-      Message message, UniqueId chatId) async {
+    Message message,
+    UniqueId chatId,
+  ) async {
     final messageDto = MessageDataTransferObject.fromDomain(message);
 
     final chatRef = _firestore.collection('chats').doc(chatId.getOrCrash());

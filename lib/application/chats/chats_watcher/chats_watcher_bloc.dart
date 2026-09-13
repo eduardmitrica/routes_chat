@@ -1,14 +1,12 @@
 import 'dart:async';
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dartz/dartz.dart';
-import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/chat_failure.dart';
 import 'package:routes_chat/domain/chats/chat_repository_interface.dart';
-import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
-import 'package:routes_chat/injection.dart';
+import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 
 import '../../../domain/chats/chat.dart';
 import '../../../domain/core/value_objects.dart';
@@ -17,69 +15,63 @@ part 'chats_watcher_event.dart';
 
 part 'chats_watcher_state.dart';
 
-part 'chats_watcher_bloc.freezed.dart';
-
-@injectable
 class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
   final IChatRepository _chatRepository;
-
-  var userId = '';
+  final ICurrentUserSession _session;
 
   StreamSubscription<Either<ChatFailure, KtList<Chat>>>? _chatsSubscription;
 
-  ChatsWatcherBloc(this._chatRepository)
-      : super(const ChatsWatcherState.initial()) {
-    on<ChatsWatcherEvent>(
-      (event, emit) {
-        event.map(
-          watchAllStarted: (event) {
-            emit(const ChatsWatcherState.loadInProgress());
-            _chatsSubscription = _chatRepository
-                .watchAllForCurrentUser()
-                .listen(
-                  (failureOrFriendRequests) => add(
-                    ChatsWatcherEvent.chatsReceived(failureOrFriendRequests),
-                  ),
-                );
-          },
-          chatsReceived: (event) {
-            if (userId.isEmpty) {
-              final fetchedUserId = getIt<CurrentUseInformationPersistent>().id;
-              userId = fetchedUserId;
-            }
-            emit(
-              event.failureOrFriendRequests.fold(
-                  (failure) => ChatsWatcherState.loadFailure(failure), (chats) {
+  ChatsWatcherBloc(this._chatRepository, this._session)
+    : super(const ChatsWatcherState.initial()) {
+    on<ChatsWatcherEvent>((event, emit) {
+      switch (event) {
+        case ChatsWatchAllStarted():
+          emit(const ChatsWatcherState.loadInProgress());
+          _chatsSubscription = _chatRepository.watchAllForCurrentUser().listen(
+            (failureOrFriendRequests) =>
+                add(ChatsWatcherEvent.chatsReceived(failureOrFriendRequests)),
+          );
+        case ChatsReceived():
+          final userId = _session.current?.id ?? '';
+          emit(
+            event.failureOrFriendRequests.fold(
+              (failure) => ChatsWatcherState.loadFailure(failure),
+              (chats) {
                 var friendsThatCurrentUserHasChatsTo = chats
-                    .map((chat) => chat.participantsList
-                        .getOrCrash()
-                        .map((tuple) => tuple.value1))
+                    .map(
+                      (chat) => chat.participantsList.getOrCrash().map(
+                        (tuple) => tuple.value1,
+                      ),
+                    )
                     .flatten();
 
                 friendsThatCurrentUserHasChatsTo =
                     friendsThatCurrentUserHasChatsTo.filter(
-                        (chatParticipantId) =>
-                            chatParticipantId.getOrCrash() != userId);
+                      (chatParticipantId) =>
+                          chatParticipantId.getOrCrash() != userId,
+                    );
 
                 friendsThatCurrentUserHasChatsTo =
                     friendsThatCurrentUserHasChatsTo.toSet().toList();
                 return ChatsWatcherState.loadSuccess(
-                    chats, friendsThatCurrentUserHasChatsTo);
-              }),
-            );
-          },
-        );
-      },
-    );
+                  chats,
+                  friendsThatCurrentUserHasChatsTo,
+                );
+              },
+            ),
+          );
+      }
+    });
   }
 
   Future<void> refreshSubscription() async {
     await _chatsSubscription?.cancel();
     Future loadSuccessOrFailureState = stream
-        .where((state) => state.maybeMap(
-            loadSuccess: (_) => true,
-            loadFailure: (_) => true,
-            orElse: () => false))
+        .where(
+          (state) =>
+              state is ChatsWatcherLoadSuccess ||
+              state is ChatsWatcherLoadFailure,
+        )
         .first;
     add(const ChatsWatcherEvent.watchAllStarted());
     await loadSuccessOrFailureState;

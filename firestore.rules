@@ -65,16 +65,39 @@ service cloud.firestore {
     // locally, so read can't be narrowed to sender/receiver without
     // breaking those listeners. Writes are restricted to the two
     // parties involved.
+    //
+    // There is one document per pair of users: its id must be both uids,
+    // sorted and joined with "_" (compositeId in the app). A request from B
+    // to A therefore targets the same document as one from A to B, so a
+    // duplicate or complementary request is impossible by construction rather
+    // than a race the client has to win.
     match /friendRequests/{requestId} {
+      function pairId(firstUid, secondUid) {
+        return firstUid < secondUid
+          ? firstUid + '_' + secondUid
+          : secondUid + '_' + firstUid;
+      }
+
       allow read: if signedIn();
       allow create: if signedIn() &&
         request.resource.data.senderId == request.auth.uid &&
-        // A user cannot befriend themselves. The complementary-pair case
-        // (A→B and B→A both existing) cannot be expressed here because rules
-        // cannot query a collection; FriendRequestRepository.create guards it
-        // with a transaction instead.
-        request.resource.data.senderId != request.resource.data.receiverId;
-      allow update, delete: if signedIn() &&
+        // A user cannot befriend themselves.
+        request.resource.data.senderId != request.resource.data.receiverId &&
+        request.resource.data.status == 'Pending' &&
+        requestId == pairId(request.resource.data.senderId,
+                            request.resource.data.receiverId);
+      // Only the receiver changes a request, only from Pending to Accepted,
+      // and never who sent it to whom. A second request for the same pair
+      // reaches this document as an update, so this is also what stops it
+      // from overwriting the first.
+      allow update: if signedIn() &&
+        resource.data.receiverId == request.auth.uid &&
+        request.resource.data.senderId == resource.data.senderId &&
+        request.resource.data.receiverId == resource.data.receiverId &&
+        resource.data.status == 'Pending' &&
+        request.resource.data.status == 'Accepted';
+      // Either party can withdraw or decline.
+      allow delete: if signedIn() &&
         (resource.data.senderId == request.auth.uid ||
          resource.data.receiverId == request.auth.uid);
     }
@@ -94,13 +117,23 @@ service cloud.firestore {
 
       allow read: if signedIn() &&
         request.auth.uid in resource.data.participantIds;
+      // The chat id is the two participant ids, sorted and joined with "_"
+      // (compositeId in the app), so the same two people always share one
+      // chat document, even when both send a first message at the same
+      // moment. Rules cannot sort a list, so participantIds must be stored
+      // sorted. The app only creates one-to-one chats; group chats would need
+      // a different id scheme here.
       allow create: if signedIn() &&
-        request.auth.uid in request.resource.data.participantIds;
-      // The writer must already be a participant and must remain one, so a
-      // participant cannot write themselves out of a chat or drop others.
+        request.auth.uid in request.resource.data.participantIds &&
+        request.resource.data.participantIds.size() == 2 &&
+        request.resource.data.participantIds[0] <
+          request.resource.data.participantIds[1] &&
+        chatId == request.resource.data.participantIds.join('_');
+      // The writer must already be a participant, and the participants never
+      // change, which also keeps the id consistent with them.
       allow update: if signedIn() &&
         request.auth.uid in resource.data.participantIds &&
-        request.auth.uid in request.resource.data.participantIds;
+        request.resource.data.participantIds == resource.data.participantIds;
 
       match /messages/{messageId} {
         // Reads resolve the parent chat. Safe because the UI only subscribes

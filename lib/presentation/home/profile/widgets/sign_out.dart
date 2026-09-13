@@ -10,26 +10,26 @@ class SignOut extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocListener<AuthenticationBloc, AuthenticationState>(
       listener: (context, state) {
-        state.map(
-            initial: (_) {},
-            authenticated: (_) {},
-            unauthenticated: (_) => Navigator.of(context)
-                .pushReplacementNamed(SignInPage.signInPageRoute));
+        switch (state) {
+          case AuthenticationInitial():
+          case Authenticated():
+            break;
+          case Unauthenticated():
+            Navigator.of(
+              context,
+            ).pushReplacementNamed(SignInPage.signInPageRoute);
+        }
       },
       child: Row(
         children: [
-          const Spacer(
-            flex: 1,
-          ),
+          const Spacer(flex: 1),
           ElevatedButton(
-            onPressed: () => BlocProvider.of<AuthenticationBloc>(context).add(
-              const AuthenticationEvent.signedOut(),
-            ),
+            onPressed: () => BlocProvider.of<AuthenticationBloc>(
+              context,
+            ).add(const AuthenticationEvent.signedOut()),
             child: const Text('Sign out'),
           ),
-          const Spacer(
-            flex: 1,
-          ),
+          const Spacer(flex: 1),
         ],
       ),
     );

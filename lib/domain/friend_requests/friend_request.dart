@@ -20,23 +20,25 @@ abstract class FriendRequest with _$FriendRequest {
   }) = _FriendRequest;
 
   factory FriendRequest.empty() => FriendRequest(
-      id: UniqueId(),
-      senderId: UniqueId(),
-      receiverId: UniqueId(),
-      status: Status(Pending()));
+    id: UniqueId(),
+    senderId: UniqueId(),
+    receiverId: UniqueId(),
+    status: Status(Pending()),
+  );
 
-  Option<ValueFailure<dynamic>> get failureOption => this
-          .id
-          .failureOrUnit
-          .andThen(senderId.failureOrUnit)
-          .andThen(receiverId.failureOrUnit)
-          .andThen(status.failureOrUnit)
-          .fold((failure) => some(failure), (_) {
+  Option<ValueFailure<dynamic>> get failureOption => this.id.failureOrUnit
+      .andThen(senderId.failureOrUnit)
+      .andThen(receiverId.failureOrUnit)
+      .andThen(status.failureOrUnit)
+      .fold((failure) => some(failure), (_) {
         if (senderId.getOrCrash().toString() ==
             receiverId.getOrCrash().toString()) {
-          return some(const UnacceptedCase(
+          return some(
+            const UnacceptedCase(
               failedValue:
-                  'A friend request can not have the same ids for sender and receiver'));
+                  'A friend request can not have the same ids for sender and receiver',
+            ),
+          );
         } else {
           return none();
         }
@@ -50,15 +52,17 @@ extension FriendRequestsX on KtList<FriendRequest> {
     }
 
     final duplicateFriendRequestByIds = find((friendRequest) {
-      final duplicateFriendRequest = find(((correspondingFriendRequest) =>
-          (friendRequest.senderId.getOrCrash() ==
-                  correspondingFriendRequest.receiverId.getOrCrash() &&
-              friendRequest.receiverId.getOrCrash() ==
-                  correspondingFriendRequest.senderId.getOrCrash()) &&
-          (friendRequest.senderId.getOrCrash() !=
-                  correspondingFriendRequest.senderId.getOrCrash() &&
-              friendRequest.receiverId.getOrCrash() !=
-                  correspondingFriendRequest.receiverId.getOrCrash())));
+      final duplicateFriendRequest = find(
+        ((correspondingFriendRequest) =>
+            (friendRequest.senderId.getOrCrash() ==
+                    correspondingFriendRequest.receiverId.getOrCrash() &&
+                friendRequest.receiverId.getOrCrash() ==
+                    correspondingFriendRequest.senderId.getOrCrash()) &&
+            (friendRequest.senderId.getOrCrash() !=
+                    correspondingFriendRequest.senderId.getOrCrash() &&
+                friendRequest.receiverId.getOrCrash() !=
+                    correspondingFriendRequest.receiverId.getOrCrash())),
+      );
       if (duplicateFriendRequest != null) {
         return true;
       } else {
@@ -68,23 +72,30 @@ extension FriendRequestsX on KtList<FriendRequest> {
 
     if (duplicateFriendRequestByIds != null) {
       return some(
-          const UnacceptedCase(failedValue: 'Duplicated friend request'));
+        const UnacceptedCase(failedValue: 'Duplicated friend request'),
+      );
     }
 
     final duplicateFriendRequestByStatus = find((friendRequest) {
-      final duplicateFriendRequest = find((correspondingFriendRequest) =>
-          (friendRequest.senderId.getOrCrash() ==
-                  correspondingFriendRequest.senderId.getOrCrash() &&
-              friendRequest.receiverId.getOrCrash() ==
-                  correspondingFriendRequest.receiverId.getOrCrash()) &&
-          ((friendRequest.status.getOrCrash().runtimeType ==
-                      Pending().runtimeType &&
-                  correspondingFriendRequest.status.getOrCrash().runtimeType ==
-                      Accepted().runtimeType) ||
-              (friendRequest.status.getOrCrash().runtimeType ==
-                      Accepted().runtimeType &&
-                  correspondingFriendRequest.status.getOrCrash().runtimeType ==
-                      Pending().runtimeType)));
+      final duplicateFriendRequest = find(
+        (correspondingFriendRequest) =>
+            (friendRequest.senderId.getOrCrash() ==
+                    correspondingFriendRequest.senderId.getOrCrash() &&
+                friendRequest.receiverId.getOrCrash() ==
+                    correspondingFriendRequest.receiverId.getOrCrash()) &&
+            ((friendRequest.status.getOrCrash().runtimeType ==
+                        Pending().runtimeType &&
+                    correspondingFriendRequest.status
+                            .getOrCrash()
+                            .runtimeType ==
+                        Accepted().runtimeType) ||
+                (friendRequest.status.getOrCrash().runtimeType ==
+                        Accepted().runtimeType &&
+                    correspondingFriendRequest.status
+                            .getOrCrash()
+                            .runtimeType ==
+                        Pending().runtimeType)),
+      );
       if (duplicateFriendRequest != null) {
         return true;
       } else {
@@ -94,7 +105,8 @@ extension FriendRequestsX on KtList<FriendRequest> {
 
     if (duplicateFriendRequestByStatus != null) {
       return some(
-          const UnacceptedCase(failedValue: 'Duplicated friend request'));
+        const UnacceptedCase(failedValue: 'Duplicated friend request'),
+      );
     }
 
     return none();

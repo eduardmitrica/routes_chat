@@ -18,114 +18,123 @@ class ChatPage extends StatelessWidget {
     final user = ModalRoute.of(context)!.settings.arguments as User;
     return BlocBuilder<ChatsWatcherBloc, ChatsWatcherState>(
       builder: (context, state) {
-        return state.maybeMap(
-            loadSuccess: (state) {
-              final chat = state.chats.find((chat) => chat.participantsList
-                  .getOrCrash()
-                  .map((participant) => participant.value1.getOrCrash())
-                  .contains(user.id.getOrCrash()));
-              return Scaffold(
-                appBar: AppBar(
-                  leading: IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.arrow_back_rounded)),
-                  title: Text(
-                    user.username.getOrCrash(),
-                    style: const TextStyle(color: Colors.deepPurpleAccent),
-                  ),
-                  actions: [
-                    CircleAvatar(
-                      foregroundImage: NetworkImage(user.imageUrl.getOrCrash()),
-                    ),
-                  ],
+        if (state is! ChatsWatcherLoadSuccess) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        {
+          final chat = state.chats.find(
+            (chat) => chat.participantsList
+                .getOrCrash()
+                .map((participant) => participant.value1.getOrCrash())
+                .contains(user.id.getOrCrash()),
+          );
+          return Scaffold(
+            appBar: AppBar(
+              leading: IconButton(
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.arrow_back_rounded),
+              ),
+              title: Text(
+                user.username.getOrCrash(),
+                style: const TextStyle(color: Colors.deepPurpleAccent),
+              ),
+              actions: [
+                CircleAvatar(
+                  foregroundImage: NetworkImage(user.imageUrl.getOrCrash()),
                 ),
-                body: Column(
-                  children: [
-                    if (chat == null)
-                      const Expanded(
-                        child: Center(
-                          child: Text('You have no messages with this user'),
-                        ),
-                      ),
-                    if (chat != null)
-                      Expanded(
-                        child: BlocProvider(
-                          create: (_) => getIt<MessagesWatcherBloc>()
-                            ..add(
-                              MessagesWatcherEvent.watchAllStartedForChatWithId(
-                                  chat.id),
-                            ),
-                          child: BlocBuilder<MessagesWatcherBloc,
-                              MessagesWatcherState>(
-                            builder: (context, state) {
-                              return state.map(
-                                initial: (state) => const SizedBox(),
-                                loadInProgress: (state) => const Center(
-                                  child: CircularProgressIndicator(),
-                                ),
-                                loadSuccess: (state) => ListView.builder(
-                                  itemCount: state.messages.size,
-                                  itemBuilder: (context, index) {
-                                    final message = state.messages[index];
-                                    return BubbleSpecialThree(
-                                      color: Colors.deepPurpleAccent,
-                                      textStyle:
-                                          const TextStyle(color: Colors.white),
-                                      tail: false,
-                                      text: message.content.getOrCrash(),
-                                      isSender: message.senderId.getOrCrash() !=
-                                          user.id.getOrCrash(),
-                                    );
-                                  },
-                                ),
-                                loadFailure: (state) => Center(
-                                  child: Text(
-                                    state.failure.toString(),
-                                  ),
-                                ),
-                              );
-                            },
+              ],
+            ),
+            body: Column(
+              children: [
+                if (chat == null)
+                  const Expanded(
+                    child: Center(
+                      child: Text('You have no messages with this user'),
+                    ),
+                  ),
+                if (chat != null)
+                  Expanded(
+                    child: BlocProvider(
+                      create: (_) => getIt<MessagesWatcherBloc>()
+                        ..add(
+                          MessagesWatcherEvent.watchAllStartedForChatWithId(
+                            chat.id,
                           ),
                         ),
-                      ),
-                    const SizedBox(
-                      height: 20,
-                    ),
-                    BlocProvider(
-                      create: (context) => getIt<ChatBarBloc>(),
-                      child: BlocBuilder<ChatBarBloc, ChatBarState>(
-                        buildWhen: (previousState, currentState) =>
-                            previousState.showErrorMessages !=
-                            currentState.showErrorMessages,
-                        builder: (context, state) {
-                          return MessageBar(
-                            messageBarColor: Colors.deepPurpleAccent,
-                            messageBarHintText: 'Start typing...',
-                            onTextChanged: (value) =>
-                                BlocProvider.of<ChatBarBloc>(context).add(
-                                    ChatBarEvent.messageContentChanged(value)),
-                            onSend: (value) {
-                              if (chat == null) {
-                                BlocProvider.of<ChatBarBloc>(context).add(
-                                    ChatBarEvent.newChatCreated(
-                                        [user.id].toImmutableList()));
-                              } else if (value.isNotEmpty) {
-                                BlocProvider.of<ChatBarBloc>(context).add(
-                                    ChatBarEvent.newMessageAddedToChatWithId(
-                                        value, chat.id));
-                              }
+                      child:
+                          BlocBuilder<
+                            MessagesWatcherBloc,
+                            MessagesWatcherState
+                          >(
+                            builder: (context, state) {
+                              return switch (state) {
+                                MessagesWatcherInitial() => const SizedBox(),
+                                MessagesWatcherLoadInProgress() => const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                                MessagesWatcherLoadSuccess(:final messages) =>
+                                  ListView.builder(
+                                    itemCount: messages.size,
+                                    itemBuilder: (context, index) {
+                                      final message = messages[index];
+                                      return BubbleSpecialThree(
+                                        color: Colors.deepPurpleAccent,
+                                        textStyle: const TextStyle(
+                                          color: Colors.white,
+                                        ),
+                                        tail: false,
+                                        text: message.content.getOrCrash(),
+                                        isSender:
+                                            message.senderId.getOrCrash() !=
+                                            user.id.getOrCrash(),
+                                      );
+                                    },
+                                  ),
+                                MessagesWatcherLoadFailure(:final failure) =>
+                                  Center(child: Text(failure.toString())),
+                              };
                             },
-                          );
-                        },
-                      ),
+                          ),
                     ),
-                  ],
+                  ),
+                const SizedBox(height: 20),
+                BlocProvider(
+                  create: (context) => getIt<ChatBarBloc>(),
+                  child: BlocBuilder<ChatBarBloc, ChatBarState>(
+                    buildWhen: (previousState, currentState) =>
+                        previousState.showErrorMessages !=
+                        currentState.showErrorMessages,
+                    builder: (context, state) {
+                      return MessageBar(
+                        messageBarColor: Colors.deepPurpleAccent,
+                        messageBarHintText: 'Start typing...',
+                        onTextChanged: (value) => BlocProvider.of<ChatBarBloc>(
+                          context,
+                        ).add(ChatBarEvent.messageContentChanged(value)),
+                        onSend: (value) {
+                          if (chat == null) {
+                            BlocProvider.of<ChatBarBloc>(context).add(
+                              ChatBarEvent.newChatCreated(
+                                [user.id].toImmutableList(),
+                              ),
+                            );
+                          } else if (value.isNotEmpty) {
+                            BlocProvider.of<ChatBarBloc>(context).add(
+                              ChatBarEvent.newMessageAddedToChatWithId(
+                                value,
+                                chat.id,
+                              ),
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
                 ),
-              );
-            },
-            orElse: () => const Center(
-                  child: CircularProgressIndicator(),
-                ));
+              ],
+            ),
+          );
+        }
       },
     );
   }

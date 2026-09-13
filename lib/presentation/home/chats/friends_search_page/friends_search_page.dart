@@ -17,39 +17,35 @@ class FriendsSearchPage extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(
-          create: (_) => getIt<FriendsWatcherBloc>()
-            ..add(
-              const FriendsWatcherEvent.watchAllStarted(),
-            ),
+          create: (_) =>
+              getIt<FriendsWatcherBloc>()
+                ..add(const FriendsWatcherEvent.watchAllStarted()),
         ),
-        BlocProvider.value(
-          value: BlocProvider.of<ChatsWatcherBloc>(context),
-        ),
+        BlocProvider.value(value: BlocProvider.of<ChatsWatcherBloc>(context)),
       ],
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('search'),
-        ),
+        appBar: AppBar(title: const Text('search')),
         body: BlocBuilder<FriendsWatcherBloc, FriendsWatcherState>(
           builder: (BuildContext context, FriendsWatcherState state) {
-            return state.map(
-              initial: (state) => const SizedBox(),
-              loadInProgress: (state) => const Center(
+            return switch (state) {
+              FriendsWatcherInitial() => const SizedBox(),
+              FriendsWatcherLoadInProgress() => const Center(
                 child: CircularProgressIndicator(),
               ),
-              loadSuccess: (state) => BlocProvider(
-                create: (_) => getIt<UsersWatcherBloc>()
-                  ..add(
-                    UsersWatcherEvent.watchStarted(
-                      state.friendsIds,
-                    ),
-                  ),
-                child: FriendsSearchPageBody(state.friendRequests),
+              FriendsWatcherLoadSuccess(
+                :final friendRequests,
+                :final friendsIds,
+              ) =>
+                BlocProvider(
+                  create: (_) =>
+                      getIt<UsersWatcherBloc>()
+                        ..add(UsersWatcherEvent.watchStarted(friendsIds)),
+                  child: FriendsSearchPageBody(friendRequests),
+                ),
+              FriendsWatcherLoadFailure(:final failure) => Center(
+                child: Text(failure.toString()),
               ),
-              loadFailure: (state) => Center(
-                child: Text(state.failure.toString()),
-              ),
-            );
+            };
           },
         ),
       ),

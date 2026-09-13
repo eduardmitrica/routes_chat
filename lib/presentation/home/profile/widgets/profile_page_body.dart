@@ -9,16 +9,16 @@ class ProfilePageBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<UserWatcherBloc, UserWatcherState>(
-      builder: (context, state) => state.map(
-        initial: (_) => const SizedBox(),
-        loadInProgress: (_) => const Center(
+      builder: (context, state) => switch (state) {
+        UserWatcherInitial() => const SizedBox(),
+        UserWatcherLoadInProgress() => const Center(
           child: CircularProgressIndicator(),
         ),
-        loadSuccess: (state) => UserForm(state.user),
-        loadFailure: (state) => Center(
-          child: Center(child: Text(state.failure.toString())),
+        UserWatcherLoadSuccess(:final user) => UserForm(user),
+        UserWatcherLoadFailure(:final failure) => Center(
+          child: Center(child: Text(failure.toString())),
         ),
-      ),
+      },
     );
   }
 }

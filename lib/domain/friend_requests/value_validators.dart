@@ -8,12 +8,11 @@ Map<String, FriendRequestStatus> statusMap = {
   'Accepted': Accepted(),
 };
 
-Either<ValueFailure<FriendRequestStatus>,
-    FriendRequestStatus> checkIfStatusIsEitherPendingOrAccepted(String statusString)
-{
+Either<ValueFailure<FriendRequestStatus>, FriendRequestStatus>
+checkIfStatusIsEitherPendingOrAccepted(String statusString) {
   if (statusMap.keys.contains(statusString)) {
     return Right(statusMap[statusString]!);
   } else {
-    return Left(IncorrectStatus(failedValue: Incorrect));
+    return Left(IncorrectStatus(failedValue: Incorrect()));
   }
 }

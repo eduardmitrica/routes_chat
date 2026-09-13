@@ -11,19 +11,18 @@ class SplashPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocListener<AuthenticationBloc, AuthenticationState>(
       listener: (context, state) {
-        state.map(
-          initial: (_) {},
-          authenticated: (_) => Navigator.of(context)
-              .pushReplacementNamed(HomePage.homePageRoute),
-          unauthenticated: (_) => Navigator.of(context)
-              .pushReplacementNamed(SignInPage.signInPageRoute),
-        );
+        switch (state) {
+          case AuthenticationInitial():
+            break;
+          case Authenticated():
+            Navigator.of(context).pushReplacementNamed(HomePage.homePageRoute);
+          case Unauthenticated():
+            Navigator.of(
+              context,
+            ).pushReplacementNamed(SignInPage.signInPageRoute);
+        }
       },
-      child: const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      ),
+      child: const Scaffold(body: Center(child: CircularProgressIndicator())),
     );
   }
 }

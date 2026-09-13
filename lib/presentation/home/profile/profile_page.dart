@@ -7,7 +7,6 @@ import 'package:routes_chat/presentation/home/profile/widgets/profile_page_body.
 import '../../../injection.dart';
 
 class ProfilePage extends StatelessWidget {
-
   const ProfilePage({super.key});
 
   @override
@@ -15,19 +14,16 @@ class ProfilePage extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider<UserWatcherBloc>(
-          create: (_) => getIt<UserWatcherBloc>()
-            ..add(
-              const UserWatcherEvent.watchStarted(),
-            ),
+          create: (_) =>
+              getIt<UserWatcherBloc>()
+                ..add(const UserWatcherEvent.watchStarted()),
         ),
         BlocProvider<UserFormBloc>.value(
           value: BlocProvider.of<UserFormBloc>(context),
         ),
       ],
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Profile'),
-        ),
+        appBar: AppBar(title: const Text('Profile')),
         body: const ProfilePageBody(),
       ),
     );

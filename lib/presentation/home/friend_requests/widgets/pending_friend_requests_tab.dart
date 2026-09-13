@@ -10,33 +10,38 @@ class PendingFriendRequestsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<PendingFriendRequestsWatcherBloc,
-        PendingFriendRequestsWatcherState>(
+    return BlocConsumer<
+      PendingFriendRequestsWatcherBloc,
+      PendingFriendRequestsWatcherState
+    >(
       listener: (context, state) {
-        state.maybeMap(
-            loadSuccess: (state) => BlocProvider.of<UsersWatcherBloc>(context)
-              ..add(
-                UsersWatcherEvent.watchStarted(
-                  state.friendRequests
-                      .map((friendRequest) => friendRequest.receiverId),
-                ),
+        if (state is PendingFriendRequestsWatcherLoadSuccess) {
+          BlocProvider.of<UsersWatcherBloc>(context).add(
+            UsersWatcherEvent.watchStarted(
+              state.friendRequests.map(
+                (friendRequest) => friendRequest.receiverId,
               ),
-            orElse: () {});
+            ),
+          );
+        }
       },
       builder: (context, state) {
-        return state.map(
-          initial: (state) => const SizedBox(),
-          loadInProgress: (state) => const Center(
+        return switch (state) {
+          PendingFriendRequestsWatcherInitial() => const SizedBox(),
+          PendingFriendRequestsWatcherLoadInProgress() => const Center(
             child: CircularProgressIndicator(),
           ),
-          loadSuccess: (state) => PendingFriendRequestsTabBody(
-              state.friendRequests,
-              BlocProvider.of<PendingFriendRequestsWatcherBloc>(context)
-                  .refreshSubscription),
-          loadFailure: (state) => Center(
-            child: Text(state.failure.toString()),
+          PendingFriendRequestsWatcherLoadSuccess(:final friendRequests) =>
+            PendingFriendRequestsTabBody(
+              friendRequests,
+              BlocProvider.of<PendingFriendRequestsWatcherBloc>(
+                context,
+              ).refreshSubscription,
+            ),
+          PendingFriendRequestsWatcherLoadFailure(:final failure) => Center(
+            child: Text(failure.toString()),
           ),
-        );
+        };
       },
     );
   }

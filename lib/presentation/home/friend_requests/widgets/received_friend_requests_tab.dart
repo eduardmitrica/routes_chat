@@ -10,33 +10,38 @@ class ReceivedFriendRequestsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<ReceivedFriendRequestsWatcherBloc,
-        ReceivedFriendRequestsWatcherState>(
+    return BlocConsumer<
+      ReceivedFriendRequestsWatcherBloc,
+      ReceivedFriendRequestsWatcherState
+    >(
       listener: (context, state) {
-        state.maybeMap(
-            loadSuccess: (state) => BlocProvider.of<UsersWatcherBloc>(context)
-              ..add(
-                UsersWatcherEvent.watchStarted(
-                  state.friendRequests
-                      .map((friendRequest) => friendRequest.senderId),
-                ),
+        if (state is ReceivedFriendRequestsWatcherLoadSuccess) {
+          BlocProvider.of<UsersWatcherBloc>(context).add(
+            UsersWatcherEvent.watchStarted(
+              state.friendRequests.map(
+                (friendRequest) => friendRequest.senderId,
               ),
-            orElse: () {});
+            ),
+          );
+        }
       },
       builder: (context, state) {
-        return state.map(
-          initial: (state) => const SizedBox(),
-          loadInProgress: (state) => const Center(
+        return switch (state) {
+          ReceivedFriendRequestsWatcherInitial() => const SizedBox(),
+          ReceivedFriendRequestsWatcherLoadInProgress() => const Center(
             child: CircularProgressIndicator(),
           ),
-          loadSuccess: (state) => ReceivedFriendRequestsTabBody(
-              state.friendRequests,
-              BlocProvider.of<ReceivedFriendRequestsWatcherBloc>(context)
-                  .refreshSubscription),
-          loadFailure: (state) => Center(
-            child: Text(state.failure.toString()),
+          ReceivedFriendRequestsWatcherLoadSuccess(:final friendRequests) =>
+            ReceivedFriendRequestsTabBody(
+              friendRequests,
+              BlocProvider.of<ReceivedFriendRequestsWatcherBloc>(
+                context,
+              ).refreshSubscription,
+            ),
+          ReceivedFriendRequestsWatcherLoadFailure(:final failure) => Center(
+            child: Text(failure.toString()),
           ),
-        );
+        };
       },
     );
   }

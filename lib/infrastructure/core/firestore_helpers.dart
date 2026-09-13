@@ -1,17 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
-
-import '../../injection.dart';
 
 extension FirestoreX on FirebaseFirestore {
-  DocumentReference get userDocument {
-    final userId = getIt<CurrentUseInformationPersistent>().id;
-    return collection('users').doc(userId);
-  }
+  DocumentReference userDocument(String userId) =>
+      collection('users').doc(userId);
+
+  /// Entry in the username uniqueness index: `usernames/{username}` holding
+  /// only `{uid}`.
+  ///
+  /// It lets registration check uniqueness while signed out without making
+  /// `users` (which carries email addresses) publicly readable, and lets the
+  /// security rules enforce uniqueness: a profile may only carry a username
+  /// whose entry here belongs to it.
+  DocumentReference<Map<String, dynamic>> usernameDocument(String username) =>
+      collection('usernames').doc(username);
 }
 
 extension DocumentReferenceX on DocumentReference {
   CollectionReference get userCollection => collection('users');
 
-  CollectionReference get friendRequestCollection => collection('friendRequests');
+  CollectionReference get friendRequestCollection =>
+      collection('friendRequests');
 }

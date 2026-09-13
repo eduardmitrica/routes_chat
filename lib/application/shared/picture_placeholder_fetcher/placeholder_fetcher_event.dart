@@ -1,6 +1,14 @@
 part of 'placeholder_fetcher_bloc.dart';
 
-@freezed
-class PlaceholderFetcherEvent with _$PlaceholderFetcherEvent {
-  const factory PlaceholderFetcherEvent.started() = _Started;
+sealed class PlaceholderFetcherEvent extends Equatable {
+  const PlaceholderFetcherEvent();
+
+  const factory PlaceholderFetcherEvent.started() = PlaceholderFetcherStarted;
+
+  @override
+  List<Object?> get props => const [];
+}
+
+final class PlaceholderFetcherStarted extends PlaceholderFetcherEvent {
+  const PlaceholderFetcherStarted();
 }

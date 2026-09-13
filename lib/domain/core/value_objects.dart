@@ -41,11 +41,7 @@ class UniqueId extends ValueObject<String> {
   final Either<ValueFailure<String>, String> value;
 
   factory UniqueId() {
-    return UniqueId._(
-      right(
-        const Uuid().v1(),
-      ),
-    );
+    return UniqueId._(right(const Uuid().v1()));
   }
 
   factory UniqueId.fromUniqueString(String uniqueId) {

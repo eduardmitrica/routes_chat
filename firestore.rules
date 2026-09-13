@@ -1,0 +1,119 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // True when, once the current write lands, the `usernames` entry for
+    // [username] belongs to the caller.
+    function claimsUsername(username) {
+      return getAfter(/databases/$(database)/documents/usernames/$(username))
+        .data.uid == request.auth.uid;
+    }
+
+    // Profiles carry email addresses, so they are only readable once signed
+    // in. Nothing needs them earlier: registration checks uniqueness against
+    // the `usernames` index below, and the Google flows sign in first and then
+    // read the caller's own profile.
+    //
+    // A profile may only carry a username whose index entry belongs to the
+    // same uid once the write lands, which makes uniqueness enforced here
+    // rather than a client-side courtesy.
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.auth.uid == userId &&
+        claimsUsername(request.resource.data.username);
+      allow update: if signedIn() &&
+        request.auth.uid == userId &&
+        (request.resource.data.username == resource.data.username ||
+         claimsUsername(request.resource.data.username));
+      allow delete: if signedIn() && request.auth.uid == userId;
+    }
+
+    // Username uniqueness index: usernames/{username} -> { uid }. Readable
+    // signed out because registration checks it before the account exists;
+    // an entry reveals only that a name is taken, and by which uid. Listing is
+    // off, so the index cannot be enumerated.
+    match /usernames/{username} {
+      allow get: if true;
+      allow list: if false;
+      // Claim a name only for yourself, and only while your profile carries it
+      // once the write lands (profile and claim commit together).
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasOnly(['uid']) &&
+        request.resource.data.uid == request.auth.uid &&
+        getAfter(/databases/$(database)/documents/users/$(request.auth.uid))
+          .data.username == username;
+      // An entry is never rewritten. Claiming a taken name is an update of
+      // someone else's entry, and this is what rejects it.
+      allow update: if false;
+      // Release a name only once your profile no longer carries it: renamed,
+      // or deleted in the same write. Without the existsAfter branch a
+      // deleted account would hold its name forever.
+      allow delete: if signedIn() &&
+        resource.data.uid == request.auth.uid &&
+        (!existsAfter(/databases/$(database)/documents/users/$(request.auth.uid)) ||
+         getAfter(/databases/$(database)/documents/users/$(request.auth.uid))
+           .data.username != username);
+    }
+
+    // Friend requests are listed unscoped by the client and filtered
+    // locally, so read can't be narrowed to sender/receiver without
+    // breaking those listeners. Writes are restricted to the two
+    // parties involved.
+    match /friendRequests/{requestId} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.resource.data.senderId == request.auth.uid &&
+        // A user cannot befriend themselves. The complementary-pair case
+        // (A→B and B→A both existing) cannot be expressed here because rules
+        // cannot query a collection; FriendRequestRepository.create guards it
+        // with a transaction instead.
+        request.resource.data.senderId != request.resource.data.receiverId;
+      allow update, delete: if signedIn() &&
+        (resource.data.senderId == request.auth.uid ||
+         resource.data.receiverId == request.auth.uid);
+    }
+
+    // Reads and writes are both enforced against participantIds, the flat
+    // mirror of participants that ChatDataTransferObject derives for exactly
+    // this purpose (rules cannot iterate participants, which is a list of
+    // maps). ChatRepository queries with
+    // `where('participantIds', arrayContains: <uid>)`, which is what lets a
+    // list query satisfy the read rule below — Firestore validates a list
+    // against what it could return, so an unscoped listen is denied outright.
+    match /chats/{chatId} {
+      function participantIds() {
+        return get(/databases/$(database)/documents/chats/$(chatId))
+          .data.participantIds;
+      }
+
+      allow read: if signedIn() &&
+        request.auth.uid in resource.data.participantIds;
+      allow create: if signedIn() &&
+        request.auth.uid in request.resource.data.participantIds;
+      // The writer must already be a participant and must remain one, so a
+      // participant cannot write themselves out of a chat or drop others.
+      allow update: if signedIn() &&
+        request.auth.uid in resource.data.participantIds &&
+        request.auth.uid in request.resource.data.participantIds;
+
+      match /messages/{messageId} {
+        // Reads resolve the parent chat. Safe because the UI only subscribes
+        // to messages once the chat exists (ChatPage builds
+        // MessagesWatcherBloc under `if (chat != null)`).
+        allow read: if signedIn() && request.auth.uid in participantIds();
+        // Creates deliberately do NOT call participantIds(): the first message
+        // of a new chat is written in the same transaction as the chat
+        // document, so the parent is not committed yet and the get() would
+        // deny it. Pinning senderId to the caller is what is enforceable here.
+        allow create: if signedIn() &&
+          request.resource.data.senderId == request.auth.uid;
+      }
+    }
+  }
+}

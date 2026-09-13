@@ -33,6 +33,7 @@ class ChatRepository implements IChatRepository {
         .where('participantIds', arrayContains: currentUser.id)
         .orderBy('serverTimeStamp', descending: true)
         .snapshots()
+        .takeUntil(_session.ended)
         .map(
           (snapShot) => snapShot.docs.map(
             (document) =>

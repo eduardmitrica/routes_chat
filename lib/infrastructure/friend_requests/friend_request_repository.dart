@@ -147,6 +147,7 @@ class FriendRequestRepository implements IFriendRequestsRepository {
         .collection('friendRequests')
         .orderBy('serverTimeStamp', descending: true)
         .snapshots()
+        .takeUntil(_session.ended)
         .map(
           (snapShot) => snapShot.docs.map(
             (document) => FriendRequestDataTransferObject.fromFirestore(
@@ -190,6 +191,7 @@ class FriendRequestRepository implements IFriendRequestsRepository {
         .collection('friendRequests')
         .orderBy('serverTimeStamp', descending: true)
         .snapshots()
+        .takeUntil(_session.ended)
         .map(
           (snapShot) => snapShot.docs.map(
             (document) => FriendRequestDataTransferObject.fromFirestore(
@@ -233,6 +235,7 @@ class FriendRequestRepository implements IFriendRequestsRepository {
         .collection('friendRequests')
         .orderBy('serverTimeStamp', descending: true)
         .snapshots()
+        .takeUntil(_session.ended)
         .map(
           (snapShot) => snapShot.docs.map(
             (document) => FriendRequestDataTransferObject.fromFirestore(

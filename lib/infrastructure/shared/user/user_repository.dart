@@ -34,6 +34,7 @@ class UserFacade implements IUserRepository {
     yield* _firestore
         .userDocument(currentUser.id)
         .snapshots()
+        .takeUntil(_session.ended)
         .map(
           (snapshot) => right<UserFailure, User>(
             UserDataTransferObject.fromFirestore(
@@ -158,6 +159,7 @@ class UserFacade implements IUserRepository {
     yield* _firestore
         .collection('users')
         .snapshots()
+        .takeUntil(_session.ended)
         .map(
           (snapShot) => snapShot.docs.map(
             (document) =>

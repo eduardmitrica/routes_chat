@@ -35,8 +35,11 @@ class AuthenticationBloc
             },
           );
         case SignedOut():
-          await _authFacade.signOut();
+          // End the session before signing out of Firebase. Repositories stop
+          // their Firestore listeners when it ends; signing out first left
+          // them running without an auth token, and the rules rejected them.
           _session.end();
+          await _authFacade.signOut();
           emit(const AuthenticationState.unauthenticated());
       }
     });

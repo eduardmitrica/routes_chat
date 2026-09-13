@@ -87,7 +87,10 @@ void configureDependencies() {
       ),
     )
     ..registerLazySingleton<IMessageRepository>(
-      () => MessageRepository(getIt<FirebaseFirestore>()),
+      () => MessageRepository(
+        getIt<FirebaseFirestore>(),
+        getIt<ICurrentUserSession>(),
+      ),
     )
     ..registerLazySingleton<IChatRepository>(
       () => ChatRepository(

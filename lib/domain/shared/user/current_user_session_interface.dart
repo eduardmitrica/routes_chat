@@ -13,6 +13,14 @@ import 'current_user_information_persistent.dart';
 abstract interface class ICurrentUserSession {
   CurrentUseInformationPersistent? get current;
 
+  /// Emits, synchronously, each time a started session ends.
+  ///
+  /// Repositories stop their Firestore listeners on it with `takeUntil`, and
+  /// `AuthenticationBloc` ends the session before signing out of Firebase. The
+  /// listeners are therefore cancelled while the auth token is still valid,
+  /// instead of outliving it and being rejected by the security rules.
+  Stream<void> get ended;
+
   void start(CurrentUseInformationPersistent user);
 
   void end();

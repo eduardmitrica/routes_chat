@@ -11,11 +11,13 @@ import 'package:routes_chat/infrastructure/chats/messages/message_data_transfer_
 import 'package:rxdart/rxdart.dart';
 
 import '../../../domain/chats/messages/message_repository_interface.dart';
+import '../../../domain/shared/user/current_user_session_interface.dart';
 
 class MessageRepository implements IMessageRepository {
   final FirebaseFirestore _firestore;
+  final ICurrentUserSession _session;
 
-  const MessageRepository(this._firestore);
+  const MessageRepository(this._firestore, this._session);
 
   @override
   Stream<Either<MessageFailure, KtList<Message>>> watchAllForChatWithId(
@@ -27,6 +29,7 @@ class MessageRepository implements IMessageRepository {
         .collection('messages')
         .orderBy('serverTimeStamp', descending: false)
         .snapshots()
+        .takeUntil(_session.ended)
         .map(
           (snapShot) => snapShot.docs.map(
             (document) =>

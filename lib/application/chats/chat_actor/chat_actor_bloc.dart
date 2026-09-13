@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/chat_failure.dart';
 import 'package:routes_chat/domain/chats/value_objects.dart';
+import 'package:routes_chat/domain/core/composite_id.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 
@@ -45,7 +46,10 @@ class ChatActorBloc extends Bloc<ChatActorEvent, ChatActorState> {
             );
 
             final chat = Chat(
-              id: UniqueId(),
+              // One chat per pair of participants; see compositeId.
+              id: compositeId(
+                participantsWithCurrentUserIdIncluded.asList(),
+              ),
               participantsList: ParticipantsList(
                 participantsWithCurrentUserIdIncluded.map(
                   (participantId) => Tuple2(

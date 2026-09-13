@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
+import 'package:routes_chat/domain/core/composite_id.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/friend_requests/failures.dart';
 import 'package:routes_chat/domain/friend_requests/value_objects.dart';
@@ -47,9 +48,14 @@ class FriendRequestActorBloc
                     emit(const FriendRequestActorState.sendingFailure());
                   },
                   (receivingUser) async {
+                    final senderId = UniqueId.fromUniqueString(
+                      sendingUserId,
+                    );
                     final friendRequest = FriendRequest(
-                      id: UniqueId(),
-                      senderId: UniqueId.fromUniqueString(sendingUserId),
+                      // One document per pair of users, whichever of them
+                      // sends first; see compositeId.
+                      id: compositeId([senderId, receivingUser.id]),
+                      senderId: senderId,
                       receiverId: receivingUser.id,
                       status: Status(Pending()),
                     );

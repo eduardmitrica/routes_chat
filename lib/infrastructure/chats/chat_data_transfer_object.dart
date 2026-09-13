@@ -30,6 +30,9 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
     /// "the writer must be a participant" is not expressible over it. This
     /// duplicated field exists purely so the rules can enforce it, and is
     /// always derived in [fromDomain] rather than set by callers.
+    ///
+    /// Stored sorted, so the rules can require the chat id to equal
+    /// `participantIds.join('_')`, the format compositeId produces.
     required List<String> participantIds,
     @MessageDataTransferObjectConverter()
     required MessageDataTransferObject lastMessage,
@@ -74,7 +77,9 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
       participantIds: chat.participantsList
           .getOrCrash()
           .map((participant) => participant.value1.getOrCrash())
-          .asList(),
+          .asList()
+          .toList()
+        ..sort(),
       lastMessage: MessageDataTransferObject.fromDomain(chat.lastMessage),
       serverTimeStamp: FieldValue.serverTimestamp(),
     );

@@ -6,6 +6,7 @@ import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/friend_requests/friend_request.dart';
 
 import '../../domain/friend_requests/value_objects.dart';
+import '../../domain/friend_requests/value_validators.dart';
 
 part 'friend_request_data_transfer_object.freezed.dart';
 
@@ -37,15 +38,11 @@ abstract class FriendRequestDataTransferObject
   factory FriendRequestDataTransferObject.fromDomain(
     FriendRequest friendRequest,
   ) {
-    final fullStatusString = friendRequest.status.getOrCrash().toString();
     return FriendRequestDataTransferObject(
       id: friendRequest.id.getOrCrash(),
       senderId: friendRequest.senderId.getOrCrash(),
       receiverId: friendRequest.receiverId.getOrCrash(),
-      status: fullStatusString.substring(
-        fullStatusString.indexOf('\'') + 1,
-        fullStatusString.length - 1,
-      ),
+      status: statusName(friendRequest.status.getOrCrash()),
       serverTimeStamp: FieldValue.serverTimestamp(),
     );
   }

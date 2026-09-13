@@ -59,8 +59,7 @@ class ChatRepository implements IChatRepository {
     Chat chat,
     Message firstMessage,
   ) async {
-    final currentUser = _session.current;
-    if (currentUser == null) {
+    if (_session.current == null) {
       return Left(InsufficientPermissions());
     }
 
@@ -68,62 +67,29 @@ class ChatRepository implements IChatRepository {
     final messageDto = MessageDataTransferObject.fromDomain(firstMessage);
 
     final chatRef = _firestore.collection('chats').doc(chat.id.getOrCrash());
-    final messageRef = _firestore
-        .collection('chats')
-        .doc(chat.id.getOrCrash())
+    final messageRef = chatRef
         .collection('messages')
         .doc(firstMessage.id.getOrCrash());
-
-    final chatsOfCurrentUserRef = _firestore
-        .collection('chats')
-        .where('participantIds', arrayContains: currentUser.id);
     try {
       await _firestore.runTransaction((transaction) async {
-        final chatsOfCurrentUser = await chatsOfCurrentUserRef.get();
-        // Matched on participant ids alone. The `participants` maps carry each
-        // participant's last-seen message id as their value, which differs
-        // between a stored chat and the one being created, so comparing those
-        // maps never matches and every message would start a duplicate chat.
-        final pendingParticipantIds = chatDto.participantIds.toSet();
-        final chatsThatMatchTheChatDtoParticipants = chatsOfCurrentUser.docs
-            .where((chat) {
-              final storedParticipantIds =
-                  (chat.data()['participantIds'] as List<dynamic>? ??
-                          const <dynamic>[])
-                      .cast<String>()
-                      .toSet();
-
-              return storedParticipantIds.length ==
-                      pendingParticipantIds.length &&
-                  storedParticipantIds.containsAll(pendingParticipantIds);
-            });
-
-        DocumentReference? existingChatRef;
-        if (chatsThatMatchTheChatDtoParticipants.isNotEmpty) {
-          existingChatRef =
-              chatsThatMatchTheChatDtoParticipants.first.reference;
-        }
-
-        if (existingChatRef != null) {
-          final chatWithTheSpecifiedParticipants =
-              await transaction.get(existingChatRef)
-                  as DocumentSnapshot<Map<String, dynamic>>;
-          if (chatWithTheSpecifiedParticipants.exists == false) {
-            transaction.set(chatRef, chatDto.toJson());
-            transaction.set(messageRef, messageDto.toJson());
-          } else {
-            transaction.update(
-              existingChatRef,
-              ChatDataTransferObject.fromFirestore(
-                chatWithTheSpecifiedParticipants,
-              ).copyWith(lastMessage: chatDto.lastMessage).toJson(),
-            );
-            transaction.set(messageRef, messageDto.toJson());
-          }
+        // The chat id is derived from its participants (compositeId), so a
+        // chat between the same people is always this document. Reading it
+        // with transaction.get makes a concurrent first message retry against
+        // the chat the other one created. The previous check, a query run
+        // inside the transaction, was invisible to it, so both could create a
+        // chat.
+        final existingChat = await transaction.get(chatRef);
+        if (existingChat.exists) {
+          transaction.update(
+            chatRef,
+            ChatDataTransferObject.fromFirestore(
+              existingChat,
+            ).copyWith(lastMessage: chatDto.lastMessage).toJson(),
+          );
         } else {
           transaction.set(chatRef, chatDto.toJson());
-          transaction.set(messageRef, messageDto.toJson());
         }
+        transaction.set(messageRef, messageDto.toJson());
       });
 
       return const Right(unit);

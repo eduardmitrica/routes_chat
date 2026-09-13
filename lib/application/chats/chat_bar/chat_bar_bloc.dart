@@ -12,6 +12,7 @@ import '../../../domain/chats/chat_failure.dart';
 import '../../../domain/chats/chat_repository_interface.dart';
 import '../../../domain/chats/messages/message.dart';
 import '../../../domain/chats/value_objects.dart';
+import '../../../domain/core/composite_id.dart';
 import '../../../domain/core/value_objects.dart';
 
 part 'chat_bar_event.dart';
@@ -67,7 +68,10 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
               );
 
               final chat = Chat(
-                id: UniqueId(),
+                // One chat per pair of participants; see compositeId.
+                id: compositeId(
+                  participantsWithCurrentUserIdIncluded.asList(),
+                ),
                 participantsList: ParticipantsList(
                   participantsWithCurrentUserIdIncluded.map(
                     (participantId) => Tuple2(participantId, UniqueId.empty()),

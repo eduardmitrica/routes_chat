@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
 import 'package:kt_dart/collection.dart';
+import 'package:routes_chat/domain/core/composite_id.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/friend_requests/failures.dart';
 import 'package:routes_chat/domain/friend_requests/friend_request.dart';
@@ -24,37 +25,18 @@ class FriendRequestRepository implements IFriendRequestsRepository {
     final friendRequestDto = FriendRequestDataTransferObject.fromDomain(
       friendRequest,
     );
-
+    // The id is the pair of users (compositeId), so a request in either
+    // direction is this same document. Reading it with transaction.get lets
+    // Firestore retry when another create commits first. The previous check,
+    // a query run inside the transaction, was invisible to it, so two
+    // simultaneous requests could both be written.
     final friendRequestRef = _firestore
         .collection('friendRequests')
         .doc(friendRequest.id.getOrCrash());
-
-    final matchingPendingFriendRequestRef = _firestore
-        .collection('friendRequests')
-        .where('senderId', isEqualTo: friendRequestDto.senderId)
-        .where('receiverId', isEqualTo: friendRequestDto.receiverId);
-    final matchingReceivingFriendRequestRef = _firestore
-        .collection('friendRequests')
-        .where('senderId', isEqualTo: friendRequestDto.receiverId)
-        .where('receiverId', isEqualTo: friendRequestDto.senderId);
     try {
       await _firestore.runTransaction((transaction) async {
-        final pendingFriendsRequestsMatchResult =
-            await matchingPendingFriendRequestRef.get();
-        final receivingFriendsRequestsMatchResult =
-            await matchingReceivingFriendRequestRef.get();
-
-        DocumentReference? foundFriendRequestRef;
-        if (pendingFriendsRequestsMatchResult.docs.isNotEmpty) {
-          foundFriendRequestRef =
-              pendingFriendsRequestsMatchResult.docs.first.reference;
-        }
-        if (receivingFriendsRequestsMatchResult.docs.isNotEmpty) {
-          foundFriendRequestRef =
-              receivingFriendsRequestsMatchResult.docs.first.reference;
-        }
-
-        if (foundFriendRequestRef == null) {
+        final existingRequest = await transaction.get(friendRequestRef);
+        if (!existingRequest.exists) {
           transaction.set(friendRequestRef, friendRequestDto.toJson());
         }
       });
@@ -112,20 +94,19 @@ class FriendRequestRepository implements IFriendRequestsRepository {
   Future<Either<FriendRequestFailure, FriendRequest>>
   findBySenderAndReceiverIds(UniqueId senderId, UniqueId receiverId) async {
     try {
-      final friendRequestQueryResult = await _firestore
+      final snapshot = await _firestore
           .collection('friendRequests')
-          .where('senderId', isEqualTo: senderId.getOrCrash())
-          .where('receiverId', isEqualTo: receiverId.getOrCrash())
+          .doc(compositeId([senderId, receiverId]).getOrCrash())
           .get();
-
-      final docs = friendRequestQueryResult.docs;
-      if (docs.isNotEmpty) {
+      // Both directions share the pair document; only report it when it was
+      // sent in the direction asked about.
+      if (snapshot.exists &&
+          snapshot.data()?['senderId'] == senderId.getOrCrash()) {
         return Right(
-          FriendRequestDataTransferObject.fromFirestore(docs.first).toDomain(),
+          FriendRequestDataTransferObject.fromFirestore(snapshot).toDomain(),
         );
-      } else {
-        return Left(NotFound());
       }
+      return Left(NotFound());
     } on FirebaseException catch (exception) {
       if (exception.code.contains('permission-denied')) {
         return Left(InsufficientPermissions());

@@ -12,117 +12,136 @@ class PendingFriendRequestsTabBody extends StatelessWidget {
   final KtList<FriendRequest> pendingFriendRequests;
   final ValueGetter<Future<void>> onRefresh;
 
-  const PendingFriendRequestsTabBody(this.pendingFriendRequests, this.onRefresh,
-      {super.key});
+  const PendingFriendRequestsTabBody(
+    this.pendingFriendRequests,
+    this.onRefresh, {
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
     return BlocBuilder<UsersWatcherBloc, UsersWatcherState>(
-      builder: (context, state) => state.map(
-          initial: (state) => const SizedBox(),
-          loadInProgress: (state) => const Center(
-                child: CircularProgressIndicator(),
-              ),
-          loadSuccess: (state) => pendingFriendRequests.failureOption.isNone()
+      builder: (context, state) => switch (state) {
+        UsersWatcherInitial() => const SizedBox(),
+        UsersWatcherLoadInProgress() => const Center(
+          child: CircularProgressIndicator(),
+        ),
+        UsersWatcherLoadSuccess(:final users) =>
+          pendingFriendRequests.failureOption.isNone()
               ? RefreshIndicator(
                   onRefresh: onRefresh,
                   child: ListView.builder(
-                      itemCount: pendingFriendRequests.size,
-                      itemBuilder: (context, index) {
-                        final friendRequest = pendingFriendRequests[index];
-                        final receivingUser = state.users.find((user) =>
+                    itemCount: pendingFriendRequests.size,
+                    itemBuilder: (context, index) {
+                      final friendRequest = pendingFriendRequests[index];
+                      final receivingUser = users.find(
+                        (user) =>
                             user.id.getOrCrash() ==
-                            friendRequest.receiverId.getOrCrash());
-                        if (friendRequest.failureOption.isSome()) {
-                          return ListTile(
-                            key: UniqueKey(),
-                            title: const Text('Error occurred'),
-                          );
-                        } else {
-                          return ListTile(
-                            key: ValueKey(friendRequest.id.getOrCrash()),
-                            leading: InkWell(
-                              borderRadius: BorderRadius.circular(20.0),
-                              onTap: () {
-                                showDialog<String>(
-                                  context: context,
-                                  builder: (context) => Dialog(
-                                    child: Padding(
-                                      padding: const EdgeInsets.all(10.0),
-                                      child: Column(
-                                        mainAxisSize: MainAxisSize.min,
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          CircleAvatar(
-                                            radius: 80,
-                                            foregroundImage: NetworkImage(
-                                                receivingUser?.imageUrl
-                                                        .getOrCrash() ??
-                                                    getIt<PlaceholderFetcherBloc>()
-                                                        .state
-                                                        .imagePath
-                                                        .getOrCrash()),
-                                          ),
-                                          const SizedBox(
-                                            height: 10,
-                                          ),
-                                          Text(
-                                            receivingUser?.username
+                            friendRequest.receiverId.getOrCrash(),
+                      );
+                      if (friendRequest.failureOption.isSome()) {
+                        return ListTile(
+                          key: UniqueKey(),
+                          title: const Text('Error occurred'),
+                        );
+                      } else {
+                        return ListTile(
+                          key: ValueKey(friendRequest.id.getOrCrash()),
+                          leading: InkWell(
+                            borderRadius: BorderRadius.circular(20.0),
+                            onTap: () {
+                              showDialog<String>(
+                                context: context,
+                                builder: (context) => Dialog(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(10.0),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 80,
+                                          foregroundImage: NetworkImage(
+                                            receivingUser?.imageUrl
                                                     .getOrCrash() ??
-                                                '',
-                                            style: const TextStyle(
-                                                color: Colors.deepPurpleAccent),
+                                                getIt<PlaceholderFetcherBloc>()
+                                                    .state
+                                                    .imagePath
+                                                    .getOrCrash(),
                                           ),
-                                          const SizedBox(height: 10),
-                                          Text(receivingUser?.description
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          receivingUser?.username
                                                   .getOrCrash() ??
-                                              ''),
-                                        ],
-                                      ),
+                                              '',
+                                          style: const TextStyle(
+                                            color: Colors.deepPurpleAccent,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          receivingUser?.description
+                                                  .getOrCrash() ??
+                                              '',
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                );
-                              },
-                              child: CircleAvatar(
-                                backgroundColor: Colors.deepPurpleAccent,
-                                foregroundImage: NetworkImage(
-                                    receivingUser?.imageUrl.getOrCrash() ??
-                                        getIt<PlaceholderFetcherBloc>()
-                                            .state
-                                            .imagePath
-                                            .getOrCrash()),
+                                ),
+                              );
+                            },
+                            child: CircleAvatar(
+                              backgroundColor: Colors.deepPurpleAccent,
+                              foregroundImage: NetworkImage(
+                                receivingUser?.imageUrl.getOrCrash() ??
+                                    getIt<PlaceholderFetcherBloc>()
+                                        .state
+                                        .imagePath
+                                        .getOrCrash(),
                               ),
                             ),
-                            title: Text(
-                                receivingUser?.username.getOrCrash() ?? ''),
-                            subtitle: Text(
-                                receivingUser?.description.getOrCrash() ?? ''),
-                            trailing: BlocProvider<FriendRequestActorBloc>(
-                              create: (_) => getIt<FriendRequestActorBloc>(),
-                              child: BlocBuilder<FriendRequestActorBloc,
-                                  FriendRequestActorState>(
-                                builder: (context, state) {
-                                  return IconButton(
-                                    onPressed: () => BlocProvider.of<
-                                            FriendRequestActorBloc>(context)
-                                        .add(FriendRequestActorEvent.declined(
-                                            friendRequest)),
-                                    icon: const Icon(Icons.cancel),
-                                  );
-                                },
-                              ),
-                            ),
-                          );
-                        }
-                      }),
+                          ),
+                          title: Text(
+                            receivingUser?.username.getOrCrash() ?? '',
+                          ),
+                          subtitle: Text(
+                            receivingUser?.description.getOrCrash() ?? '',
+                          ),
+                          trailing: BlocProvider<FriendRequestActorBloc>(
+                            create: (_) => getIt<FriendRequestActorBloc>(),
+                            child:
+                                BlocBuilder<
+                                  FriendRequestActorBloc,
+                                  FriendRequestActorState
+                                >(
+                                  builder: (context, state) {
+                                    return IconButton(
+                                      onPressed: () =>
+                                          BlocProvider.of<
+                                                FriendRequestActorBloc
+                                              >(context)
+                                              .add(
+                                                FriendRequestActorEvent.declined(
+                                                  friendRequest,
+                                                ),
+                                              ),
+                                      icon: const Icon(Icons.cancel),
+                                    );
+                                  },
+                                ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
                 )
-              : const Center(
-                  child: Text('Failed'),
-                ),
-          loadFailure: (state) => Center(
-                child: Text(state.failure.toString()),
-              )),
+              : const Center(child: Text('Failed')),
+        UsersWatcherLoadFailure(:final failure) => Center(
+          child: Text(failure.toString()),
+        ),
+      },
     );
   }
 }

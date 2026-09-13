@@ -8,23 +8,26 @@ import 'failures.dart';
 
 abstract class IFriendRequestsRepository {
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
-      watchPendingFromCurrentUser();
+  watchPendingFromCurrentUser();
 
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
-      watchReceivedForCurrentUser();
+  watchReceivedForCurrentUser();
 
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
-      watchFriendsForCurrentUser();
+  watchFriendsForCurrentUser();
 
   Future<Either<FriendRequestFailure, Unit>> create(
-      FriendRequest friendRequest);
+    FriendRequest friendRequest,
+  );
 
   Future<Either<FriendRequestFailure, Unit>> update(
-      FriendRequest friendRequest);
+    FriendRequest friendRequest,
+  );
 
   Future<Either<FriendRequestFailure, Unit>> delete(
-      FriendRequest friendRequest);
+    FriendRequest friendRequest,
+  );
 
   Future<Either<FriendRequestFailure, FriendRequest>>
-      findBySenderAndReceiverIds(UniqueId senderId, UniqueId receiverId);
+  findBySenderAndReceiverIds(UniqueId senderId, UniqueId receiverId);
 }

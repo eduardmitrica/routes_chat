@@ -11,36 +11,36 @@ class SearchPageBody extends StatelessWidget {
   Widget build(BuildContext context) {
     return BlocConsumer<FriendRequestActorBloc, FriendRequestActorState>(
       listener: (context, state) {
-        state.maybeMap(
-            sendingSuccess: (state) {
-              showDialog<String>(
-                context: context,
-                builder: (context) => Dialog(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('Request has been successfully sent.'),
-                        const SizedBox(height: 5),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                          },
-                          child: const Text('Close'),
-                        ),
-                      ],
-                    ),
+        switch (state) {
+          case FriendRequestActorSendingSuccess():
+            showDialog<String>(
+              context: context,
+              builder: (context) => Dialog(
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text('Request has been successfully sent.'),
+                      const SizedBox(height: 5),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Close'),
+                      ),
+                    ],
                   ),
                 ),
-              );
-              searchController.clear();
-            },
-            resetToInitial: (state) {
-              searchController.clear();
-            },
-            orElse: () {});
+              ),
+            );
+            searchController.clear();
+          case FriendRequestActorResetToInitial():
+            searchController.clear();
+          default:
+            break;
+        }
       },
       builder: (context, state) {
         return Padding(
@@ -50,43 +50,43 @@ class SearchPageBody extends StatelessWidget {
               children: [
                 TextFormField(
                   controller: searchController,
-                  onChanged: (value) =>
-                      BlocProvider.of<FriendRequestActorBloc>(context)
-                          .add(const FriendRequestActorEvent.usernameChanged()),
+                  onChanged: (value) => BlocProvider.of<FriendRequestActorBloc>(
+                    context,
+                  ).add(const FriendRequestActorEvent.usernameChanged()),
                   autovalidateMode: AutovalidateMode.always,
-                  validator: (value) => BlocProvider.of<FriendRequestActorBloc>(
-                          context)
-                      .state
-                      .maybeMap(
-                          sendingFailure: (state) =>
-                              'Hmm...Make sure that the username is correct',
-                          requestAlreadySent: (state) =>
-                              'You\'ve already sent a request to this user',
-                          alreadyFriends: (state) =>
-                              'You are already friends with this user',
-                          friendRequestAlreadySentFromReceiver: (state) =>
-                              'This user has already sent a request to you',
-                          orElse: () => null),
+                  validator: (value) => switch (BlocProvider.of<
+                        FriendRequestActorBloc
+                      >(context)
+                      .state) {
+                    FriendRequestActorSendingFailure() =>
+                      'Hmm...Make sure that the username is correct',
+                    FriendRequestActorRequestAlreadySent() =>
+                      'You\'ve already sent a request to this user',
+                    FriendRequestActorAlreadyFriends() =>
+                      'You are already friends with this user',
+                    FriendRequestActorFriendRequestAlreadySentFromReceiver() =>
+                      'This user has already sent a request to you',
+                    _ => null,
+                  },
                   onTapOutside: (_) =>
                       FocusManager.instance.primaryFocus?.unfocus(),
                 ),
-                const SizedBox(
-                  height: 20.0,
-                ),
+                const SizedBox(height: 20.0),
                 ElevatedButton(
-                  onPressed: state.maybeMap(
-                          actionInProgress: (state) => true,
-                          orElse: () => false)
+                  onPressed: state is FriendRequestActorActionInProgress
                       ? null
-                      : () =>
-                          BlocProvider.of<FriendRequestActorBloc>(context).add(
-                            FriendRequestActorEvent.sent(searchController.text),
-                          ),
+                      : () => BlocProvider.of<FriendRequestActorBloc>(context)
+                            .add(
+                              FriendRequestActorEvent.sent(
+                                searchController.text,
+                              ),
+                            ),
                   child: const Text('Send friend request'),
                 ),
-                state.maybeMap(
-                    actionInProgress: (_) => const LinearProgressIndicator(),
-                    orElse: () => const SizedBox()),
+                if (state is FriendRequestActorActionInProgress)
+                  const LinearProgressIndicator()
+                else
+                  const SizedBox(),
               ],
             ),
           ),

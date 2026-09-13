@@ -1,15 +1,43 @@
 part of 'chats_watcher_bloc.dart';
 
-@freezed
-class ChatsWatcherState with _$ChatsWatcherState {
-  const factory ChatsWatcherState.initial() = _Initial;
+sealed class ChatsWatcherState extends Equatable {
+  const ChatsWatcherState();
 
-  const factory ChatsWatcherState.loadInProgress() =
-  _LoadInProgress;
-
+  const factory ChatsWatcherState.initial() = ChatsWatcherInitial;
+  const factory ChatsWatcherState.loadInProgress() = ChatsWatcherLoadInProgress;
   const factory ChatsWatcherState.loadSuccess(
-      KtList<Chat> chats, KtList<UniqueId> friendsThatCurrentUserHasChatsTo) = _LoadSuccess;
+    KtList<Chat> chats,
+    KtList<UniqueId> friendsThatCurrentUserHasChatsTo,
+  ) = ChatsWatcherLoadSuccess;
+  const factory ChatsWatcherState.loadFailure(ChatFailure failure) =
+      ChatsWatcherLoadFailure;
 
-  const factory ChatsWatcherState.loadFailure(
-      ChatFailure failure) = _LoadFailure;
+  @override
+  List<Object?> get props => const [];
+}
+
+final class ChatsWatcherInitial extends ChatsWatcherState {
+  const ChatsWatcherInitial();
+}
+
+final class ChatsWatcherLoadInProgress extends ChatsWatcherState {
+  const ChatsWatcherLoadInProgress();
+}
+
+final class ChatsWatcherLoadSuccess extends ChatsWatcherState {
+  final KtList<Chat> chats;
+  final KtList<UniqueId> friendsThatCurrentUserHasChatsTo;
+  const ChatsWatcherLoadSuccess(
+    this.chats,
+    this.friendsThatCurrentUserHasChatsTo,
+  );
+  @override
+  List<Object?> get props => [chats, friendsThatCurrentUserHasChatsTo];
+}
+
+final class ChatsWatcherLoadFailure extends ChatsWatcherState {
+  final ChatFailure failure;
+  const ChatsWatcherLoadFailure(this.failure);
+  @override
+  List<Object?> get props => [failure];
 }

@@ -1,6 +1,6 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
-// ignore_for_file: type=lint
+// coverage:ignore-file
+// ignore_for_file: type=lint, type=warning, deprecated_member_use, deprecated_member_use_from_same_package
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
 part of 'placeholder_fetcher_bloc.dart';
@@ -9,282 +9,271 @@ part of 'placeholder_fetcher_bloc.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// dart format off
 T _$identity<T>(T value) => value;
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
-
-/// @nodoc
-mixin _$PlaceholderFetcherEvent {
-  @optionalTypeArgs
-  TResult when<TResult extends Object?>({
-    required TResult Function() started,
-  }) =>
-      throw _privateConstructorUsedError;
-  @optionalTypeArgs
-  TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function()? started,
-  }) =>
-      throw _privateConstructorUsedError;
-  @optionalTypeArgs
-  TResult maybeWhen<TResult extends Object?>({
-    TResult Function()? started,
-    required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
-  @optionalTypeArgs
-  TResult map<TResult extends Object?>({
-    required TResult Function(_Started value) started,
-  }) =>
-      throw _privateConstructorUsedError;
-  @optionalTypeArgs
-  TResult? mapOrNull<TResult extends Object?>({
-    TResult? Function(_Started value)? started,
-  }) =>
-      throw _privateConstructorUsedError;
-  @optionalTypeArgs
-  TResult maybeMap<TResult extends Object?>({
-    TResult Function(_Started value)? started,
-    required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $PlaceholderFetcherEventCopyWith<$Res> {
-  factory $PlaceholderFetcherEventCopyWith(PlaceholderFetcherEvent value,
-          $Res Function(PlaceholderFetcherEvent) then) =
-      _$PlaceholderFetcherEventCopyWithImpl<$Res, PlaceholderFetcherEvent>;
-}
-
-/// @nodoc
-class _$PlaceholderFetcherEventCopyWithImpl<$Res,
-        $Val extends PlaceholderFetcherEvent>
-    implements $PlaceholderFetcherEventCopyWith<$Res> {
-  _$PlaceholderFetcherEventCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-}
-
-/// @nodoc
-abstract class _$$StartedImplCopyWith<$Res> {
-  factory _$$StartedImplCopyWith(
-          _$StartedImpl value, $Res Function(_$StartedImpl) then) =
-      __$$StartedImplCopyWithImpl<$Res>;
-}
-
-/// @nodoc
-class __$$StartedImplCopyWithImpl<$Res>
-    extends _$PlaceholderFetcherEventCopyWithImpl<$Res, _$StartedImpl>
-    implements _$$StartedImplCopyWith<$Res> {
-  __$$StartedImplCopyWithImpl(
-      _$StartedImpl _value, $Res Function(_$StartedImpl) _then)
-      : super(_value, _then);
-}
-
-/// @nodoc
-
-class _$StartedImpl implements _Started {
-  const _$StartedImpl();
-
-  @override
-  String toString() {
-    return 'PlaceholderFetcherEvent.started()';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType && other is _$StartedImpl);
-  }
-
-  @override
-  int get hashCode => runtimeType.hashCode;
-
-  @override
-  @optionalTypeArgs
-  TResult when<TResult extends Object?>({
-    required TResult Function() started,
-  }) {
-    return started();
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function()? started,
-  }) {
-    return started?.call();
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeWhen<TResult extends Object?>({
-    TResult Function()? started,
-    required TResult orElse(),
-  }) {
-    if (started != null) {
-      return started();
-    }
-    return orElse();
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult map<TResult extends Object?>({
-    required TResult Function(_Started value) started,
-  }) {
-    return started(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? mapOrNull<TResult extends Object?>({
-    TResult? Function(_Started value)? started,
-  }) {
-    return started?.call(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeMap<TResult extends Object?>({
-    TResult Function(_Started value)? started,
-    required TResult orElse(),
-  }) {
-    if (started != null) {
-      return started(this);
-    }
-    return orElse();
-  }
-}
-
-abstract class _Started implements PlaceholderFetcherEvent {
-  const factory _Started() = _$StartedImpl;
-}
-
 /// @nodoc
 mixin _$PlaceholderFetcherState {
-  ImagePath get imagePath => throw _privateConstructorUsedError;
 
-  @JsonKey(ignore: true)
-  $PlaceholderFetcherStateCopyWith<PlaceholderFetcherState> get copyWith =>
-      throw _privateConstructorUsedError;
+ ImagePath get imagePath;
+/// Create a copy of PlaceholderFetcherState
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$PlaceholderFetcherStateCopyWith<PlaceholderFetcherState> get copyWith => _$PlaceholderFetcherStateCopyWithImpl<PlaceholderFetcherState>(this as PlaceholderFetcherState, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  final _this = this as PlaceholderFetcherState;
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PlaceholderFetcherState&&(identical(other.imagePath, _this.imagePath) || other.imagePath == _this.imagePath));
+}
+
+
+@override
+int get hashCode {
+  final _this = this as PlaceholderFetcherState;
+  return Object.hash(runtimeType,_this.imagePath);
+}
+
+@override
+String toString() {
+  final _this = this as PlaceholderFetcherState;
+  return 'PlaceholderFetcherState(imagePath: ${_this.imagePath})';
+}
+
+
 }
 
 /// @nodoc
-abstract class $PlaceholderFetcherStateCopyWith<$Res> {
-  factory $PlaceholderFetcherStateCopyWith(PlaceholderFetcherState value,
-          $Res Function(PlaceholderFetcherState) then) =
-      _$PlaceholderFetcherStateCopyWithImpl<$Res, PlaceholderFetcherState>;
-  @useResult
-  $Res call({ImagePath imagePath});
-}
+abstract mixin class $PlaceholderFetcherStateCopyWith<$Res>  {
+  factory $PlaceholderFetcherStateCopyWith(PlaceholderFetcherState value, $Res Function(PlaceholderFetcherState) _then) = _$PlaceholderFetcherStateCopyWithImpl;
+@useResult
+$Res call({
+ ImagePath imagePath
+});
 
+
+
+
+}
 /// @nodoc
-class _$PlaceholderFetcherStateCopyWithImpl<$Res,
-        $Val extends PlaceholderFetcherState>
+class _$PlaceholderFetcherStateCopyWithImpl<$Res>
     implements $PlaceholderFetcherStateCopyWith<$Res> {
-  _$PlaceholderFetcherStateCopyWithImpl(this._value, this._then);
+  _$PlaceholderFetcherStateCopyWithImpl(this._self, this._then);
 
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
+  final PlaceholderFetcherState _self;
+  final $Res Function(PlaceholderFetcherState) _then;
 
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? imagePath = null,
-  }) {
-    return _then(_value.copyWith(
-      imagePath: null == imagePath
-          ? _value.imagePath
-          : imagePath // ignore: cast_nullable_to_non_nullable
-              as ImagePath,
-    ) as $Val);
-  }
+/// Create a copy of PlaceholderFetcherState
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? imagePath = null,}) {
+  return _then(PlaceholderFetcherState(
+imagePath: null == imagePath ? _self.imagePath : imagePath // ignore: cast_nullable_to_non_nullable
+as ImagePath,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [PlaceholderFetcherState].
+extension PlaceholderFetcherStatePatterns on PlaceholderFetcherState {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _PlaceholderFetcherState value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _PlaceholderFetcherState() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _PlaceholderFetcherState value)  $default,){
+final _that = this;
+switch (_that) {
+case _PlaceholderFetcherState():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _PlaceholderFetcherState value)?  $default,){
+final _that = this;
+switch (_that) {
+case _PlaceholderFetcherState() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( ImagePath imagePath)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _PlaceholderFetcherState() when $default != null:
+return $default(_that.imagePath);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( ImagePath imagePath)  $default,) {final _that = this;
+switch (_that) {
+case _PlaceholderFetcherState():
+return $default(_that.imagePath);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( ImagePath imagePath)?  $default,) {final _that = this;
+switch (_that) {
+case _PlaceholderFetcherState() when $default != null:
+return $default(_that.imagePath);case _:
+  return null;
+
+}
+}
+
 }
 
 /// @nodoc
-abstract class _$$PlaceholderFetcherStateImplCopyWith<$Res>
-    implements $PlaceholderFetcherStateCopyWith<$Res> {
-  factory _$$PlaceholderFetcherStateImplCopyWith(
-          _$PlaceholderFetcherStateImpl value,
-          $Res Function(_$PlaceholderFetcherStateImpl) then) =
-      __$$PlaceholderFetcherStateImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call({ImagePath imagePath});
+
+
+class _PlaceholderFetcherState implements PlaceholderFetcherState {
+  const _PlaceholderFetcherState({required this.imagePath});
+  
+
+@override final  ImagePath imagePath;
+
+/// Create a copy of PlaceholderFetcherState
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$PlaceholderFetcherStateCopyWith<_PlaceholderFetcherState> get copyWith => __$PlaceholderFetcherStateCopyWithImpl<_PlaceholderFetcherState>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _PlaceholderFetcherState&&(identical(other.imagePath, imagePath) || other.imagePath == imagePath));
 }
 
-/// @nodoc
-class __$$PlaceholderFetcherStateImplCopyWithImpl<$Res>
-    extends _$PlaceholderFetcherStateCopyWithImpl<$Res,
-        _$PlaceholderFetcherStateImpl>
-    implements _$$PlaceholderFetcherStateImplCopyWith<$Res> {
-  __$$PlaceholderFetcherStateImplCopyWithImpl(
-      _$PlaceholderFetcherStateImpl _value,
-      $Res Function(_$PlaceholderFetcherStateImpl) _then)
-      : super(_value, _then);
 
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? imagePath = null,
-  }) {
-    return _then(_$PlaceholderFetcherStateImpl(
-      imagePath: null == imagePath
-          ? _value.imagePath
-          : imagePath // ignore: cast_nullable_to_non_nullable
-              as ImagePath,
-    ));
-  }
+@override
+int get hashCode {
+    return Object.hash(runtimeType,imagePath);
 }
 
-/// @nodoc
-
-class _$PlaceholderFetcherStateImpl implements _PlaceholderFetcherState {
-  const _$PlaceholderFetcherStateImpl({required this.imagePath});
-
-  @override
-  final ImagePath imagePath;
-
-  @override
-  String toString() {
+@override
+String toString() {
     return 'PlaceholderFetcherState(imagePath: $imagePath)';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$PlaceholderFetcherStateImpl &&
-            (identical(other.imagePath, imagePath) ||
-                other.imagePath == imagePath));
-  }
-
-  @override
-  int get hashCode => Object.hash(runtimeType, imagePath);
-
-  @JsonKey(ignore: true)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$PlaceholderFetcherStateImplCopyWith<_$PlaceholderFetcherStateImpl>
-      get copyWith => __$$PlaceholderFetcherStateImplCopyWithImpl<
-          _$PlaceholderFetcherStateImpl>(this, _$identity);
 }
 
-abstract class _PlaceholderFetcherState implements PlaceholderFetcherState {
-  const factory _PlaceholderFetcherState({required final ImagePath imagePath}) =
-      _$PlaceholderFetcherStateImpl;
 
-  @override
-  ImagePath get imagePath;
-  @override
-  @JsonKey(ignore: true)
-  _$$PlaceholderFetcherStateImplCopyWith<_$PlaceholderFetcherStateImpl>
-      get copyWith => throw _privateConstructorUsedError;
 }
+
+/// @nodoc
+abstract mixin class _$PlaceholderFetcherStateCopyWith<$Res> implements $PlaceholderFetcherStateCopyWith<$Res> {
+  factory _$PlaceholderFetcherStateCopyWith(_PlaceholderFetcherState value, $Res Function(_PlaceholderFetcherState) _then) = __$PlaceholderFetcherStateCopyWithImpl;
+@override @useResult
+$Res call({
+ ImagePath imagePath
+});
+
+
+
+
+}
+/// @nodoc
+class __$PlaceholderFetcherStateCopyWithImpl<$Res>
+    implements _$PlaceholderFetcherStateCopyWith<$Res> {
+  __$PlaceholderFetcherStateCopyWithImpl(this._self, this._then);
+
+  final _PlaceholderFetcherState _self;
+  final $Res Function(_PlaceholderFetcherState) _then;
+
+/// Create a copy of PlaceholderFetcherState
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? imagePath = null,}) {
+  return _then(_PlaceholderFetcherState(
+imagePath: null == imagePath ? _self.imagePath : imagePath // ignore: cast_nullable_to_non_nullable
+as ImagePath,
+  ));
+}
+
+
+}
+
+// dart format on

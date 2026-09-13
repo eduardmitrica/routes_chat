@@ -6,17 +6,22 @@ import 'package:routes_chat/domain/shared/user/user.dart';
 import '../shared/user/value_objects.dart';
 
 abstract interface class IAuthFacade {
-  Future<Either<RegistrationFailure, Unit>> register(
-      {required ImagePath imagePath,
-      required EmailAddress emailAddress,
-      required Username username,
-      required Description description,
-      required Password password});
+  Future<Either<RegistrationFailure, Unit>> register({
+    required ImagePath imagePath,
+    required EmailAddress emailAddress,
+    required Username username,
+    required Description description,
+    required Password password,
+  });
 
-  Future<Either<SignInFailure, Unit>> signInWithEmailAndPassword(
-      {required EmailAddress emailAddress, required Password password});
+  Future<Either<SignInFailure, Unit>> signInWithEmailAndPassword({
+    required EmailAddress emailAddress,
+    required Password password,
+  });
 
-  Future<Either<RegistrationFailure, EmailAddress>> registerWithGoogle(ImagePath imagePath);
+  Future<Either<RegistrationFailure, EmailAddress>> registerWithGoogle(
+    ImagePath imagePath,
+  );
 
   Future<Either<SignInFailure, Unit>> signInWithGoogle();
 

@@ -7,14 +7,12 @@ import 'package:routes_chat/domain/core/value_objects.dart';
 import '../../../domain/shared/user/user.dart';
 import '../../../domain/shared/user/value_objects.dart';
 
-
-
 part 'user_data_transfer_object.freezed.dart';
 
 part 'user_data_transfer_object.g.dart';
 
 @freezed
-abstract class UserDataTransferObject implements _$UserDataTransferObject {
+abstract class UserDataTransferObject with _$UserDataTransferObject {
   const UserDataTransferObject._();
 
   const factory UserDataTransferObject({
@@ -29,23 +27,25 @@ abstract class UserDataTransferObject implements _$UserDataTransferObject {
       _$UserDataTransferObjectFromJson(json);
 
   User toDomain() => User(
-        id: UniqueId.fromUniqueString(id!),
-        emailAddress: EmailAddress(emailAddress),
-        imageUrl: ImageUrl(imageUrl),
-        username: Username(username),
-        description: Description(description),
-      );
+    id: UniqueId.fromUniqueString(id!),
+    emailAddress: EmailAddress(emailAddress),
+    imageUrl: ImageUrl(imageUrl),
+    username: Username(username),
+    description: Description(description),
+  );
 
   factory UserDataTransferObject.fromDomain(User user) =>
       UserDataTransferObject(
-          id: user.id.getOrCrash(),
-          emailAddress: user.emailAddress.getOrCrash(),
-          username: user.username.getOrCrash(),
-          imageUrl: user.imageUrl.getOrCrash(),
-          description: user.description.getOrCrash());
+        id: user.id.getOrCrash(),
+        emailAddress: user.emailAddress.getOrCrash(),
+        username: user.username.getOrCrash(),
+        imageUrl: user.imageUrl.getOrCrash(),
+        description: user.description.getOrCrash(),
+      );
 
   factory UserDataTransferObject.fromFirestore(
-          DocumentSnapshot<Map<String, dynamic>> documentSnapshot) =>
-      UserDataTransferObject.fromJson(documentSnapshot.data()!)
-          .copyWith(id: documentSnapshot.id);
+    DocumentSnapshot<Map<String, dynamic>> documentSnapshot,
+  ) => UserDataTransferObject.fromJson(
+    documentSnapshot.data()!,
+  ).copyWith(id: documentSnapshot.id);
 }

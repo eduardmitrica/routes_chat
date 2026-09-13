@@ -1,12 +1,10 @@
 import 'dart:async';
 
+import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:dartz/dartz.dart';
-import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
-import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
-import 'package:routes_chat/injection.dart';
+import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 
 import '../../../domain/core/value_objects.dart';
 import '../../../domain/friend_requests/failures.dart';
@@ -17,63 +15,64 @@ part 'friends_watcher_event.dart';
 
 part 'friends_watcher_state.dart';
 
-part 'friends_watcher_bloc.freezed.dart';
-
-@injectable
 class FriendsWatcherBloc
     extends Bloc<FriendsWatcherEvent, FriendsWatcherState> {
   final IFriendRequestsRepository _friendRequestRepository;
-  var userId = '';
+  final ICurrentUserSession _session;
 
   StreamSubscription<Either<FriendRequestFailure, KtList<FriendRequest>>>?
-      _acceptedFriendRequestsSubscription;
+  _acceptedFriendRequestsSubscription;
 
-  FriendsWatcherBloc(this._friendRequestRepository)
-      : super(const FriendsWatcherState.initial()) {
-    on<FriendsWatcherEvent>(
-      (event, emit) {
-        event.map(
-          watchAllStarted: (event) {
-            emit(const FriendsWatcherState.loadInProgress());
-            _acceptedFriendRequestsSubscription =
-                _friendRequestRepository.watchFriendsForCurrentUser().listen(
-                      (failureOrFriendRequests) => add(
-                        FriendsWatcherEvent.friendRequestsReceived(
-                            failureOrFriendRequests),
-                      ),
+  FriendsWatcherBloc(this._friendRequestRepository, this._session)
+    : super(const FriendsWatcherState.initial()) {
+    on<FriendsWatcherEvent>((event, emit) {
+      switch (event) {
+        case FriendsWatchAllStarted():
+          emit(const FriendsWatcherState.loadInProgress());
+          _acceptedFriendRequestsSubscription = _friendRequestRepository
+              .watchFriendsForCurrentUser()
+              .listen(
+                (failureOrFriendRequests) => add(
+                  FriendsWatcherEvent.friendRequestsReceived(
+                    failureOrFriendRequests,
+                  ),
+                ),
+              );
+        case FriendsFriendRequestsReceived():
+          final userId = _session.current?.id ?? '';
+          emit(
+            event.failureOrFriendRequests.fold(
+              (failure) => FriendsWatcherState.loadFailure(failure),
+              (friendRequests) {
+                final friendRequestsWhereCurrentUserIsNotSender = friendRequests
+                    .filter(
+                      (friendRequest) =>
+                          friendRequest.senderId.getOrCrash() != userId,
                     );
-          },
-          friendRequestsReceived: (event) {
-            if (userId.isEmpty) {
-              final fetchedUserId = getIt<CurrentUseInformationPersistent>().id;
-              userId = fetchedUserId;
-            }
-            emit(
-              event.failureOrFriendRequests
-                  .fold((failure) => FriendsWatcherState.loadFailure(failure),
-                      (friendRequests) {
-                final friendRequestsWhereCurrentUserIsNotSender =
-                    friendRequests.filter((friendRequest) =>
-                        friendRequest.senderId.getOrCrash() != userId);
                 final receivingUsersIds =
-                    friendRequestsWhereCurrentUserIsNotSender
-                        .map((friendRequest) => friendRequest.senderId);
+                    friendRequestsWhereCurrentUserIsNotSender.map(
+                      (friendRequest) => friendRequest.senderId,
+                    );
                 final friendRequestsWhereCurrentUserIsNotReceiver =
-                    friendRequests.filter((friendRequest) =>
-                        friendRequest.receiverId.getOrCrash() != userId);
+                    friendRequests.filter(
+                      (friendRequest) =>
+                          friendRequest.receiverId.getOrCrash() != userId,
+                    );
                 final sendingUsersIds =
-                    friendRequestsWhereCurrentUserIsNotReceiver
-                        .map((friendRequest) => friendRequest.receiverId);
+                    friendRequestsWhereCurrentUserIsNotReceiver.map(
+                      (friendRequest) => friendRequest.receiverId,
+                    );
                 final friendsIds = receivingUsersIds + sendingUsersIds;
 
                 return FriendsWatcherState.loadSuccess(
-                    friendRequests, friendsIds);
-              }),
-            );
-          },
-        );
-      },
-    );
+                  friendRequests,
+                  friendsIds,
+                );
+              },
+            ),
+          );
+      }
+    });
   }
 
   @override

@@ -11,6 +11,6 @@ abstract class Chat with _$Chat {
   const factory Chat({
     required UniqueId id,
     required ParticipantsList participantsList,
-    required Message lastMessage
-}) = _Chat;
+    required Message lastMessage,
+  }) = _Chat;
 }

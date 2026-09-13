@@ -17,49 +17,63 @@ part 'chat_data_transfer_object.freezed.dart';
 part 'chat_data_transfer_object.g.dart';
 
 @freezed
-abstract class ChatDataTransferObject implements _$ChatDataTransferObject {
+abstract class ChatDataTransferObject with _$ChatDataTransferObject {
   const ChatDataTransferObject._();
 
-  const factory ChatDataTransferObject(
-          {@JsonKey(includeToJson: false, includeFromJson: false) String? id,
-          required List<Map<String, String>> participants,
-          @MessageDataTransferObjectConverter()
-          required MessageDataTransferObject lastMessage,
-          @ServerTimestampConverter() required FieldValue serverTimeStamp}) =
-      _ChatDataTransferObject;
+  const factory ChatDataTransferObject({
+    @JsonKey(includeToJson: false, includeFromJson: false) String? id,
+    required List<Map<String, String>> participants,
+    /// Flat mirror of the participant ids in [participants].
+    ///
+    /// [participants] is a list of maps (participant id -> last seen message
+    /// id) and Firestore security rules cannot iterate that shape, so
+    /// "the writer must be a participant" is not expressible over it. This
+    /// duplicated field exists purely so the rules can enforce it, and is
+    /// always derived in [fromDomain] rather than set by callers.
+    required List<String> participantIds,
+    @MessageDataTransferObjectConverter()
+    required MessageDataTransferObject lastMessage,
+    @ServerTimestampConverter() required FieldValue serverTimeStamp,
+  }) = _ChatDataTransferObject;
 
   factory ChatDataTransferObject.fromJson(Map<String, dynamic> json) =>
       _$ChatDataTransferObjectFromJson(json);
 
   Chat toDomain() => Chat(
-        id: UniqueId.fromUniqueString(id!),
-        participantsList: ParticipantsList.fromListOfMaps(participants),
-        lastMessage: Message(
-          id: UniqueId.fromUniqueString(lastMessage.id!),
-          senderId: UniqueId.fromUniqueString(lastMessage.senderId),
-          content: Content(lastMessage.content),
-          reactions: lastMessage.reactions
-              .map((reactionIdString) =>
-                  UniqueId.fromUniqueString(reactionIdString))
-              .toImmutableList(),
-          imageUrls: lastMessage.imageUrls
-              .map((imageUrlString) => ImageUrl(imageUrlString))
-              .toImmutableList(),
-          isEdited: lastMessage.isEdited,
-          repliedMessageId:
-              UniqueId.fromUniqueString(lastMessage.repliedMessageId),
-          lastUpdatedAt: lastMessage.timeStamp,
-        ),
-      );
+    id: UniqueId.fromUniqueString(id!),
+    participantsList: ParticipantsList.fromListOfMaps(participants),
+    lastMessage: Message(
+      id: UniqueId.fromUniqueString(lastMessage.id!),
+      senderId: UniqueId.fromUniqueString(lastMessage.senderId),
+      content: Content(lastMessage.content),
+      reactions: lastMessage.reactions
+          .map(
+            (reactionIdString) => UniqueId.fromUniqueString(reactionIdString),
+          )
+          .toImmutableList(),
+      imageUrls: lastMessage.imageUrls
+          .map((imageUrlString) => ImageUrl(imageUrlString))
+          .toImmutableList(),
+      isEdited: lastMessage.isEdited,
+      repliedMessageId: UniqueId.fromUniqueString(lastMessage.repliedMessageId),
+      lastUpdatedAt: lastMessage.timeStamp,
+    ),
+  );
 
   factory ChatDataTransferObject.fromDomain(Chat chat) {
     return ChatDataTransferObject(
       id: chat.id.getOrCrash(),
       participants: chat.participantsList
           .getOrCrash()
-          .map((participant) => {
-                participant.value1.getOrCrash(): participant.value2.getOrCrash()
-              })
+          .map(
+            (participant) => {
+              participant.value1.getOrCrash(): participant.value2.getOrCrash(),
+            },
+          )
+          .asList(),
+      participantIds: chat.participantsList
+          .getOrCrash()
+          .map((participant) => participant.value1.getOrCrash())
           .asList(),
       lastMessage: MessageDataTransferObject.fromDomain(chat.lastMessage),
       serverTimeStamp: FieldValue.serverTimestamp(),
@@ -67,14 +81,15 @@ abstract class ChatDataTransferObject implements _$ChatDataTransferObject {
   }
 
   factory ChatDataTransferObject.fromFirestore(
-          DocumentSnapshot<Map<String, dynamic>> documentSnapshot) =>
-      ChatDataTransferObject.fromJson(documentSnapshot.data()!)
-          .copyWith(id: documentSnapshot.id);
+    DocumentSnapshot<Map<String, dynamic>> documentSnapshot,
+  ) => ChatDataTransferObject.fromJson(
+    documentSnapshot.data()!,
+  ).copyWith(id: documentSnapshot.id);
 }
 
 // from Json, to Json
 class ServerTimestampConverter implements JsonConverter<FieldValue, Object?> {
-// For annotation it has to be constant
+  // For annotation it has to be constant
   const ServerTimestampConverter();
 
   @override
@@ -93,8 +108,9 @@ class MessageDataTransferObjectConverter
   @override
   MessageDataTransferObject fromJson(Map<String, dynamic> json) {
     return MessageDataTransferObject.fromJson(json).copyWith(
-        id: json['id'],
-        timeStamp: (json['serverTimeStamp'] as Timestamp).toDate());
+      id: json['id'],
+      timeStamp: (json['serverTimeStamp'] as Timestamp).toDate(),
+    );
   }
 
   @override

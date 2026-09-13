@@ -29,10 +29,11 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     return BlocListener<AuthenticationBloc, AuthenticationState>(
       listener: (context, state) {
-        state.maybeMap(
-            unauthenticated: (_) => Navigator.of(context)
-                .pushReplacementNamed(SignInPage.signInPageRoute),
-            orElse: () {});
+        if (state is Unauthenticated) {
+          Navigator.of(
+            context,
+          ).pushReplacementNamed(SignInPage.signInPageRoute);
+        }
       },
       child: MultiBlocProvider(
         providers: [
@@ -45,23 +46,28 @@ class _HomePageState extends State<HomePage> {
             currentIndex: _currentTabIndex,
             onTap: (selectedTabIndex) {
               setState(() {
-                final previousTabIndex= _currentTabIndex;
+                final previousTabIndex = _currentTabIndex;
                 _currentTabIndex = selectedTabIndex;
-                if (previousTabIndex != selectedTabIndex && previousTabIndex == 1) {
-                  friendRequestActorBloc.add(const FriendRequestActorEvent.rolledBackChanges());
+                if (previousTabIndex != selectedTabIndex &&
+                    previousTabIndex == 1) {
+                  friendRequestActorBloc.add(
+                    const FriendRequestActorEvent.rolledBackChanges(),
+                  );
                 }
-                if (previousTabIndex != selectedTabIndex && previousTabIndex == 2) {
+                if (previousTabIndex != selectedTabIndex &&
+                    previousTabIndex == 2) {
                   userFormBloc.add(const UserFormEvent.rolledBackChanges());
                 }
               });
             },
             items: const [
               BottomNavigationBarItem(
-                  icon: Icon(
-                    Icons.chat_bubble_rounded,
-                    color: Colors.deepPurpleAccent,
-                  ),
-                  label: 'Chats'),
+                icon: Icon(
+                  Icons.chat_bubble_rounded,
+                  color: Colors.deepPurpleAccent,
+                ),
+                label: 'Chats',
+              ),
               BottomNavigationBarItem(
                 icon: Icon(
                   Icons.search_rounded,
@@ -70,17 +76,13 @@ class _HomePageState extends State<HomePage> {
                 label: 'Search',
               ),
               BottomNavigationBarItem(
-                  icon: Icon(
-                    Icons.person,
-                    color: Colors.deepPurpleAccent,
-                  ),
-                  label: 'Profile'),
+                icon: Icon(Icons.person, color: Colors.deepPurpleAccent),
+                label: 'Profile',
+              ),
               BottomNavigationBarItem(
-                  icon: Icon(
-                    Icons.notifications,
-                    color: Colors.deepPurpleAccent,
-                  ),
-                  label: 'Friend requests'),
+                icon: Icon(Icons.notifications, color: Colors.deepPurpleAccent),
+                label: 'Friend requests',
+              ),
             ],
           ),
           body: IndexedStack(

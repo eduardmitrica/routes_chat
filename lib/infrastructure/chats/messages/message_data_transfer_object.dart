@@ -13,21 +13,20 @@ part 'message_data_transfer_object.freezed.dart';
 part 'message_data_transfer_object.g.dart';
 
 @freezed
-abstract class MessageDataTransferObject
-    implements _$MessageDataTransferObject {
+abstract class MessageDataTransferObject with _$MessageDataTransferObject {
   const MessageDataTransferObject._();
 
-  const factory MessageDataTransferObject(
-      {@JsonKey(includeToJson: false, includeFromJson: false) String? id,
-      required String senderId,
-      required List<String> imageUrls,
-      required List<String> reactions,
-      required String content,
-      required String repliedMessageId,
-      required bool isEdited,
-      @JsonKey(includeToJson: false, includeFromJson: false) DateTime? timeStamp,
-      @ServerTimestampConverter()
-      required FieldValue serverTimeStamp}) = _MessageDataTransferObject;
+  const factory MessageDataTransferObject({
+    @JsonKey(includeToJson: false, includeFromJson: false) String? id,
+    required String senderId,
+    required List<String> imageUrls,
+    required List<String> reactions,
+    required String content,
+    required String repliedMessageId,
+    required bool isEdited,
+    @JsonKey(includeToJson: false, includeFromJson: false) DateTime? timeStamp,
+    @ServerTimestampConverter() required FieldValue serverTimeStamp,
+  }) = _MessageDataTransferObject;
 
   factory MessageDataTransferObject.fromJson(Map<String, dynamic> json) =>
       _$MessageDataTransferObjectFromJson(json);
@@ -35,24 +34,27 @@ abstract class MessageDataTransferObject
   Map<String, dynamic> toJsonWithId() => toJson()..putIfAbsent('id', () => id);
 
   Message toDomain() => Message(
-      id: UniqueId.fromUniqueString(id!),
-      senderId: UniqueId.fromUniqueString(senderId),
-      imageUrls:
-          imageUrls.map((imageUrl) => ImageUrl(imageUrl)).toImmutableList(),
-      reactions: reactions
-          .map((reaction) => UniqueId.fromUniqueString(reaction))
-          .toImmutableList(),
-      content: Content(content),
-      repliedMessageId: UniqueId.fromUniqueString(repliedMessageId),
-      lastUpdatedAt: timeStamp!,
-      isEdited: isEdited);
+    id: UniqueId.fromUniqueString(id!),
+    senderId: UniqueId.fromUniqueString(senderId),
+    imageUrls: imageUrls
+        .map((imageUrl) => ImageUrl(imageUrl))
+        .toImmutableList(),
+    reactions: reactions
+        .map((reaction) => UniqueId.fromUniqueString(reaction))
+        .toImmutableList(),
+    content: Content(content),
+    repliedMessageId: UniqueId.fromUniqueString(repliedMessageId),
+    lastUpdatedAt: timeStamp!,
+    isEdited: isEdited,
+  );
 
   factory MessageDataTransferObject.fromDomain(Message message) {
     return MessageDataTransferObject(
       id: message.id.getOrCrash(),
       senderId: message.senderId.getOrCrash(),
-      imageUrls:
-          message.imageUrls.map((imageUrl) => imageUrl.getOrCrash()).asList(),
+      imageUrls: message.imageUrls
+          .map((imageUrl) => imageUrl.getOrCrash())
+          .asList(),
       reactions: message.reactions
           .map((reactionId) => reactionId.getOrCrash())
           .asList(),
@@ -64,11 +66,12 @@ abstract class MessageDataTransferObject
   }
 
   factory MessageDataTransferObject.fromFirestore(
-          DocumentSnapshot<Map<String, dynamic>> documentSnapshot) =>
-      MessageDataTransferObject.fromJson(documentSnapshot.data()!).copyWith(
-          id: documentSnapshot.id,
-          timeStamp: (documentSnapshot.data()!['serverTimeStamp'] as Timestamp)
-              .toDate());
+    DocumentSnapshot<Map<String, dynamic>> documentSnapshot,
+  ) => MessageDataTransferObject.fromJson(documentSnapshot.data()!).copyWith(
+    id: documentSnapshot.id,
+    timeStamp: (documentSnapshot.data()!['serverTimeStamp'] as Timestamp)
+        .toDate(),
+  );
 }
 
 // from Json, to Json

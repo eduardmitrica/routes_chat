@@ -12,9 +12,7 @@ class RegisterPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Register'),
-      ),
+      appBar: AppBar(title: const Text('Register')),
       body: BlocBuilder<PlaceholderFetcherBloc, PlaceholderFetcherState>(
         builder: (context, state) {
           if (state.imagePath.isValid()) {
@@ -35,9 +33,7 @@ class RegisterPage extends StatelessWidget {
               child: const RegisterForm(),
             );
           } else {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
+            return const Center(child: CircularProgressIndicator());
           }
         },
       ),

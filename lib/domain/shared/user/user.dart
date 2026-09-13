@@ -18,10 +18,10 @@ abstract class User with _$User {
   }) = _User;
 
   factory User.empty() => User(
-        id: UniqueId(),
-        emailAddress: EmailAddress(''),
-        imageUrl: ImageUrl(''),
-        username: Username(''),
-        description: Description(''),
-      );
+    id: UniqueId(),
+    emailAddress: EmailAddress(''),
+    imageUrl: ImageUrl(''),
+    username: Username(''),
+    description: Description(''),
+  );
 }

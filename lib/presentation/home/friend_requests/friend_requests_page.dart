@@ -19,12 +19,8 @@ class FriendRequestsPage extends StatelessWidget {
         appBar: AppBar(
           bottom: const TabBar(
             tabs: [
-              Tab(
-                text: 'Received',
-              ),
-              Tab(
-                text: 'Pending',
-              ),
+              Tab(text: 'Received'),
+              Tab(text: 'Pending'),
             ],
           ),
         ),
@@ -35,13 +31,10 @@ class FriendRequestsPage extends StatelessWidget {
                 BlocProvider(
                   create: (_) => getIt<ReceivedFriendRequestsWatcherBloc>()
                     ..add(
-                      const ReceivedFriendRequestsWatcherEvent
-                          .watchAllStarted(),
+                      const ReceivedFriendRequestsWatcherEvent.watchAllStarted(),
                     ),
                 ),
-                BlocProvider(
-                  create: (_) => getIt<UsersWatcherBloc>(),
-                ),
+                BlocProvider(create: (_) => getIt<UsersWatcherBloc>()),
               ],
               child: const ReceivedFriendRequestsTab(),
             ),
@@ -53,9 +46,7 @@ class FriendRequestsPage extends StatelessWidget {
                       const PendingFriendRequestsWatcherEvent.watchAllStarted(),
                     ),
                 ),
-                BlocProvider(
-                  create: (_) => getIt<UsersWatcherBloc>(),
-                )
+                BlocProvider(create: (_) => getIt<UsersWatcherBloc>()),
               ],
               child: const PendingFriendRequestsTab(),
             ),

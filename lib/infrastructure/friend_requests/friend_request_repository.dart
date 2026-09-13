@@ -1,28 +1,29 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dartz/dartz.dart';
-import 'package:injectable/injectable.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/friend_requests/failures.dart';
 import 'package:routes_chat/domain/friend_requests/friend_request.dart';
 import 'package:routes_chat/domain/friend_requests/friend_requests_repository_interface.dart';
-import 'package:routes_chat/infrastructure/core/firestore_helpers.dart';
+import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 import 'package:routes_chat/infrastructure/friend_requests/friend_request_data_transfer_object.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../domain/friend_requests/value_objects.dart';
 
-@LazySingleton(as: IFriendRequestsRepository)
 class FriendRequestRepository implements IFriendRequestsRepository {
   final FirebaseFirestore _firestore;
+  final ICurrentUserSession _session;
 
-  const FriendRequestRepository(this._firestore);
+  const FriendRequestRepository(this._firestore, this._session);
 
   @override
   Future<Either<FriendRequestFailure, Unit>> create(
-      FriendRequest friendRequest) async {
-    final friendRequestDto =
-        FriendRequestDataTransferObject.fromDomain(friendRequest);
+    FriendRequest friendRequest,
+  ) async {
+    final friendRequestDto = FriendRequestDataTransferObject.fromDomain(
+      friendRequest,
+    );
 
     final friendRequestRef = _firestore
         .collection('friendRequests')
@@ -69,7 +70,8 @@ class FriendRequestRepository implements IFriendRequestsRepository {
 
   @override
   Future<Either<FriendRequestFailure, Unit>> delete(
-      FriendRequest friendRequest) async {
+    FriendRequest friendRequest,
+  ) async {
     try {
       await _firestore
           .collection('friendRequests')
@@ -87,13 +89,15 @@ class FriendRequestRepository implements IFriendRequestsRepository {
 
   @override
   Future<Either<FriendRequestFailure, Unit>> update(
-      FriendRequest friendRequest) async {
+    FriendRequest friendRequest,
+  ) async {
     try {
       await _firestore
           .collection('friendRequests')
           .doc(friendRequest.id.getOrCrash())
-          .update(FriendRequestDataTransferObject.fromDomain(friendRequest)
-              .toJson());
+          .update(
+            FriendRequestDataTransferObject.fromDomain(friendRequest).toJson(),
+          );
       return const Right(unit);
     } on FirebaseException catch (exception) {
       if (exception.code.contains('permission-denied')) {
@@ -106,7 +110,7 @@ class FriendRequestRepository implements IFriendRequestsRepository {
 
   @override
   Future<Either<FriendRequestFailure, FriendRequest>>
-      findBySenderAndReceiverIds(UniqueId senderId, UniqueId receiverId) async {
+  findBySenderAndReceiverIds(UniqueId senderId, UniqueId receiverId) async {
     try {
       final friendRequestQueryResult = await _firestore
           .collection('friendRequests')
@@ -116,8 +120,9 @@ class FriendRequestRepository implements IFriendRequestsRepository {
 
       final docs = friendRequestQueryResult.docs;
       if (docs.isNotEmpty) {
-        return Right(FriendRequestDataTransferObject.fromFirestore(docs.first)
-            .toDomain());
+        return Right(
+          FriendRequestDataTransferObject.fromFirestore(docs.first).toDomain(),
+        );
       } else {
         return Left(NotFound());
       }
@@ -132,111 +137,135 @@ class FriendRequestRepository implements IFriendRequestsRepository {
 
   @override
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
-      watchPendingFromCurrentUser() async* {
-    final userDocument = _firestore.userDocument;
+  watchPendingFromCurrentUser() async* {
+    final currentUser = _session.current;
+    if (currentUser == null) {
+      yield left(InsufficientPermissions());
+      return;
+    }
     yield* _firestore
         .collection('friendRequests')
         .orderBy('serverTimeStamp', descending: true)
         .snapshots()
+        .takeUntil(_session.ended)
         .map(
           (snapShot) => snapShot.docs.map(
-            (document) =>
-                FriendRequestDataTransferObject.fromFirestore(document)
-                    .toDomain(),
+            (document) => FriendRequestDataTransferObject.fromFirestore(
+              document,
+            ).toDomain(),
           ),
         )
         .map(
           (friendRequests) =>
               right<FriendRequestFailure, KtList<FriendRequest>>(
-            friendRequests
-                .where((friendRequest) =>
-                    friendRequest.senderId.getOrCrash() == userDocument.id &&
-                    friendRequest.status.getOrCrash().runtimeType ==
-                        Pending().runtimeType)
-                .toImmutableList(),
-          ),
+                friendRequests
+                    .where(
+                      (friendRequest) =>
+                          friendRequest.senderId.getOrCrash() ==
+                              currentUser.id &&
+                          friendRequest.status.getOrCrash().runtimeType ==
+                              Pending().runtimeType,
+                    )
+                    .toImmutableList(),
+              ),
         )
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is FirebaseException &&
-          exception.code.contains('permission-denied')) {
-        return left(InsufficientPermissions());
-      } else {
-        return left(Unexpected());
-      }
-    });
+          if (exception is FirebaseException &&
+              exception.code.contains('permission-denied')) {
+            return left(InsufficientPermissions());
+          } else {
+            return left(Unexpected());
+          }
+        });
   }
 
   @override
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
-      watchReceivedForCurrentUser() async* {
-    final userDocument = _firestore.userDocument;
+  watchReceivedForCurrentUser() async* {
+    final currentUser = _session.current;
+    if (currentUser == null) {
+      yield left(InsufficientPermissions());
+      return;
+    }
     yield* _firestore
         .collection('friendRequests')
         .orderBy('serverTimeStamp', descending: true)
         .snapshots()
+        .takeUntil(_session.ended)
         .map(
           (snapShot) => snapShot.docs.map(
-            (document) =>
-                FriendRequestDataTransferObject.fromFirestore(document)
-                    .toDomain(),
+            (document) => FriendRequestDataTransferObject.fromFirestore(
+              document,
+            ).toDomain(),
           ),
         )
         .map(
           (friendRequests) =>
               right<FriendRequestFailure, KtList<FriendRequest>>(
-            friendRequests
-                .where((friendRequest) =>
-                    friendRequest.receiverId.getOrCrash() == userDocument.id &&
-                    friendRequest.status.getOrCrash().runtimeType ==
-                        Pending().runtimeType)
-                .toImmutableList(),
-          ),
+                friendRequests
+                    .where(
+                      (friendRequest) =>
+                          friendRequest.receiverId.getOrCrash() ==
+                              currentUser.id &&
+                          friendRequest.status.getOrCrash().runtimeType ==
+                              Pending().runtimeType,
+                    )
+                    .toImmutableList(),
+              ),
         )
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is FirebaseException &&
-          exception.code.contains('permission-denied')) {
-        return left(InsufficientPermissions());
-      } else {
-        return left(Unexpected());
-      }
-    });
+          if (exception is FirebaseException &&
+              exception.code.contains('permission-denied')) {
+            return left(InsufficientPermissions());
+          } else {
+            return left(Unexpected());
+          }
+        });
   }
 
   @override
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
-      watchFriendsForCurrentUser() async* {
-    final userDocument = _firestore.userDocument;
+  watchFriendsForCurrentUser() async* {
+    final currentUser = _session.current;
+    if (currentUser == null) {
+      yield left(InsufficientPermissions());
+      return;
+    }
     yield* _firestore
         .collection('friendRequests')
         .orderBy('serverTimeStamp', descending: true)
         .snapshots()
+        .takeUntil(_session.ended)
         .map(
           (snapShot) => snapShot.docs.map(
-            (document) =>
-                FriendRequestDataTransferObject.fromFirestore(document)
-                    .toDomain(),
+            (document) => FriendRequestDataTransferObject.fromFirestore(
+              document,
+            ).toDomain(),
           ),
         )
         .map(
           (friendRequests) =>
               right<FriendRequestFailure, KtList<FriendRequest>>(
-            friendRequests
-                .where((friendRequest) =>
-                    (friendRequest.senderId.getOrCrash() == userDocument.id ||
-                        friendRequest.receiverId.getOrCrash() ==
-                            userDocument.id) &&
-                    friendRequest.status.getOrCrash().runtimeType ==
-                        Accepted().runtimeType)
-                .toImmutableList(),
-          ),
+                friendRequests
+                    .where(
+                      (friendRequest) =>
+                          (friendRequest.senderId.getOrCrash() ==
+                                  currentUser.id ||
+                              friendRequest.receiverId.getOrCrash() ==
+                                  currentUser.id) &&
+                          friendRequest.status.getOrCrash().runtimeType ==
+                              Accepted().runtimeType,
+                    )
+                    .toImmutableList(),
+              ),
         )
         .onErrorReturnWith((exception, stackTrace) {
-      if (exception is FirebaseException &&
-          exception.code.contains('permission-denied')) {
-        return left(InsufficientPermissions());
-      } else {
-        return left(Unexpected());
-      }
-    });
+          if (exception is FirebaseException &&
+              exception.code.contains('permission-denied')) {
+            return left(InsufficientPermissions());
+          } else {
+            return left(Unexpected());
+          }
+        });
   }
 }

@@ -8,7 +8,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'application/authentication/authentication_bloc.dart';
 import 'application/authentication/register_form/register_form_bloc.dart';
 import 'application/authentication/sign_in_form/sign_in_form_bloc.dart';
-import 'application/chats/chat_actor/chat_actor_bloc.dart';
 import 'application/chats/chat_bar/chat_bar_bloc.dart';
 import 'application/chats/chats_watcher/chats_watcher_bloc.dart';
 import 'application/chats/friends_watcher/friends_watcher_bloc.dart';
@@ -133,9 +132,6 @@ void configureDependencies() {
         getIt<IMessageRepository>(),
         getIt<ICurrentUserSession>(),
       ),
-    )
-    ..registerFactory<ChatActorBloc>(
-      () => ChatActorBloc(getIt<IChatRepository>(), getIt<ICurrentUserSession>()),
     )
     ..registerFactory<ChatsWatcherBloc>(
       () => ChatsWatcherBloc(

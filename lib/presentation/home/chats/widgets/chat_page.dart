@@ -5,6 +5,9 @@ import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/application/chats/chat_bar/chat_bar_bloc.dart';
 import 'package:routes_chat/application/chats/chats_watcher/chats_watcher_bloc.dart';
 import 'package:routes_chat/application/chats/messages/messages_watcher/messages_watcher_bloc.dart';
+import 'package:routes_chat/domain/chats/chat_failure.dart' as chat_failure;
+import 'package:routes_chat/domain/chats/messages/message_failure.dart'
+    as message_failure;
 import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/injection.dart';
 
@@ -100,7 +103,20 @@ class ChatPage extends StatelessWidget {
                 const SizedBox(height: 20),
                 BlocProvider(
                   create: (context) => getIt<ChatBarBloc>(),
-                  child: BlocBuilder<ChatBarBloc, ChatBarState>(
+                  child: BlocConsumer<ChatBarBloc, ChatBarState>(
+                    listenWhen: (previousState, currentState) =>
+                        previousState.chatCreationFailureOrSuccessOption !=
+                            currentState.chatCreationFailureOrSuccessOption ||
+                        previousState.messageSendFailureOrSuccessOption !=
+                            currentState.messageSendFailureOrSuccessOption,
+                    listener: (context, state) {
+                      final failureMessage = _sendFailureMessage(state);
+                      if (failureMessage != null) {
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(failureMessage)));
+                      }
+                    },
                     buildWhen: (previousState, currentState) =>
                         previousState.showErrorMessages !=
                         currentState.showErrorMessages,
@@ -138,4 +154,38 @@ class ChatPage extends StatelessWidget {
       },
     );
   }
+}
+
+/// The snackbar text for the chat bar's latest failed send, or null when the
+/// latest send succeeded or nothing has been sent since the last keystroke.
+///
+/// The message bar clears its text as soon as Send is tapped, so this is the
+/// only sign a message did not go through.
+String? _sendFailureMessage(ChatBarState state) {
+  final chat_failure.ChatFailure? chatFailure = state
+      .chatCreationFailureOrSuccessOption
+      .fold(
+        () => null,
+        (either) => either.fold((failure) => failure, (_) => null),
+      );
+  if (chatFailure != null) {
+    return switch (chatFailure) {
+      chat_failure.InsufficientPermissions() =>
+        'You are not allowed to start this chat',
+      chat_failure.Unexpected() => 'The chat could not be started, try again',
+    };
+  }
+
+  final message_failure.MessageFailure? messageFailure = state
+      .messageSendFailureOrSuccessOption
+      .fold(
+        () => null,
+        (either) => either.fold((failure) => failure, (_) => null),
+      );
+  return switch (messageFailure) {
+    null => null,
+    message_failure.InsufficientPermissions() =>
+      'You are not allowed to send messages in this chat',
+    message_failure.Unexpected() => 'The message could not be sent, try again',
+  };
 }

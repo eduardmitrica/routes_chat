@@ -3,6 +3,8 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:kt_dart/collection.dart';
+import 'package:routes_chat/domain/chats/messages/message_failure.dart'
+    as message_failure;
 import 'package:routes_chat/domain/chats/messages/message_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
@@ -37,6 +39,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
             state.copyWith(
               content: Content(event.contentString),
               chatCreationFailureOrSuccessOption: none(),
+              messageSendFailureOrSuccessOption: none(),
             ),
           );
         case NewChatCreated():
@@ -49,6 +52,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
                 state.copyWith(
                   isSubmitting: true,
                   chatCreationFailureOrSuccessOption: none(),
+                  messageSendFailureOrSuccessOption: none(),
                 ),
               );
 
@@ -69,9 +73,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
 
               final chat = Chat(
                 // One chat per pair of participants; see compositeId.
-                id: compositeId(
-                  participantsWithCurrentUserIdIncluded.asList(),
-                ),
+                id: compositeId(participantsWithCurrentUserIdIncluded.asList()),
                 participantsList: ParticipantsList(
                   participantsWithCurrentUserIdIncluded.map(
                     (participantId) => Tuple2(participantId, UniqueId.empty()),
@@ -87,6 +89,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
                 isSubmitting: false,
                 showErrorMessages: true,
                 chatCreationFailureOrSuccessOption: optionOf(failureOrSuccess),
+                messageSendFailureOrSuccessOption: none(),
               ),
             );
           }
@@ -104,7 +107,17 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
                 lastUpdatedAt: null,
                 isEdited: false,
               );
-              _messageRepository.addMessageToChatWithId(message, event.chatId);
+              // The message bar has already cleared the text, so the outcome
+              // is kept in state for the page to report; ignoring it made a
+              // failed send vanish.
+              final failureOrSuccess = await _messageRepository
+                  .addMessageToChatWithId(message, event.chatId);
+              emit(
+                state.copyWith(
+                  chatCreationFailureOrSuccessOption: none(),
+                  messageSendFailureOrSuccessOption: some(failureOrSuccess),
+                ),
+              );
             }
           }
       }

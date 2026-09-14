@@ -61,10 +61,7 @@ service cloud.firestore {
            .data.username != username);
     }
 
-    // Friend requests are listed unscoped by the client and filtered
-    // locally, so read can't be narrowed to sender/receiver without
-    // breaking those listeners. Writes are restricted to the two
-    // parties involved.
+    // Friend requests are readable and writable only by their two parties.
     //
     // There is one document per pair of users: its id must be both uids,
     // sorted and joined with "_" (compositeId in the app). A request from B
@@ -78,20 +75,33 @@ service cloud.firestore {
           : secondUid + '_' + firstUid;
       }
 
-      allow read: if signedIn();
+      // A direct read is checked against the pair id itself, so it also
+      // works for a request that does not exist yet (the send flow looks
+      // first) without letting anyone probe for requests between other
+      // people. A list query must be scoped with
+      // `participantIds arrayContains <uid>`, which the app always does.
+      allow get: if signedIn() && request.auth.uid in requestId.split('_');
+      allow list: if signedIn() &&
+        request.auth.uid in resource.data.participantIds;
       allow create: if signedIn() &&
         request.resource.data.senderId == request.auth.uid &&
         // A user cannot befriend themselves.
         request.resource.data.senderId != request.resource.data.receiverId &&
         request.resource.data.status == 'Pending' &&
         requestId == pairId(request.resource.data.senderId,
-                            request.resource.data.receiverId);
+                            request.resource.data.receiverId) &&
+        request.resource.data.participantIds.size() == 2 &&
+        request.resource.data.participantIds.hasAll([
+          request.resource.data.senderId,
+          request.resource.data.receiverId
+        ]);
       // Only the receiver changes a request, only from Pending to Accepted,
       // and never who sent it to whom. A second request for the same pair
       // reaches this document as an update, so this is also what stops it
       // from overwriting the first.
       allow update: if signedIn() &&
         resource.data.receiverId == request.auth.uid &&
+        request.resource.data.participantIds == resource.data.participantIds &&
         request.resource.data.senderId == resource.data.senderId &&
         request.resource.data.receiverId == resource.data.receiverId &&
         resource.data.status == 'Pending' &&

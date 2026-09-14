@@ -16,7 +16,11 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$FriendRequestDataTransferObject {
 
-@JsonKey(includeToJson: false, includeFromJson: false) String? get id; String get senderId; String get receiverId; String get status;@ServerTimestampConverter() FieldValue get serverTimeStamp;
+@JsonKey(includeToJson: false, includeFromJson: false) String? get id; String get senderId; String get receiverId;/// Both parties' uids, sorted. A list query can only be narrowed to the
+/// caller's own requests through a field like this (`arrayContains`), and
+/// that is what lets firestore.rules restrict reads to the participants.
+/// Always derived in [fromDomain], never set by callers.
+ List<String> get participantIds; String get status;@ServerTimestampConverter() FieldValue get serverTimeStamp;
 /// Create a copy of FriendRequestDataTransferObject
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,20 +34,20 @@ $FriendRequestDataTransferObjectCopyWith<FriendRequestDataTransferObject> get co
 @override
 bool operator ==(Object other) {
   final _this = this as FriendRequestDataTransferObject;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is FriendRequestDataTransferObject&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.senderId, _this.senderId) || other.senderId == _this.senderId)&&(identical(other.receiverId, _this.receiverId) || other.receiverId == _this.receiverId)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.serverTimeStamp, _this.serverTimeStamp) || other.serverTimeStamp == _this.serverTimeStamp));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FriendRequestDataTransferObject&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.senderId, _this.senderId) || other.senderId == _this.senderId)&&(identical(other.receiverId, _this.receiverId) || other.receiverId == _this.receiverId)&&const DeepCollectionEquality().equals(other.participantIds, _this.participantIds)&&(identical(other.status, _this.status) || other.status == _this.status)&&(identical(other.serverTimeStamp, _this.serverTimeStamp) || other.serverTimeStamp == _this.serverTimeStamp));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as FriendRequestDataTransferObject;
-  return Object.hash(runtimeType,_this.id,_this.senderId,_this.receiverId,_this.status,_this.serverTimeStamp);
+  return Object.hash(runtimeType,_this.id,_this.senderId,_this.receiverId,const DeepCollectionEquality().hash(_this.participantIds),_this.status,_this.serverTimeStamp);
 }
 
 @override
 String toString() {
   final _this = this as FriendRequestDataTransferObject;
-  return 'FriendRequestDataTransferObject(id: ${_this.id}, senderId: ${_this.senderId}, receiverId: ${_this.receiverId}, status: ${_this.status}, serverTimeStamp: ${_this.serverTimeStamp})';
+  return 'FriendRequestDataTransferObject(id: ${_this.id}, senderId: ${_this.senderId}, receiverId: ${_this.receiverId}, participantIds: ${_this.participantIds}, status: ${_this.status}, serverTimeStamp: ${_this.serverTimeStamp})';
 }
 
 
@@ -54,7 +58,7 @@ abstract mixin class $FriendRequestDataTransferObjectCopyWith<$Res>  {
   factory $FriendRequestDataTransferObjectCopyWith(FriendRequestDataTransferObject value, $Res Function(FriendRequestDataTransferObject) _then) = _$FriendRequestDataTransferObjectCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(includeToJson: false, includeFromJson: false) String? id, String senderId, String receiverId, String status,@ServerTimestampConverter() FieldValue serverTimeStamp
+@JsonKey(includeToJson: false, includeFromJson: false) String? id, String senderId, String receiverId, List<String> participantIds, String status,@ServerTimestampConverter() FieldValue serverTimeStamp
 });
 
 
@@ -71,12 +75,13 @@ class _$FriendRequestDataTransferObjectCopyWithImpl<$Res>
 
 /// Create a copy of FriendRequestDataTransferObject
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? senderId = null,Object? receiverId = null,Object? status = null,Object? serverTimeStamp = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? senderId = null,Object? receiverId = null,Object? participantIds = null,Object? status = null,Object? serverTimeStamp = null,}) {
   return _then(FriendRequestDataTransferObject(
 id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,senderId: null == senderId ? _self.senderId : senderId // ignore: cast_nullable_to_non_nullable
 as String,receiverId: null == receiverId ? _self.receiverId : receiverId // ignore: cast_nullable_to_non_nullable
-as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String,participantIds: null == participantIds ? _self.participantIds : participantIds // ignore: cast_nullable_to_non_nullable
+as List<String>,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as String,serverTimeStamp: null == serverTimeStamp ? _self.serverTimeStamp : serverTimeStamp // ignore: cast_nullable_to_non_nullable
 as FieldValue,
   ));
@@ -163,10 +168,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  String receiverId,  String status, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  String receiverId,  List<String> participantIds,  String status, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _FriendRequestDataTransferObject() when $default != null:
-return $default(_that.id,_that.senderId,_that.receiverId,_that.status,_that.serverTimeStamp);case _:
+return $default(_that.id,_that.senderId,_that.receiverId,_that.participantIds,_that.status,_that.serverTimeStamp);case _:
   return orElse();
 
 }
@@ -184,10 +189,10 @@ return $default(_that.id,_that.senderId,_that.receiverId,_that.status,_that.serv
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  String receiverId,  String status, @ServerTimestampConverter()  FieldValue serverTimeStamp)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  String receiverId,  List<String> participantIds,  String status, @ServerTimestampConverter()  FieldValue serverTimeStamp)  $default,) {final _that = this;
 switch (_that) {
 case _FriendRequestDataTransferObject():
-return $default(_that.id,_that.senderId,_that.receiverId,_that.status,_that.serverTimeStamp);case _:
+return $default(_that.id,_that.senderId,_that.receiverId,_that.participantIds,_that.status,_that.serverTimeStamp);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -204,10 +209,10 @@ return $default(_that.id,_that.senderId,_that.receiverId,_that.status,_that.serv
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  String receiverId,  String status, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  String receiverId,  List<String> participantIds,  String status, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,) {final _that = this;
 switch (_that) {
 case _FriendRequestDataTransferObject() when $default != null:
-return $default(_that.id,_that.senderId,_that.receiverId,_that.status,_that.serverTimeStamp);case _:
+return $default(_that.id,_that.senderId,_that.receiverId,_that.participantIds,_that.status,_that.serverTimeStamp);case _:
   return null;
 
 }
@@ -219,12 +224,27 @@ return $default(_that.id,_that.senderId,_that.receiverId,_that.status,_that.serv
 @JsonSerializable()
 
 class _FriendRequestDataTransferObject extends FriendRequestDataTransferObject {
-  const _FriendRequestDataTransferObject({@JsonKey(includeToJson: false, includeFromJson: false) this.id, required this.senderId, required this.receiverId, required this.status, @ServerTimestampConverter() required this.serverTimeStamp}): super._();
+  const _FriendRequestDataTransferObject({@JsonKey(includeToJson: false, includeFromJson: false) this.id, required this.senderId, required this.receiverId, required  List<String> participantIds, required this.status, @ServerTimestampConverter() required this.serverTimeStamp}): _participantIds = participantIds,super._();
   factory _FriendRequestDataTransferObject.fromJson(Map<String, dynamic> json) => _$FriendRequestDataTransferObjectFromJson(json);
 
 @override@JsonKey(includeToJson: false, includeFromJson: false) final  String? id;
 @override final  String senderId;
 @override final  String receiverId;
+/// Both parties' uids, sorted. A list query can only be narrowed to the
+/// caller's own requests through a field like this (`arrayContains`), and
+/// that is what lets firestore.rules restrict reads to the participants.
+/// Always derived in [fromDomain], never set by callers.
+ final  List<String> _participantIds;
+/// Both parties' uids, sorted. A list query can only be narrowed to the
+/// caller's own requests through a field like this (`arrayContains`), and
+/// that is what lets firestore.rules restrict reads to the participants.
+/// Always derived in [fromDomain], never set by callers.
+@override List<String> get participantIds {
+  if (_participantIds is EqualUnmodifiableListView) return _participantIds;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_participantIds);
+}
+
 @override final  String status;
 @override@ServerTimestampConverter() final  FieldValue serverTimeStamp;
 
@@ -241,18 +261,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _FriendRequestDataTransferObject&&(identical(other.id, id) || other.id == id)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.receiverId, receiverId) || other.receiverId == receiverId)&&(identical(other.status, status) || other.status == status)&&(identical(other.serverTimeStamp, serverTimeStamp) || other.serverTimeStamp == serverTimeStamp));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _FriendRequestDataTransferObject&&(identical(other.id, id) || other.id == id)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.receiverId, receiverId) || other.receiverId == receiverId)&&const DeepCollectionEquality().equals(other.participantIds, _participantIds)&&(identical(other.status, status) || other.status == status)&&(identical(other.serverTimeStamp, serverTimeStamp) || other.serverTimeStamp == serverTimeStamp));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,senderId,receiverId,status,serverTimeStamp);
+    return Object.hash(runtimeType,id,senderId,receiverId,const DeepCollectionEquality().hash(_participantIds),status,serverTimeStamp);
 }
 
 @override
 String toString() {
-    return 'FriendRequestDataTransferObject(id: $id, senderId: $senderId, receiverId: $receiverId, status: $status, serverTimeStamp: $serverTimeStamp)';
+    return 'FriendRequestDataTransferObject(id: $id, senderId: $senderId, receiverId: $receiverId, participantIds: $participantIds, status: $status, serverTimeStamp: $serverTimeStamp)';
 }
 
 
@@ -263,7 +283,7 @@ abstract mixin class _$FriendRequestDataTransferObjectCopyWith<$Res> implements 
   factory _$FriendRequestDataTransferObjectCopyWith(_FriendRequestDataTransferObject value, $Res Function(_FriendRequestDataTransferObject) _then) = __$FriendRequestDataTransferObjectCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(includeToJson: false, includeFromJson: false) String? id, String senderId, String receiverId, String status,@ServerTimestampConverter() FieldValue serverTimeStamp
+@JsonKey(includeToJson: false, includeFromJson: false) String? id, String senderId, String receiverId, List<String> participantIds, String status,@ServerTimestampConverter() FieldValue serverTimeStamp
 });
 
 
@@ -280,12 +300,13 @@ class __$FriendRequestDataTransferObjectCopyWithImpl<$Res>
 
 /// Create a copy of FriendRequestDataTransferObject
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? senderId = null,Object? receiverId = null,Object? status = null,Object? serverTimeStamp = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? senderId = null,Object? receiverId = null,Object? participantIds = null,Object? status = null,Object? serverTimeStamp = null,}) {
   return _then(_FriendRequestDataTransferObject(
 id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,senderId: null == senderId ? _self.senderId : senderId // ignore: cast_nullable_to_non_nullable
 as String,receiverId: null == receiverId ? _self.receiverId : receiverId // ignore: cast_nullable_to_non_nullable
-as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as String,participantIds: null == participantIds ? _self._participantIds : participantIds // ignore: cast_nullable_to_non_nullable
+as List<String>,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
 as String,serverTimeStamp: null == serverTimeStamp ? _self.serverTimeStamp : serverTimeStamp // ignore: cast_nullable_to_non_nullable
 as FieldValue,
   ));

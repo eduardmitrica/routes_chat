@@ -21,6 +21,11 @@ abstract class FriendRequestDataTransferObject
     @JsonKey(includeToJson: false, includeFromJson: false) String? id,
     required String senderId,
     required String receiverId,
+    /// Both parties' uids, sorted. A list query can only be narrowed to the
+    /// caller's own requests through a field like this (`arrayContains`), and
+    /// that is what lets firestore.rules restrict reads to the participants.
+    /// Always derived in [fromDomain], never set by callers.
+    required List<String> participantIds,
     required String status,
     @ServerTimestampConverter() required FieldValue serverTimeStamp,
   }) = _FriendRequestDataTransferObject;
@@ -42,6 +47,10 @@ abstract class FriendRequestDataTransferObject
       id: friendRequest.id.getOrCrash(),
       senderId: friendRequest.senderId.getOrCrash(),
       receiverId: friendRequest.receiverId.getOrCrash(),
+      participantIds: [
+        friendRequest.senderId.getOrCrash(),
+        friendRequest.receiverId.getOrCrash(),
+      ]..sort(),
       status: statusName(friendRequest.status.getOrCrash()),
       serverTimeStamp: FieldValue.serverTimestamp(),
     );

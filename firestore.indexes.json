@@ -7,6 +7,15 @@
         { "fieldPath": "participantIds", "arrayConfig": "CONTAINS" },
         { "fieldPath": "serverTimeStamp", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "friendRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "participantIds", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "serverTimeStamp", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

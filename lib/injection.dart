@@ -31,6 +31,7 @@ import 'domain/shared/user/user_utils_interface.dart';
 import 'infrastructure/authentication/authentication_facade.dart';
 import 'infrastructure/chats/chat_repository.dart';
 import 'infrastructure/chats/messages/message_repository.dart';
+import 'infrastructure/core/environment.dart';
 import 'infrastructure/friend_requests/friend_request_repository.dart';
 import 'infrastructure/notifications/firebase_push_token_registry.dart';
 import 'infrastructure/shared/user/current_user_session.dart';
@@ -47,7 +48,9 @@ final getIt = GetIt.instance;
 /// [FirebaseFirestore.instanceFor]. Deploys need it too: `firestore` in
 /// firebase.json names this database, otherwise the CLI targets `(default)`
 /// and 404s.
-const firestoreDatabaseId = 'routes';
+///
+/// The id itself comes from `FIRESTORE_DATABASE_ID` in `.env`; see [Environment].
+const firestoreDatabaseId = Environment.firestoreDatabaseId;
 
 /// Wires the object graph. Replaces the previous `injectable`-generated
 /// `injection.config.dart`; keep this in sync when constructors change.

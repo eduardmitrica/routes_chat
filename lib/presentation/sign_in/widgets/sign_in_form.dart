@@ -59,7 +59,7 @@ class SignInForm extends StatelessWidget {
         builder: (context, state) {
           return Form(
             child: ListView(
-              padding: const EdgeInsets.all(15.0),
+              padding: const EdgeInsets.all(24),
               children: [
                 TextFormField(
                   initialValue: state.emailAddress.value.fold(
@@ -91,6 +91,7 @@ class SignInForm extends StatelessWidget {
                         (_) => null,
                       ),
                 ),
+                const SizedBox(height: 16),
                 TextFormField(
                   initialValue: state.password.value.fold(
                     (failure) => failure.failedValue,
@@ -120,43 +121,29 @@ class SignInForm extends StatelessWidget {
                         (_) => null,
                       ),
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () => BlocProvider.of<SignInFormBloc>(
-                        context,
-                      ).add(const SignInFormEvent.signInPressed()),
-                      child: const Text('Sign in'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(
-                          context,
-                        ).pushReplacementNamed(RegisterPage.registerPageRoute);
-                      },
-                      child: const Text('Switch to register'),
-                    ),
-                  ],
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: () => BlocProvider.of<SignInFormBloc>(
+                    context,
+                  ).add(const SignInFormEvent.signInPressed()),
+                  child: const Text('Sign in'),
                 ),
-                Row(
-                  children: [
-                    const Spacer(flex: 1),
-                    ElevatedButton(
-                      onPressed: () => BlocProvider.of<SignInFormBloc>(
-                        context,
-                      ).add(const SignInFormEvent.signInWithGooglePressed()),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Sign in with Google'),
-                          Icon(Icons.g_mobiledata_rounded, color: Colors.amber),
-                        ],
-                      ),
-                    ),
-                    const Spacer(flex: 1),
-                  ],
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () => BlocProvider.of<SignInFormBloc>(
+                    context,
+                  ).add(const SignInFormEvent.signInWithGooglePressed()),
+                  icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                  label: const Text('Sign in with Google'),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(
+                      context,
+                    ).pushReplacementNamed(RegisterPage.registerPageRoute);
+                  },
+                  child: const Text('Switch to register'),
                 ),
                 BlocBuilder<SignInFormBloc, SignInFormState>(
                   buildWhen: (previousState, currentState) =>

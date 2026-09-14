@@ -123,7 +123,7 @@ class _PassphraseFormState extends State<PassphraseForm> {
             const SizedBox(height: 8),
             Text(widget.workingMessage, textAlign: TextAlign.center),
           ] else
-            ElevatedButton(onPressed: _submit, child: Text(widget.buttonLabel)),
+            FilledButton(onPressed: _submit, child: Text(widget.buttonLabel)),
           if (widget.secondaryActionLabel != null) ...[
             const SizedBox(height: 8),
             TextButton(

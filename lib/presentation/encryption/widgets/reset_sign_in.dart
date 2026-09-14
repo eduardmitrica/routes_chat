@@ -92,12 +92,12 @@ class _ResetSignInState extends State<ResetSignIn> {
               textAlign: TextAlign.center,
             ),
           ] else if (withPassword)
-            ElevatedButton(
+            FilledButton(
               onPressed: _submit,
               child: const Text('Confirm and reset'),
             )
           else
-            ElevatedButton(
+            FilledButton(
               onPressed: widget.onGoogle,
               child: const Text('Sign in with Google and reset'),
             ),

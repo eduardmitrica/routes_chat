@@ -78,7 +78,7 @@ class _RecoveryKeyFormState extends State<RecoveryKeyForm> {
             const SizedBox(height: 8),
             const Text('Unlocking…', textAlign: TextAlign.center),
           ] else
-            ElevatedButton(
+            FilledButton(
               onPressed: _submit,
               child: const Text('Unlock with recovery key'),
             ),

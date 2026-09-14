@@ -74,8 +74,10 @@ class ReceivedFriendRequestsTabBody extends StatelessWidget {
                                         Text(
                                           sendingUser?.username.getOrCrash() ??
                                               '',
-                                          style: const TextStyle(
-                                            color: Colors.deepPurpleAccent,
+                                          style: TextStyle(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
                                           ),
                                         ),
                                         const SizedBox(height: 10),
@@ -92,7 +94,7 @@ class ReceivedFriendRequestsTabBody extends StatelessWidget {
                             },
                             child: CircleAvatar(
                               key: ValueKey(friendRequest.id.getOrCrash()),
-                              backgroundColor: Colors.deepPurpleAccent,
+
                               foregroundImage: NetworkImage(
                                 sendingUser?.imageUrl.getOrCrash() ??
                                     getIt<PlaceholderFetcherBloc>()

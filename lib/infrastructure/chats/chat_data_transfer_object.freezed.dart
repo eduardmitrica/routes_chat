@@ -26,7 +26,9 @@ mixin _$ChatDataTransferObject {
 ///
 /// Stored sorted, so the rules can require the chat id to equal
 /// `participantIds.join('_')`, the format compositeId produces.
- List<String> get participantIds;@MessageDataTransferObjectConverter() MessageDataTransferObject get lastMessage;@ServerTimestampConverter() FieldValue get serverTimeStamp;
+ List<String> get participantIds;@MessageDataTransferObjectConverter() MessageDataTransferObject get lastMessage;/// The chat's key, sealed to each participant, by participant id. Written
+/// when the chat is created and never changed; see docs/e2ee.md.
+@SealedChatKeysConverter() Map<String, SealedChatKey> get chatKeys;@ServerTimestampConverter() FieldValue get serverTimeStamp;
 /// Create a copy of ChatDataTransferObject
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -40,20 +42,20 @@ $ChatDataTransferObjectCopyWith<ChatDataTransferObject> get copyWith => _$ChatDa
 @override
 bool operator ==(Object other) {
   final _this = this as ChatDataTransferObject;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDataTransferObject&&(identical(other.id, _this.id) || other.id == _this.id)&&const DeepCollectionEquality().equals(other.participants, _this.participants)&&const DeepCollectionEquality().equals(other.participantIds, _this.participantIds)&&(identical(other.lastMessage, _this.lastMessage) || other.lastMessage == _this.lastMessage)&&(identical(other.serverTimeStamp, _this.serverTimeStamp) || other.serverTimeStamp == _this.serverTimeStamp));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatDataTransferObject&&(identical(other.id, _this.id) || other.id == _this.id)&&const DeepCollectionEquality().equals(other.participants, _this.participants)&&const DeepCollectionEquality().equals(other.participantIds, _this.participantIds)&&(identical(other.lastMessage, _this.lastMessage) || other.lastMessage == _this.lastMessage)&&const DeepCollectionEquality().equals(other.chatKeys, _this.chatKeys)&&(identical(other.serverTimeStamp, _this.serverTimeStamp) || other.serverTimeStamp == _this.serverTimeStamp));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
   final _this = this as ChatDataTransferObject;
-  return Object.hash(runtimeType,_this.id,const DeepCollectionEquality().hash(_this.participants),const DeepCollectionEquality().hash(_this.participantIds),_this.lastMessage,_this.serverTimeStamp);
+  return Object.hash(runtimeType,_this.id,const DeepCollectionEquality().hash(_this.participants),const DeepCollectionEquality().hash(_this.participantIds),_this.lastMessage,const DeepCollectionEquality().hash(_this.chatKeys),_this.serverTimeStamp);
 }
 
 @override
 String toString() {
   final _this = this as ChatDataTransferObject;
-  return 'ChatDataTransferObject(id: ${_this.id}, participants: ${_this.participants}, participantIds: ${_this.participantIds}, lastMessage: ${_this.lastMessage}, serverTimeStamp: ${_this.serverTimeStamp})';
+  return 'ChatDataTransferObject(id: ${_this.id}, participants: ${_this.participants}, participantIds: ${_this.participantIds}, lastMessage: ${_this.lastMessage}, chatKeys: ${_this.chatKeys}, serverTimeStamp: ${_this.serverTimeStamp})';
 }
 
 
@@ -64,7 +66,7 @@ abstract mixin class $ChatDataTransferObjectCopyWith<$Res>  {
   factory $ChatDataTransferObjectCopyWith(ChatDataTransferObject value, $Res Function(ChatDataTransferObject) _then) = _$ChatDataTransferObjectCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(includeToJson: false, includeFromJson: false) String? id, List<Map<String, String>> participants, List<String> participantIds,@MessageDataTransferObjectConverter() MessageDataTransferObject lastMessage,@ServerTimestampConverter() FieldValue serverTimeStamp
+@JsonKey(includeToJson: false, includeFromJson: false) String? id, List<Map<String, String>> participants, List<String> participantIds,@MessageDataTransferObjectConverter() MessageDataTransferObject lastMessage,@SealedChatKeysConverter() Map<String, SealedChatKey> chatKeys,@ServerTimestampConverter() FieldValue serverTimeStamp
 });
 
 
@@ -81,13 +83,14 @@ class _$ChatDataTransferObjectCopyWithImpl<$Res>
 
 /// Create a copy of ChatDataTransferObject
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? participants = null,Object? participantIds = null,Object? lastMessage = null,Object? serverTimeStamp = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = freezed,Object? participants = null,Object? participantIds = null,Object? lastMessage = null,Object? chatKeys = null,Object? serverTimeStamp = null,}) {
   return _then(ChatDataTransferObject(
 id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,participants: null == participants ? _self.participants : participants // ignore: cast_nullable_to_non_nullable
 as List<Map<String, String>>,participantIds: null == participantIds ? _self.participantIds : participantIds // ignore: cast_nullable_to_non_nullable
 as List<String>,lastMessage: null == lastMessage ? _self.lastMessage : lastMessage // ignore: cast_nullable_to_non_nullable
-as MessageDataTransferObject,serverTimeStamp: null == serverTimeStamp ? _self.serverTimeStamp : serverTimeStamp // ignore: cast_nullable_to_non_nullable
+as MessageDataTransferObject,chatKeys: null == chatKeys ? _self.chatKeys : chatKeys // ignore: cast_nullable_to_non_nullable
+as Map<String, SealedChatKey>,serverTimeStamp: null == serverTimeStamp ? _self.serverTimeStamp : serverTimeStamp // ignore: cast_nullable_to_non_nullable
 as FieldValue,
   ));
 }
@@ -182,10 +185,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  List<Map<String, String>> participants,  List<String> participantIds, @MessageDataTransferObjectConverter()  MessageDataTransferObject lastMessage, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  List<Map<String, String>> participants,  List<String> participantIds, @MessageDataTransferObjectConverter()  MessageDataTransferObject lastMessage, @SealedChatKeysConverter()  Map<String, SealedChatKey> chatKeys, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ChatDataTransferObject() when $default != null:
-return $default(_that.id,_that.participants,_that.participantIds,_that.lastMessage,_that.serverTimeStamp);case _:
+return $default(_that.id,_that.participants,_that.participantIds,_that.lastMessage,_that.chatKeys,_that.serverTimeStamp);case _:
   return orElse();
 
 }
@@ -203,10 +206,10 @@ return $default(_that.id,_that.participants,_that.participantIds,_that.lastMessa
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  List<Map<String, String>> participants,  List<String> participantIds, @MessageDataTransferObjectConverter()  MessageDataTransferObject lastMessage, @ServerTimestampConverter()  FieldValue serverTimeStamp)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  List<Map<String, String>> participants,  List<String> participantIds, @MessageDataTransferObjectConverter()  MessageDataTransferObject lastMessage, @SealedChatKeysConverter()  Map<String, SealedChatKey> chatKeys, @ServerTimestampConverter()  FieldValue serverTimeStamp)  $default,) {final _that = this;
 switch (_that) {
 case _ChatDataTransferObject():
-return $default(_that.id,_that.participants,_that.participantIds,_that.lastMessage,_that.serverTimeStamp);case _:
+return $default(_that.id,_that.participants,_that.participantIds,_that.lastMessage,_that.chatKeys,_that.serverTimeStamp);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -223,10 +226,10 @@ return $default(_that.id,_that.participants,_that.participantIds,_that.lastMessa
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  List<Map<String, String>> participants,  List<String> participantIds, @MessageDataTransferObjectConverter()  MessageDataTransferObject lastMessage, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  List<Map<String, String>> participants,  List<String> participantIds, @MessageDataTransferObjectConverter()  MessageDataTransferObject lastMessage, @SealedChatKeysConverter()  Map<String, SealedChatKey> chatKeys, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,) {final _that = this;
 switch (_that) {
 case _ChatDataTransferObject() when $default != null:
-return $default(_that.id,_that.participants,_that.participantIds,_that.lastMessage,_that.serverTimeStamp);case _:
+return $default(_that.id,_that.participants,_that.participantIds,_that.lastMessage,_that.chatKeys,_that.serverTimeStamp);case _:
   return null;
 
 }
@@ -238,7 +241,7 @@ return $default(_that.id,_that.participants,_that.participantIds,_that.lastMessa
 @JsonSerializable()
 
 class _ChatDataTransferObject extends ChatDataTransferObject {
-  const _ChatDataTransferObject({@JsonKey(includeToJson: false, includeFromJson: false) this.id, required  List<Map<String, String>> participants, required  List<String> participantIds, @MessageDataTransferObjectConverter() required this.lastMessage, @ServerTimestampConverter() required this.serverTimeStamp}): _participants = participants,_participantIds = participantIds,super._();
+  const _ChatDataTransferObject({@JsonKey(includeToJson: false, includeFromJson: false) this.id, required  List<Map<String, String>> participants, required  List<String> participantIds, @MessageDataTransferObjectConverter() required this.lastMessage, @SealedChatKeysConverter() required  Map<String, SealedChatKey> chatKeys, @ServerTimestampConverter() required this.serverTimeStamp}): _participants = participants,_participantIds = participantIds,_chatKeys = chatKeys,super._();
   factory _ChatDataTransferObject.fromJson(Map<String, dynamic> json) => _$ChatDataTransferObjectFromJson(json);
 
 @override@JsonKey(includeToJson: false, includeFromJson: false) final  String? id;
@@ -277,6 +280,17 @@ class _ChatDataTransferObject extends ChatDataTransferObject {
 }
 
 @override@MessageDataTransferObjectConverter() final  MessageDataTransferObject lastMessage;
+/// The chat's key, sealed to each participant, by participant id. Written
+/// when the chat is created and never changed; see docs/e2ee.md.
+ final  Map<String, SealedChatKey> _chatKeys;
+/// The chat's key, sealed to each participant, by participant id. Written
+/// when the chat is created and never changed; see docs/e2ee.md.
+@override@SealedChatKeysConverter() Map<String, SealedChatKey> get chatKeys {
+  if (_chatKeys is EqualUnmodifiableMapView) return _chatKeys;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_chatKeys);
+}
+
 @override@ServerTimestampConverter() final  FieldValue serverTimeStamp;
 
 /// Create a copy of ChatDataTransferObject
@@ -292,18 +306,18 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDataTransferObject&&(identical(other.id, id) || other.id == id)&&const DeepCollectionEquality().equals(other.participants, _participants)&&const DeepCollectionEquality().equals(other.participantIds, _participantIds)&&(identical(other.lastMessage, lastMessage) || other.lastMessage == lastMessage)&&(identical(other.serverTimeStamp, serverTimeStamp) || other.serverTimeStamp == serverTimeStamp));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatDataTransferObject&&(identical(other.id, id) || other.id == id)&&const DeepCollectionEquality().equals(other.participants, _participants)&&const DeepCollectionEquality().equals(other.participantIds, _participantIds)&&(identical(other.lastMessage, lastMessage) || other.lastMessage == lastMessage)&&const DeepCollectionEquality().equals(other.chatKeys, _chatKeys)&&(identical(other.serverTimeStamp, serverTimeStamp) || other.serverTimeStamp == serverTimeStamp));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,const DeepCollectionEquality().hash(_participants),const DeepCollectionEquality().hash(_participantIds),lastMessage,serverTimeStamp);
+    return Object.hash(runtimeType,id,const DeepCollectionEquality().hash(_participants),const DeepCollectionEquality().hash(_participantIds),lastMessage,const DeepCollectionEquality().hash(_chatKeys),serverTimeStamp);
 }
 
 @override
 String toString() {
-    return 'ChatDataTransferObject(id: $id, participants: $participants, participantIds: $participantIds, lastMessage: $lastMessage, serverTimeStamp: $serverTimeStamp)';
+    return 'ChatDataTransferObject(id: $id, participants: $participants, participantIds: $participantIds, lastMessage: $lastMessage, chatKeys: $chatKeys, serverTimeStamp: $serverTimeStamp)';
 }
 
 
@@ -314,7 +328,7 @@ abstract mixin class _$ChatDataTransferObjectCopyWith<$Res> implements $ChatData
   factory _$ChatDataTransferObjectCopyWith(_ChatDataTransferObject value, $Res Function(_ChatDataTransferObject) _then) = __$ChatDataTransferObjectCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(includeToJson: false, includeFromJson: false) String? id, List<Map<String, String>> participants, List<String> participantIds,@MessageDataTransferObjectConverter() MessageDataTransferObject lastMessage,@ServerTimestampConverter() FieldValue serverTimeStamp
+@JsonKey(includeToJson: false, includeFromJson: false) String? id, List<Map<String, String>> participants, List<String> participantIds,@MessageDataTransferObjectConverter() MessageDataTransferObject lastMessage,@SealedChatKeysConverter() Map<String, SealedChatKey> chatKeys,@ServerTimestampConverter() FieldValue serverTimeStamp
 });
 
 
@@ -331,13 +345,14 @@ class __$ChatDataTransferObjectCopyWithImpl<$Res>
 
 /// Create a copy of ChatDataTransferObject
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? participants = null,Object? participantIds = null,Object? lastMessage = null,Object? serverTimeStamp = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = freezed,Object? participants = null,Object? participantIds = null,Object? lastMessage = null,Object? chatKeys = null,Object? serverTimeStamp = null,}) {
   return _then(_ChatDataTransferObject(
 id: freezed == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String?,participants: null == participants ? _self._participants : participants // ignore: cast_nullable_to_non_nullable
 as List<Map<String, String>>,participantIds: null == participantIds ? _self._participantIds : participantIds // ignore: cast_nullable_to_non_nullable
 as List<String>,lastMessage: null == lastMessage ? _self.lastMessage : lastMessage // ignore: cast_nullable_to_non_nullable
-as MessageDataTransferObject,serverTimeStamp: null == serverTimeStamp ? _self.serverTimeStamp : serverTimeStamp // ignore: cast_nullable_to_non_nullable
+as MessageDataTransferObject,chatKeys: null == chatKeys ? _self._chatKeys : chatKeys // ignore: cast_nullable_to_non_nullable
+as Map<String, SealedChatKey>,serverTimeStamp: null == serverTimeStamp ? _self.serverTimeStamp : serverTimeStamp // ignore: cast_nullable_to_non_nullable
 as FieldValue,
   ));
 }

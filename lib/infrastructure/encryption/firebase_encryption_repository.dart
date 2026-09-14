@@ -13,13 +13,18 @@ import '../../domain/encryption/encryption_status.dart';
 import '../../domain/encryption/value_objects.dart';
 import '../../domain/shared/user/current_user_session_interface.dart';
 import '../core/firestore_helpers.dart';
+import 'chat_keyring.dart';
 import 'key_bundle.dart';
 import 'recovery_key.dart';
 import 'user_key_manager.dart';
 
 /// Keeps the user's key bundle in Firestore and the unlocked master key in the
 /// device's secure storage (Android Keystore, iOS Keychain).
-class FirebaseEncryptionRepository implements IEncryptionRepository {
+///
+/// It also hands the unlocked key pair to [ChatKeyring], which opens chat keys
+/// with it.
+class FirebaseEncryptionRepository
+    implements IEncryptionRepository, UnlockedKeyPairSource {
   final FirebaseFirestore _firestore;
   final FlutterSecureStorage _secureStorage;
   final UserKeyManager _keys;
@@ -174,6 +179,20 @@ class FirebaseEncryptionRepository implements IEncryptionRepository {
       debugPrint(
         'Could not remove the encryption key from this device: $error',
       );
+    }
+  }
+
+  @override
+  Future<SimpleKeyPair> unlockedKeyPair(String userId) async {
+    final masterKey = await _storedMasterKey(userId);
+    final bundle = masterKey == null ? null : await _loadBundle(userId);
+    if (masterKey == null || bundle == null) {
+      throw const EncryptionKeysLocked();
+    }
+    try {
+      return await _keys.privateKeyPair(bundle, masterKey);
+    } on WrongSecret {
+      throw const EncryptionKeysLocked();
     }
   }
 

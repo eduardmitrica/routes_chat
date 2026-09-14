@@ -7,6 +7,7 @@ import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/value_objects.dart';
+import 'package:routes_chat/infrastructure/encryption/chat_cipher.dart';
 
 part 'message_data_transfer_object.freezed.dart';
 
@@ -21,7 +22,10 @@ abstract class MessageDataTransferObject with _$MessageDataTransferObject {
     required String senderId,
     required List<String> imageUrls,
     required List<String> reactions,
-    required String content,
+
+    /// The message text, encrypted with the chat's key. The repositories,
+    /// which hold the key, turn it into text; see docs/e2ee.md.
+    @EncryptedContentConverter() required EncryptedContent content,
     required String repliedMessageId,
     required bool isEdited,
     @JsonKey(includeToJson: false, includeFromJson: false) DateTime? timeStamp,
@@ -33,7 +37,8 @@ abstract class MessageDataTransferObject with _$MessageDataTransferObject {
 
   Map<String, dynamic> toJsonWithId() => toJson()..putIfAbsent('id', () => id);
 
-  Message toDomain() => Message(
+  /// The message, with [content] as its decrypted text.
+  Message toDomain({required String content}) => Message(
     id: UniqueId.fromUniqueString(id!),
     senderId: UniqueId.fromUniqueString(senderId),
     imageUrls: imageUrls
@@ -48,7 +53,11 @@ abstract class MessageDataTransferObject with _$MessageDataTransferObject {
     isEdited: isEdited,
   );
 
-  factory MessageDataTransferObject.fromDomain(Message message) {
+  /// [message] as stored, with [content] as its encrypted text.
+  factory MessageDataTransferObject.fromDomain(
+    Message message, {
+    required EncryptedContent content,
+  }) {
     return MessageDataTransferObject(
       id: message.id.getOrCrash(),
       senderId: message.senderId.getOrCrash(),
@@ -58,7 +67,7 @@ abstract class MessageDataTransferObject with _$MessageDataTransferObject {
       reactions: message.reactions
           .map((reactionId) => reactionId.getOrCrash())
           .asList(),
-      content: message.content.getOrCrash(),
+      content: content,
       repliedMessageId: message.repliedMessageId.getOrCrash(),
       isEdited: message.isEdited,
       serverTimeStamp: FieldValue.serverTimestamp(),
@@ -86,4 +95,16 @@ class ServerTimestampConverter implements JsonConverter<FieldValue, Object?> {
 
   @override
   Object toJson(FieldValue fieldValue) => fieldValue;
+}
+
+/// Reads plaintext content as an error rather than a message.
+class EncryptedContentConverter
+    implements JsonConverter<EncryptedContent, Object?> {
+  const EncryptedContentConverter();
+
+  @override
+  EncryptedContent fromJson(Object? json) => EncryptedContent.fromJson(json);
+
+  @override
+  Object toJson(EncryptedContent content) => content.toJson();
 }

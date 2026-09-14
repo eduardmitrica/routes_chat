@@ -35,6 +35,8 @@ import 'infrastructure/authentication/authentication_facade.dart';
 import 'infrastructure/chats/chat_repository.dart';
 import 'infrastructure/chats/messages/message_repository.dart';
 import 'infrastructure/core/environment.dart';
+import 'infrastructure/encryption/chat_cipher.dart';
+import 'infrastructure/encryption/chat_keyring.dart';
 import 'infrastructure/encryption/firebase_encryption_repository.dart';
 import 'infrastructure/encryption/user_key_manager.dart';
 import 'infrastructure/friend_requests/friend_request_repository.dart';
@@ -101,12 +103,16 @@ void configureDependencies() {
       () => MessageRepository(
         getIt<FirebaseFirestore>(),
         getIt<ICurrentUserSession>(),
+        getIt<ChatKeyring>(),
+        getIt<ChatCipher>(),
       ),
     )
     ..registerLazySingleton<IChatRepository>(
       () => ChatRepository(
         getIt<FirebaseFirestore>(),
         getIt<ICurrentUserSession>(),
+        getIt<ChatKeyring>(),
+        getIt<ChatCipher>(),
       ),
     )
     ..registerLazySingleton<IFriendRequestsRepository>(
@@ -124,11 +130,26 @@ void configureDependencies() {
       ),
     )
     ..registerLazySingleton<UserKeyManager>(UserKeyManager.new)
-    ..registerLazySingleton<IEncryptionRepository>(
+    // One instance behind both registrations: the encryption gate unlocks the
+    // keys through IEncryptionRepository, and the chat keyring reads them.
+    ..registerLazySingleton<FirebaseEncryptionRepository>(
       () => FirebaseEncryptionRepository(
         getIt<FirebaseFirestore>(),
         getIt<FlutterSecureStorage>(),
         getIt<UserKeyManager>(),
+        getIt<ICurrentUserSession>(),
+      ),
+    )
+    ..registerLazySingleton<IEncryptionRepository>(
+      () => getIt<FirebaseEncryptionRepository>(),
+    )
+    ..registerLazySingleton<ChatCipher>(ChatCipher.new)
+    // A singleton: it holds the session's opened chat keys.
+    ..registerLazySingleton<ChatKeyring>(
+      () => ChatKeyring(
+        getIt<FirebaseFirestore>(),
+        getIt<ChatCipher>(),
+        getIt<FirebaseEncryptionRepository>(),
         getIt<ICurrentUserSession>(),
       ),
     );

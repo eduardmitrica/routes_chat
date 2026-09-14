@@ -188,10 +188,61 @@ service cloud.firestore {
     // list queries are enforced against participantIds, the flat mirror of
     // participants that ChatDataTransferObject derives for exactly this
     // purpose (rules cannot iterate participants, which is a list of maps).
+    //
+    // Chats are end-to-end encrypted (docs/e2ee.md): the server holds only
+    // sealed chat keys and ciphertext. Rules cannot tell whether ciphertext
+    // decrypts, but they make sure nothing else is stored, so an outdated or
+    // modified client cannot write a message in plaintext.
     match /chats/{chatId} {
       function participantIds() {
         return get(/databases/$(database)/documents/chats/$(chatId))
           .data.participantIds;
+      }
+
+      // Must match what ChatDataTransferObject stores; a test checks it.
+      function chatFields() {
+        return ['participants', 'participantIds', 'lastMessage',
+                'serverTimeStamp', 'chatKeys'];
+      }
+
+      // Must match what MessageDataTransferObject stores; a test checks it.
+      // A chat's lastMessage also carries the message's id.
+      function messageFields() {
+        return ['senderId', 'imageUrls', 'reactions', 'content',
+                'repliedMessageId', 'isEdited', 'serverTimeStamp'];
+      }
+
+      // Message text encrypted with the chat key (EncryptedContent in the
+      // app): base64 of a 12-byte nonce, the ciphertext and a 16-byte tag. A
+      // message is at most 1000 UTF-16 code units, so at most 3000 bytes of
+      // UTF-8 and 4000 characters of base64.
+      function isEncryptedContent(content) {
+        return content.keys().hasOnly(['v', 'nonce', 'cipherText', 'mac']) &&
+          content.v == 1 &&
+          content.nonce is string && content.nonce.size() == 16 &&
+          content.mac is string && content.mac.size() == 24 &&
+          content.cipherText is string && content.cipherText.size() <= 4000;
+      }
+
+      // The chat key sealed to one participant (SealedChatKey in the app):
+      // base64 of a 32-byte ephemeral X25519 public key, a 12-byte nonce, the
+      // 32-byte encrypted key and a 16-byte tag.
+      function isSealedChatKey(sealed) {
+        return sealed.keys().hasOnly(['ephemeralPublicKey', 'nonce',
+                                      'cipherText', 'mac']) &&
+          sealed.ephemeralPublicKey is string &&
+          sealed.ephemeralPublicKey.size() == 44 &&
+          sealed.nonce is string && sealed.nonce.size() == 16 &&
+          sealed.cipherText is string && sealed.cipherText.size() == 44 &&
+          sealed.mac is string && sealed.mac.size() == 24;
+      }
+
+      // A message the caller wrote, holding only the fields the app stores,
+      // with its text encrypted.
+      function isOwnEncryptedMessage(message, fields) {
+        return message.keys().hasOnly(fields) &&
+          message.senderId == request.auth.uid &&
+          isEncryptedContent(message.content);
       }
 
       // A direct read is checked against the chat id, which the create rule
@@ -215,24 +266,41 @@ service cloud.firestore {
         request.resource.data.participantIds.size() == 2 &&
         request.resource.data.participantIds[0] <
           request.resource.data.participantIds[1] &&
-        chatId == request.resource.data.participantIds.join('_');
+        chatId == request.resource.data.participantIds.join('_') &&
+        request.resource.data.keys().hasOnly(chatFields()) &&
+        // Exactly one sealed chat key per participant.
+        request.resource.data.chatKeys.keys()
+          .hasOnly(request.resource.data.participantIds) &&
+        isSealedChatKey(request.resource.data
+          .chatKeys[request.resource.data.participantIds[0]]) &&
+        isSealedChatKey(request.resource.data
+          .chatKeys[request.resource.data.participantIds[1]]) &&
+        isOwnEncryptedMessage(request.resource.data.lastMessage,
+                              messageFields().concat(['id']));
       // The writer must already be a participant, and the participants never
-      // change, which also keeps the id consistent with them.
+      // change, which also keeps the id consistent with them. Neither do the
+      // sealed chat keys: replacing one could lock a participant out.
       allow update: if signedIn() &&
         request.auth.uid in resource.data.participantIds &&
-        request.resource.data.participantIds == resource.data.participantIds;
+        request.resource.data.participantIds == resource.data.participantIds &&
+        request.resource.data.chatKeys == resource.data.chatKeys &&
+        request.resource.data.keys().hasOnly(chatFields()) &&
+        isOwnEncryptedMessage(request.resource.data.lastMessage,
+                              messageFields().concat(['id']));
 
       match /messages/{messageId} {
         // Reads resolve the parent chat. Safe because the UI only subscribes
         // to messages once the chat exists (ChatPage builds
         // MessagesWatcherBloc under `if (chat != null)`).
         allow read: if signedIn() && request.auth.uid in participantIds();
-        // Creates deliberately do NOT call participantIds(): the first message
-        // of a new chat is written in the same transaction as the chat
-        // document, so the parent is not committed yet and the get() would
-        // deny it. Pinning senderId to the caller is what is enforceable here.
+        // getAfter sees the chat as it will be once this write lands, so it
+        // also covers the first message of a new chat, which is written in
+        // the same transaction as the chat (a get() would not find it yet).
         allow create: if signedIn() &&
-          request.resource.data.senderId == request.auth.uid;
+          request.auth.uid in
+            getAfter(/databases/$(database)/documents/chats/$(chatId))
+              .data.participantIds &&
+          isOwnEncryptedMessage(request.resource.data, messageFields());
       }
     }
   }

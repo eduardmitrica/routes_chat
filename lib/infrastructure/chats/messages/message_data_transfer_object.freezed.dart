@@ -16,7 +16,9 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$MessageDataTransferObject {
 
-@JsonKey(includeToJson: false, includeFromJson: false) String? get id; String get senderId; List<String> get imageUrls; List<String> get reactions; String get content; String get repliedMessageId; bool get isEdited;@JsonKey(includeToJson: false, includeFromJson: false) DateTime? get timeStamp;@ServerTimestampConverter() FieldValue get serverTimeStamp;
+@JsonKey(includeToJson: false, includeFromJson: false) String? get id; String get senderId; List<String> get imageUrls; List<String> get reactions;/// The message text, encrypted with the chat's key. The repositories,
+/// which hold the key, turn it into text; see docs/e2ee.md.
+@EncryptedContentConverter() EncryptedContent get content; String get repliedMessageId; bool get isEdited;@JsonKey(includeToJson: false, includeFromJson: false) DateTime? get timeStamp;@ServerTimestampConverter() FieldValue get serverTimeStamp;
 /// Create a copy of MessageDataTransferObject
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -54,7 +56,7 @@ abstract mixin class $MessageDataTransferObjectCopyWith<$Res>  {
   factory $MessageDataTransferObjectCopyWith(MessageDataTransferObject value, $Res Function(MessageDataTransferObject) _then) = _$MessageDataTransferObjectCopyWithImpl;
 @useResult
 $Res call({
-@JsonKey(includeToJson: false, includeFromJson: false) String? id, String senderId, List<String> imageUrls, List<String> reactions, String content, String repliedMessageId, bool isEdited,@JsonKey(includeToJson: false, includeFromJson: false) DateTime? timeStamp,@ServerTimestampConverter() FieldValue serverTimeStamp
+@JsonKey(includeToJson: false, includeFromJson: false) String? id, String senderId, List<String> imageUrls, List<String> reactions,@EncryptedContentConverter() EncryptedContent content, String repliedMessageId, bool isEdited,@JsonKey(includeToJson: false, includeFromJson: false) DateTime? timeStamp,@ServerTimestampConverter() FieldValue serverTimeStamp
 });
 
 
@@ -78,7 +80,7 @@ as String?,senderId: null == senderId ? _self.senderId : senderId // ignore: cas
 as String,imageUrls: null == imageUrls ? _self.imageUrls : imageUrls // ignore: cast_nullable_to_non_nullable
 as List<String>,reactions: null == reactions ? _self.reactions : reactions // ignore: cast_nullable_to_non_nullable
 as List<String>,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
-as String,repliedMessageId: null == repliedMessageId ? _self.repliedMessageId : repliedMessageId // ignore: cast_nullable_to_non_nullable
+as EncryptedContent,repliedMessageId: null == repliedMessageId ? _self.repliedMessageId : repliedMessageId // ignore: cast_nullable_to_non_nullable
 as String,isEdited: null == isEdited ? _self.isEdited : isEdited // ignore: cast_nullable_to_non_nullable
 as bool,timeStamp: freezed == timeStamp ? _self.timeStamp : timeStamp // ignore: cast_nullable_to_non_nullable
 as DateTime?,serverTimeStamp: null == serverTimeStamp ? _self.serverTimeStamp : serverTimeStamp // ignore: cast_nullable_to_non_nullable
@@ -167,7 +169,7 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  List<String> imageUrls,  List<String> reactions,  String content,  String repliedMessageId,  bool isEdited, @JsonKey(includeToJson: false, includeFromJson: false)  DateTime? timeStamp, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  List<String> imageUrls,  List<String> reactions, @EncryptedContentConverter()  EncryptedContent content,  String repliedMessageId,  bool isEdited, @JsonKey(includeToJson: false, includeFromJson: false)  DateTime? timeStamp, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _MessageDataTransferObject() when $default != null:
 return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.content,_that.repliedMessageId,_that.isEdited,_that.timeStamp,_that.serverTimeStamp);case _:
@@ -188,7 +190,7 @@ return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.co
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  List<String> imageUrls,  List<String> reactions,  String content,  String repliedMessageId,  bool isEdited, @JsonKey(includeToJson: false, includeFromJson: false)  DateTime? timeStamp, @ServerTimestampConverter()  FieldValue serverTimeStamp)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  List<String> imageUrls,  List<String> reactions, @EncryptedContentConverter()  EncryptedContent content,  String repliedMessageId,  bool isEdited, @JsonKey(includeToJson: false, includeFromJson: false)  DateTime? timeStamp, @ServerTimestampConverter()  FieldValue serverTimeStamp)  $default,) {final _that = this;
 switch (_that) {
 case _MessageDataTransferObject():
 return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.content,_that.repliedMessageId,_that.isEdited,_that.timeStamp,_that.serverTimeStamp);case _:
@@ -208,7 +210,7 @@ return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.co
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  List<String> imageUrls,  List<String> reactions,  String content,  String repliedMessageId,  bool isEdited, @JsonKey(includeToJson: false, includeFromJson: false)  DateTime? timeStamp, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function(@JsonKey(includeToJson: false, includeFromJson: false)  String? id,  String senderId,  List<String> imageUrls,  List<String> reactions, @EncryptedContentConverter()  EncryptedContent content,  String repliedMessageId,  bool isEdited, @JsonKey(includeToJson: false, includeFromJson: false)  DateTime? timeStamp, @ServerTimestampConverter()  FieldValue serverTimeStamp)?  $default,) {final _that = this;
 switch (_that) {
 case _MessageDataTransferObject() when $default != null:
 return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.content,_that.repliedMessageId,_that.isEdited,_that.timeStamp,_that.serverTimeStamp);case _:
@@ -223,7 +225,7 @@ return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.co
 @JsonSerializable()
 
 class _MessageDataTransferObject extends MessageDataTransferObject {
-  const _MessageDataTransferObject({@JsonKey(includeToJson: false, includeFromJson: false) this.id, required this.senderId, required  List<String> imageUrls, required  List<String> reactions, required this.content, required this.repliedMessageId, required this.isEdited, @JsonKey(includeToJson: false, includeFromJson: false) this.timeStamp, @ServerTimestampConverter() required this.serverTimeStamp}): _imageUrls = imageUrls,_reactions = reactions,super._();
+  const _MessageDataTransferObject({@JsonKey(includeToJson: false, includeFromJson: false) this.id, required this.senderId, required  List<String> imageUrls, required  List<String> reactions, @EncryptedContentConverter() required this.content, required this.repliedMessageId, required this.isEdited, @JsonKey(includeToJson: false, includeFromJson: false) this.timeStamp, @ServerTimestampConverter() required this.serverTimeStamp}): _imageUrls = imageUrls,_reactions = reactions,super._();
   factory _MessageDataTransferObject.fromJson(Map<String, dynamic> json) => _$MessageDataTransferObjectFromJson(json);
 
 @override@JsonKey(includeToJson: false, includeFromJson: false) final  String? id;
@@ -242,7 +244,9 @@ class _MessageDataTransferObject extends MessageDataTransferObject {
   return EqualUnmodifiableListView(_reactions);
 }
 
-@override final  String content;
+/// The message text, encrypted with the chat's key. The repositories,
+/// which hold the key, turn it into text; see docs/e2ee.md.
+@override@EncryptedContentConverter() final  EncryptedContent content;
 @override final  String repliedMessageId;
 @override final  bool isEdited;
 @override@JsonKey(includeToJson: false, includeFromJson: false) final  DateTime? timeStamp;
@@ -283,7 +287,7 @@ abstract mixin class _$MessageDataTransferObjectCopyWith<$Res> implements $Messa
   factory _$MessageDataTransferObjectCopyWith(_MessageDataTransferObject value, $Res Function(_MessageDataTransferObject) _then) = __$MessageDataTransferObjectCopyWithImpl;
 @override @useResult
 $Res call({
-@JsonKey(includeToJson: false, includeFromJson: false) String? id, String senderId, List<String> imageUrls, List<String> reactions, String content, String repliedMessageId, bool isEdited,@JsonKey(includeToJson: false, includeFromJson: false) DateTime? timeStamp,@ServerTimestampConverter() FieldValue serverTimeStamp
+@JsonKey(includeToJson: false, includeFromJson: false) String? id, String senderId, List<String> imageUrls, List<String> reactions,@EncryptedContentConverter() EncryptedContent content, String repliedMessageId, bool isEdited,@JsonKey(includeToJson: false, includeFromJson: false) DateTime? timeStamp,@ServerTimestampConverter() FieldValue serverTimeStamp
 });
 
 
@@ -307,7 +311,7 @@ as String?,senderId: null == senderId ? _self.senderId : senderId // ignore: cas
 as String,imageUrls: null == imageUrls ? _self._imageUrls : imageUrls // ignore: cast_nullable_to_non_nullable
 as List<String>,reactions: null == reactions ? _self._reactions : reactions // ignore: cast_nullable_to_non_nullable
 as List<String>,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
-as String,repliedMessageId: null == repliedMessageId ? _self.repliedMessageId : repliedMessageId // ignore: cast_nullable_to_non_nullable
+as EncryptedContent,repliedMessageId: null == repliedMessageId ? _self.repliedMessageId : repliedMessageId // ignore: cast_nullable_to_non_nullable
 as String,isEdited: null == isEdited ? _self.isEdited : isEdited // ignore: cast_nullable_to_non_nullable
 as bool,timeStamp: freezed == timeStamp ? _self.timeStamp : timeStamp // ignore: cast_nullable_to_non_nullable
 as DateTime?,serverTimeStamp: null == serverTimeStamp ? _self.serverTimeStamp : serverTimeStamp // ignore: cast_nullable_to_non_nullable

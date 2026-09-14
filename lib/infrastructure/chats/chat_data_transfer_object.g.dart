@@ -18,6 +18,7 @@ _ChatDataTransferObject _$ChatDataTransferObjectFromJson(
   lastMessage: const MessageDataTransferObjectConverter().fromJson(
     json['lastMessage'] as Map<String, dynamic>,
   ),
+  chatKeys: const SealedChatKeysConverter().fromJson(json['chatKeys']),
   serverTimeStamp: const ServerTimestampConverter().fromJson(
     json['serverTimeStamp'],
   ),
@@ -31,6 +32,7 @@ Map<String, dynamic> _$ChatDataTransferObjectToJson(
   'lastMessage': const MessageDataTransferObjectConverter().toJson(
     instance.lastMessage,
   ),
+  'chatKeys': const SealedChatKeysConverter().toJson(instance.chatKeys),
   'serverTimeStamp': const ServerTimestampConverter().toJson(
     instance.serverTimeStamp,
   ),

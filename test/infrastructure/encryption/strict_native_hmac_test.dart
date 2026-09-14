@@ -1,6 +1,7 @@
 import 'package:cryptography/cryptography.dart';
 import 'package:cryptography/dart.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:routes_chat/infrastructure/encryption/chat_cipher.dart';
 import 'package:routes_chat/infrastructure/encryption/passphrase_key_derivation.dart';
 import 'package:routes_chat/infrastructure/encryption/user_key_manager.dart';
 
@@ -70,6 +71,30 @@ void main() {
       );
 
       expect(recovered.bytes, keys.masterKey.bytes);
+    },
+  );
+
+  test(
+    'chat keys can be sealed and opened when HMAC rejects empty keys',
+    () async {
+      final cipher = ChatCipher();
+      final recipient = await X25519().newKeyPair();
+      final chatKey = cipher.newChatKey();
+
+      final sealed = await cipher.seal(
+        chatKey,
+        recipientPublicKey: (await recipient.extractPublicKey()).bytes,
+        chatId: 'a_b',
+        recipientId: 'b',
+      );
+      final opened = await cipher.open(
+        sealed,
+        recipientKeyPair: recipient,
+        chatId: 'a_b',
+        recipientId: 'b',
+      );
+
+      expect(opened.bytes, chatKey.bytes);
     },
   );
 

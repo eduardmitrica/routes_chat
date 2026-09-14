@@ -9,6 +9,7 @@ import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/chats/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/value_objects.dart';
+import 'package:routes_chat/infrastructure/encryption/chat_cipher.dart';
 
 import 'messages/message_data_transfer_object.dart';
 
@@ -23,6 +24,7 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
   const factory ChatDataTransferObject({
     @JsonKey(includeToJson: false, includeFromJson: false) String? id,
     required List<Map<String, String>> participants,
+
     /// Flat mirror of the participant ids in [participants].
     ///
     /// [participants] is a list of maps (participant id -> last seen message
@@ -36,19 +38,24 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
     required List<String> participantIds,
     @MessageDataTransferObjectConverter()
     required MessageDataTransferObject lastMessage,
+
+    /// The chat's key, sealed to each participant, by participant id. Written
+    /// when the chat is created and never changed; see docs/e2ee.md.
+    @SealedChatKeysConverter() required Map<String, SealedChatKey> chatKeys,
     @ServerTimestampConverter() required FieldValue serverTimeStamp,
   }) = _ChatDataTransferObject;
 
   factory ChatDataTransferObject.fromJson(Map<String, dynamic> json) =>
       _$ChatDataTransferObjectFromJson(json);
 
-  Chat toDomain() => Chat(
+  /// The chat, with [lastMessageContent] as its last message's decrypted text.
+  Chat toDomain({required String lastMessageContent}) => Chat(
     id: UniqueId.fromUniqueString(id!),
     participantsList: ParticipantsList.fromListOfMaps(participants),
     lastMessage: Message(
       id: UniqueId.fromUniqueString(lastMessage.id!),
       senderId: UniqueId.fromUniqueString(lastMessage.senderId),
-      content: Content(lastMessage.content),
+      content: Content(lastMessageContent),
       reactions: lastMessage.reactions
           .map(
             (reactionIdString) => UniqueId.fromUniqueString(reactionIdString),
@@ -63,7 +70,13 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
     ),
   );
 
-  factory ChatDataTransferObject.fromDomain(Chat chat) {
+  /// [chat] as stored, with its last message's text encrypted as
+  /// [lastMessageContent] and the chat key sealed as [chatKeys].
+  factory ChatDataTransferObject.fromDomain(
+    Chat chat, {
+    required EncryptedContent lastMessageContent,
+    required Map<String, SealedChatKey> chatKeys,
+  }) {
     return ChatDataTransferObject(
       id: chat.id.getOrCrash(),
       participants: chat.participantsList
@@ -74,13 +87,18 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
             },
           )
           .asList(),
-      participantIds: chat.participantsList
-          .getOrCrash()
-          .map((participant) => participant.value1.getOrCrash())
-          .asList()
-          .toList()
-        ..sort(),
-      lastMessage: MessageDataTransferObject.fromDomain(chat.lastMessage),
+      participantIds:
+          chat.participantsList
+              .getOrCrash()
+              .map((participant) => participant.value1.getOrCrash())
+              .asList()
+              .toList()
+            ..sort(),
+      lastMessage: MessageDataTransferObject.fromDomain(
+        chat.lastMessage,
+        content: lastMessageContent,
+      ),
+      chatKeys: chatKeys,
       serverTimeStamp: FieldValue.serverTimestamp(),
     );
   }
@@ -122,4 +140,17 @@ class MessageDataTransferObjectConverter
   Map<String, dynamic> toJson(MessageDataTransferObject messageDto) {
     return messageDto.toJsonWithId();
   }
+}
+
+class SealedChatKeysConverter
+    implements JsonConverter<Map<String, SealedChatKey>, Object?> {
+  const SealedChatKeysConverter();
+
+  @override
+  Map<String, SealedChatKey> fromJson(Object? json) =>
+      SealedChatKey.mapFromJson(json);
+
+  @override
+  Object toJson(Map<String, SealedChatKey> sealedKeys) =>
+      SealedChatKey.mapToJson(sealedKeys);
 }

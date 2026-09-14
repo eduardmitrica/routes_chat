@@ -41,10 +41,9 @@ class _HomePageState extends State<HomePage> {
           BlocProvider(create: (_) => userFormBloc),
         ],
         child: Scaffold(
-          bottomNavigationBar: BottomNavigationBar(
-            fixedColor: Colors.black,
-            currentIndex: _currentTabIndex,
-            onTap: (selectedTabIndex) {
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: _currentTabIndex,
+            onDestinationSelected: (selectedTabIndex) {
               setState(() {
                 final previousTabIndex = _currentTabIndex;
                 _currentTabIndex = selectedTabIndex;
@@ -60,27 +59,24 @@ class _HomePageState extends State<HomePage> {
                 }
               });
             },
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.chat_bubble_rounded,
-                  color: Colors.deepPurpleAccent,
-                ),
+            destinations: const [
+              NavigationDestination(
+                icon: Icon(Icons.chat_bubble_outline_rounded),
+                selectedIcon: Icon(Icons.chat_bubble_rounded),
                 label: 'Chats',
               ),
-              BottomNavigationBarItem(
-                icon: Icon(
-                  Icons.search_rounded,
-                  color: Colors.deepPurpleAccent,
-                ),
+              NavigationDestination(
+                icon: Icon(Icons.search_rounded),
                 label: 'Search',
               ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.person, color: Colors.deepPurpleAccent),
+              NavigationDestination(
+                icon: Icon(Icons.person_outline_rounded),
+                selectedIcon: Icon(Icons.person_rounded),
                 label: 'Profile',
               ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.notifications, color: Colors.deepPurpleAccent),
+              NavigationDestination(
+                icon: Icon(Icons.notifications_outlined),
+                selectedIcon: Icon(Icons.notifications_rounded),
                 label: 'Friend requests',
               ),
             ],

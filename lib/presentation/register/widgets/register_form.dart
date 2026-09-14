@@ -119,7 +119,7 @@ class RegisterForm extends StatelessWidget {
         builder: (context, state) {
           return Form(
             child: ListView(
-              padding: const EdgeInsets.all(15.0),
+              padding: const EdgeInsets.all(24),
               children: [
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -134,7 +134,6 @@ class RegisterForm extends StatelessWidget {
                             previousState.imagePath != currentState.imagePath,
                         builder: (context, state) {
                           return CircleAvatar(
-                            backgroundColor: Colors.deepPurpleAccent,
                             foregroundImage: state.imagePath.comesFromUrl()
                                 ? NetworkImage(state.imagePath.getOrCrash())
                                 : FileImage(File(state.imagePath.getOrCrash())),
@@ -178,6 +177,7 @@ class RegisterForm extends StatelessWidget {
                         (_) => null,
                       ),
                 ),
+                const SizedBox(height: 16),
                 TextFormField(
                   initialValue: state.username.value.fold(
                     (failure) => failure.failedValue,
@@ -212,6 +212,7 @@ class RegisterForm extends StatelessWidget {
                         (_) => null,
                       ),
                 ),
+                const SizedBox(height: 16),
                 TextFormField(
                   initialValue: state.description.value.fold(
                     (failure) => failure.failedValue,
@@ -240,6 +241,7 @@ class RegisterForm extends StatelessWidget {
                         (_) => null,
                       ),
                 ),
+                const SizedBox(height: 16),
                 TextFormField(
                   initialValue: state.password.value.fold(
                     (failure) => failure.failedValue,
@@ -268,48 +270,35 @@ class RegisterForm extends StatelessWidget {
                         (_) => null,
                       ),
                 ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () => BlocProvider.of<RegisterFormBloc>(
-                        context,
-                      ).add(const RegisterFormEvent.registerPressed()),
-                      child: const Text('Register'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(
-                          context,
-                        ).pushReplacementNamed(SignInPage.signInPageRoute);
-                      },
-                      child: const Text('Switch to sign in'),
-                    ),
-                  ],
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: () => BlocProvider.of<RegisterFormBloc>(
+                    context,
+                  ).add(const RegisterFormEvent.registerPressed()),
+                  child: const Text('Register'),
                 ),
-                Row(
-                  children: [
-                    const Spacer(flex: 1),
-                    ElevatedButton(
-                      onPressed: () {
-                        BlocProvider.of<RegisterFormBloc>(context).add(
-                          RegisterFormEvent.registerWithGooglePressed(
-                            BlocProvider.of<PlaceholderFetcherBloc>(
-                              context,
-                            ).state.imagePath.getOrCrash(),
-                          ),
-                        );
-                      },
-                      child: const Row(
-                        children: [
-                          Text('Register with Google '),
-                          Icon(Icons.g_mobiledata_rounded, color: Colors.amber),
-                        ],
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    BlocProvider.of<RegisterFormBloc>(context).add(
+                      RegisterFormEvent.registerWithGooglePressed(
+                        BlocProvider.of<PlaceholderFetcherBloc>(
+                          context,
+                        ).state.imagePath.getOrCrash(),
                       ),
-                    ),
-                    const Spacer(flex: 1),
-                  ],
+                    );
+                  },
+                  icon: const Icon(Icons.g_mobiledata_rounded, size: 28),
+                  label: const Text('Register with Google'),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(
+                      context,
+                    ).pushReplacementNamed(SignInPage.signInPageRoute);
+                  },
+                  child: const Text('Switch to sign in'),
                 ),
                 BlocBuilder<RegisterFormBloc, RegisterFormState>(
                   buildWhen: (previousState, currentState) =>

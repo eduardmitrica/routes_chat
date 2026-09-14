@@ -83,7 +83,7 @@ class _RecoveryKeyConfirmationState extends State<RecoveryKeyConfirmation> {
           onSubmitted: (_) => _confirm(),
         ),
         const SizedBox(height: 16),
-        ElevatedButton(onPressed: _confirm, child: const Text('I saved it')),
+        FilledButton(onPressed: _confirm, child: const Text('I saved it')),
       ],
     );
   }

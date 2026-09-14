@@ -44,6 +44,7 @@ import 'infrastructure/notifications/firebase_push_token_registry.dart';
 import 'infrastructure/shared/user/current_user_session.dart';
 import 'infrastructure/shared/user/user_repository.dart';
 import 'infrastructure/shared/user/user_utils.dart';
+import 'application/settings/appearance/appearance_bloc.dart';
 
 final getIt = GetIt.instance;
 
@@ -168,6 +169,7 @@ void configureDependencies() {
       () =>
           EncryptionBloc(getIt<IEncryptionRepository>(), getIt<IAuthFacade>()),
     )
+    ..registerFactory<AppearanceBloc>(AppearanceBloc.new)
     ..registerFactory<RegisterFormBloc>(
       () => RegisterFormBloc(getIt<IAuthFacade>(), getIt<IUserUtils>()),
     )

@@ -20,7 +20,11 @@ void main() async {
   HydratedBloc.storage = await HydratedStorage.build(
     storageDirectory: kIsWeb
         ? HydratedStorageDirectory.web
-        : HydratedStorageDirectory((await getTemporaryDirectory()).path),
+        : // App support, not the cache: Android may clear the cache, and with
+          // it settings such as the chosen appearance.
+          HydratedStorageDirectory(
+            (await getApplicationSupportDirectory()).path,
+          ),
   );
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);

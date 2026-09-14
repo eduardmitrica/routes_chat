@@ -9,28 +9,35 @@ class FriendsSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (ctx) => BlocProvider.value(
-            value: BlocProvider.of<ChatsWatcherBloc>(context),
-            child: const FriendsSearchPage(),
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return Material(
+      color: theme.colorScheme.surfaceContainerHigh,
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (ctx) => BlocProvider.value(
+              value: BlocProvider.of<ChatsWatcherBloc>(context),
+              child: const FriendsSearchPage(),
+            ),
           ),
         ),
-      ),
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        height: 60,
-        width: double.infinity,
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.deepPurpleAccent),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: const Padding(
-          padding: EdgeInsets.only(left: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: [Icon(Icons.search_rounded)],
+        child: SizedBox(
+          height: 56,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              children: [
+                Icon(Icons.search_rounded, color: muted),
+                const SizedBox(width: 12),
+                Text(
+                  'Search your friends',
+                  style: theme.textTheme.bodyLarge?.copyWith(color: muted),
+                ),
+              ],
+            ),
           ),
         ),
       ),

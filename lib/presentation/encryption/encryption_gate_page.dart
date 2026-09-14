@@ -228,7 +228,7 @@ class _Unavailable extends StatelessWidget {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: onRetry, child: const Text('Try again')),
+            FilledButton(onPressed: onRetry, child: const Text('Try again')),
           ],
         ),
       ),

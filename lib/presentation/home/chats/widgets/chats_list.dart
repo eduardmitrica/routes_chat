@@ -59,7 +59,6 @@ class ChatsList extends StatelessWidget {
                       ),
                       leading: chatParticipants.size == 1
                           ? CircleAvatar(
-                              backgroundColor: Colors.deepPurpleAccent,
                               foregroundImage: NetworkImage(
                                 chatParticipants.first().imageUrl.getOrCrash(),
                               ),

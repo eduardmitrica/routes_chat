@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:routes_chat/presentation/core/theme/app_theme.dart';
 
 /// Explains what resetting the encryption keys means, and has the user
 /// acknowledge it before going on.
@@ -58,7 +59,9 @@ class _ResetExplanationState extends State<ResetExplanation> {
           ),
         ),
         const SizedBox(height: 16),
-        ElevatedButton(
+        FilledButton(
+          // Earlier messages become unreadable for good.
+          style: AppTheme.destructiveButton(Theme.of(context).colorScheme),
           onPressed: _understood ? widget.onConfirmed : null,
           child: const Text('Reset my keys'),
         ),

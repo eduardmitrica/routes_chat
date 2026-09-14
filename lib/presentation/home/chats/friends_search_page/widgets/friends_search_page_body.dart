@@ -37,20 +37,9 @@ class _FriendsSearchPageBodyState extends State<FriendsSearchPageBody> {
                   },
                   onTapOutside: (_) =>
                       FocusManager.instance.primaryFocus?.unfocus(),
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.search_rounded),
-                    enabledBorder: OutlineInputBorder(
-                      borderSide: const BorderSide(
-                        color: Colors.deepPurpleAccent,
-                      ),
-                      borderRadius: BorderRadius.circular(20.0),
-                    ),
-                    border: OutlineInputBorder(
-                      borderSide: const BorderSide(
-                        color: Colors.deepPurpleAccent,
-                      ),
-                      borderRadius: BorderRadius.circular(20.0),
-                    ),
+                  decoration: const InputDecoration(
+                    prefixIcon: Icon(Icons.search_rounded),
+                    hintText: 'Search your friends',
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -113,8 +102,6 @@ class _FriendsSearchPageBodyState extends State<FriendsSearchPageBody> {
                                               friendRequest.id.getOrCrash(),
                                             ),
                                             leading: CircleAvatar(
-                                              backgroundColor:
-                                                  Colors.deepPurpleAccent,
                                               foregroundImage: NetworkImage(
                                                 user?.imageUrl.getOrCrash() ??
                                                     getIt<

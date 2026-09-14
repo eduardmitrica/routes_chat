@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -13,6 +14,7 @@ import 'application/chats/chat_bar/chat_bar_bloc.dart';
 import 'application/chats/chats_watcher/chats_watcher_bloc.dart';
 import 'application/chats/friends_watcher/friends_watcher_bloc.dart';
 import 'application/chats/messages/messages_watcher/messages_watcher_bloc.dart';
+import 'application/encryption/encryption_bloc.dart';
 import 'application/friend_requests/friend_request_actor/friend_request_actor_bloc.dart';
 import 'application/friend_requests/pending_friend_requests_watcher/pending_friend_requests_watcher_bloc.dart';
 import 'application/friend_requests/received_friend_requests_watcher/received_friend_requests_watcher_bloc.dart';
@@ -23,6 +25,7 @@ import 'application/user/user_watcher/user_watcher_bloc.dart';
 import 'domain/authentication/authentication_facade_interface.dart';
 import 'domain/chats/chat_repository_interface.dart';
 import 'domain/chats/messages/message_repository_interface.dart';
+import 'domain/encryption/encryption_repository_interface.dart';
 import 'domain/friend_requests/friend_requests_repository_interface.dart';
 import 'domain/notifications/push_token_registry_interface.dart';
 import 'domain/shared/user/current_user_session_interface.dart';
@@ -32,6 +35,8 @@ import 'infrastructure/authentication/authentication_facade.dart';
 import 'infrastructure/chats/chat_repository.dart';
 import 'infrastructure/chats/messages/message_repository.dart';
 import 'infrastructure/core/environment.dart';
+import 'infrastructure/encryption/firebase_encryption_repository.dart';
+import 'infrastructure/encryption/user_key_manager.dart';
 import 'infrastructure/friend_requests/friend_request_repository.dart';
 import 'infrastructure/notifications/firebase_push_token_registry.dart';
 import 'infrastructure/shared/user/current_user_session.dart';
@@ -66,7 +71,8 @@ void configureDependencies() {
       ),
     )
     ..registerFactory<FirebaseMessaging>(() => FirebaseMessaging.instance)
-    ..registerFactory<FirebaseStorage>(() => FirebaseStorage.instance);
+    ..registerFactory<FirebaseStorage>(() => FirebaseStorage.instance)
+    ..registerFactory<FlutterSecureStorage>(() => const FlutterSecureStorage());
 
   // ─── Session ──────────────────────────────────────────────────────────
   // Holds the signed-in user. Registered once here and injected into whoever
@@ -116,6 +122,15 @@ void configureDependencies() {
         getIt<FirebaseFirestore>(),
         getIt<ICurrentUserSession>(),
       ),
+    )
+    ..registerLazySingleton<UserKeyManager>(UserKeyManager.new)
+    ..registerLazySingleton<IEncryptionRepository>(
+      () => FirebaseEncryptionRepository(
+        getIt<FirebaseFirestore>(),
+        getIt<FlutterSecureStorage>(),
+        getIt<UserKeyManager>(),
+        getIt<ICurrentUserSession>(),
+      ),
     );
 
   // ─── Blocs ────────────────────────────────────────────────────────────
@@ -126,6 +141,9 @@ void configureDependencies() {
         getIt<ICurrentUserSession>(),
         getIt<IPushTokenRegistry>(),
       ),
+    )
+    ..registerFactory<EncryptionBloc>(
+      () => EncryptionBloc(getIt<IEncryptionRepository>()),
     )
     ..registerFactory<RegisterFormBloc>(
       () => RegisterFormBloc(getIt<IAuthFacade>(), getIt<IUserUtils>()),

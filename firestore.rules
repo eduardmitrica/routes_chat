@@ -54,6 +54,56 @@ service cloud.firestore {
           request.resource.data.keys().hasOnly(['platform', 'updatedAt']) &&
           request.resource.data.updatedAt == request.time;
       }
+
+      // The user's end-to-end encryption keys (see docs/e2ee.md). Everything
+      // in the bundle except the public key is encrypted, but only the owner
+      // has any reason to read it. The client can never delete it, because
+      // losing it would make every earlier message unreadable.
+      match /private/{document} {
+        // Must match what KeyBundle stores; a test checks it.
+        function encryptionBundleFields() {
+          return ['version', 'kdf', 'masterKeyByPassphrase',
+                  'masterKeyByRecoveryKey', 'privateKey', 'publicKey'];
+        }
+
+        function isValidBundle() {
+          return document == 'encryption' &&
+            request.resource.data.keys().hasOnly(encryptionBundleFields()) &&
+            request.resource.data.version == 1;
+        }
+
+        allow read: if signedIn() && request.auth.uid == userId;
+        // Created together with the published public key, which must match.
+        allow create: if signedIn() &&
+          request.auth.uid == userId &&
+          isValidBundle() &&
+          getAfter(/databases/$(database)/documents/userKeys/$(userId))
+            .data.publicKey == request.resource.data.publicKey;
+        // A passphrase change re-wraps the master key only. The key pair
+        // stays, so a stolen session cannot swap in keys of its own.
+        allow update: if signedIn() &&
+          request.auth.uid == userId &&
+          isValidBundle() &&
+          request.resource.data.privateKey == resource.data.privateKey &&
+          request.resource.data.publicKey == resource.data.publicKey;
+      }
+    }
+
+    // A user's published X25519 public key, which chat partners seal chat keys
+    // to. Anyone signed in can read it. It is created with the user's key
+    // bundle and must match the public key inside it. Replacing it would lock
+    // the user out of every existing chat, so that waits for a deliberate
+    // key reset.
+    match /userKeys/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn() &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(['publicKey']) &&
+        request.resource.data.publicKey is string &&
+        request.resource.data.publicKey.size() == 44 &&
+        getAfter(/databases/$(database)/documents/users/$(userId)/private/encryption)
+          .data.publicKey == request.resource.data.publicKey;
+      allow update, delete: if false;
     }
 
     // Username uniqueness index: usernames/{username} -> { uid }. Readable

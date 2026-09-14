@@ -67,8 +67,9 @@ class UserKeyManager {
   UserKeyManager({PassphraseKdf Function()? newKdf})
     : _newKdf = newKdf ?? PassphraseKeyDerivation.newKdf;
 
-  // Built on use rather than once, so they pick up the native implementations
-  // that FlutterCryptography.enable() installs at startup.
+  // Built on use rather than once, so they always come from the current
+  // Cryptography.instance. cryptography_flutter registers itself and swaps in
+  // the platform's native AES-GCM and X25519 where available.
   AesGcm get _aead => AesGcm.with256bits();
   X25519 get _x25519 => X25519();
   Hkdf get _hkdf => Hkdf(hmac: Hmac.sha256(), outputLength: masterKeyLength);

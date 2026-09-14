@@ -19,7 +19,6 @@ import 'package:routes_chat/infrastructure/shared/user/firebase_user_mapper.dart
 import 'package:routes_chat/infrastructure/shared/user/user_data_transfer_object.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../domain/shared/user/user_utils_interface.dart';
 import '../../domain/shared/user/value_objects.dart';
 
 class AuthFacade implements IAuthFacade {
@@ -27,14 +26,12 @@ class AuthFacade implements IAuthFacade {
   final GoogleSignIn _googleSignIn;
   final FirebaseFirestore _firebaseFirestore;
   final FirebaseStorage _firebaseStorage;
-  final IUserUtils _userUtils;
 
   const AuthFacade(
     this._firebaseAuth,
     this._googleSignIn,
     this._firebaseFirestore,
     this._firebaseStorage,
-    this._userUtils,
   );
 
   @override
@@ -205,10 +202,7 @@ class AuthFacade implements IAuthFacade {
   Future<Option<domain_user.User>> getSignedInUser() async {
     // No readable profile (for example an Auth account whose registration
     // never completed) means not signed in, as far as the app is concerned.
-    final user = await _firebaseAuth.currentUser?.toDomain(
-      _firebaseFirestore,
-      _userUtils,
-    );
+    final user = await _firebaseAuth.currentUser?.toDomain(_firebaseFirestore);
     return optionOf(user);
   }
 

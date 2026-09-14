@@ -76,7 +76,6 @@ void configureDependencies() {
         getIt<GoogleSignIn>(),
         getIt<FirebaseFirestore>(),
         getIt<FirebaseStorage>(),
-        getIt<IUserUtils>(),
       ),
     )
     ..registerLazySingleton<IUserRepository>(

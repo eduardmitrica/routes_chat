@@ -15,18 +15,4 @@ class UserUtils implements IUserUtils {
     final claim = await _firebaseFirestore.usernameDocument(usernameInput).get();
     return claim.exists;
   }
-
-  @override
-  Future<bool> checkIfUsernameExistsMoreThanOnce(String username) async {
-    final userDocsWithGivenUsername = await _firebaseFirestore
-        .collection('users')
-        .where('username', isEqualTo: username)
-        .get();
-
-    if (userDocsWithGivenUsername.docs.length == 1) {
-      return false;
-    } else {
-      return true;
-    }
-  }
 }

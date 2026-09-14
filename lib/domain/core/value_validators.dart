@@ -87,20 +87,6 @@ validateUsernameDoesNotAlreadyExist(IUserUtils userUtils, String input) async {
   }
 }
 
-Future<Either<ValueFailure<String>, String>> validateUsernameExistsOnlyOnce(
-  IUserUtils userUtils,
-  String input,
-) async {
-  final usernameExistsMoreThanOnce = await userUtils
-      .checkIfUsernameExistsMoreThanOnce(input);
-
-  if (!usernameExistsMoreThanOnce) {
-    return Right(input);
-  } else {
-    return Left(UsernameExistsMoreThanOnce(failedValue: input));
-  }
-}
-
 Either<
   ValueFailure<KtList<Tuple2<UniqueId, UniqueId>>>,
   KtList<Tuple2<UniqueId, UniqueId>>

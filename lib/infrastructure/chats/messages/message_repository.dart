@@ -19,6 +19,8 @@ import 'package:rxdart/rxdart.dart';
 import '../../../domain/chats/messages/message_repository_interface.dart';
 import '../../../domain/shared/user/current_user_session_interface.dart';
 import 'package:routes_chat/infrastructure/chats/messages/message_payloads.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import 'package:routes_chat/infrastructure/chats/messages/attachment_store.dart';
 
 /// A chat's messages, encrypted on the way in and decrypted on the way out.
 /// See docs/e2ee.md.
@@ -27,12 +29,14 @@ class MessageRepository implements IMessageRepository {
   final ICurrentUserSession _session;
   final ChatKeyring _keyring;
   final ChatCipher _cipher;
+  final AttachmentStore _attachments;
 
   const MessageRepository(
     this._firestore,
     this._session,
     this._keyring,
     this._cipher,
+    this._attachments,
   );
 
   @override
@@ -140,6 +144,7 @@ class MessageRepository implements IMessageRepository {
     return message.toDomain(
       content: payload.text,
       replyTo: quoteIn(payload),
+      attachments: attachmentsIn(payload),
       isReadable: readable,
     );
   }
@@ -169,8 +174,9 @@ class MessageRepository implements IMessageRepository {
   @override
   Future<Either<MessageFailure, Unit>> addMessageToChatWithId(
     Message message,
-    UniqueId chatId,
-  ) async {
+    UniqueId chatId, {
+    KtList<MediaDraft> media = const KtList.empty(),
+  }) async {
     final id = chatId.getOrCrash();
     final messageId = message.id.getOrCrash();
     final chatRef = _firestore.collection('chats').doc(id);
@@ -178,6 +184,13 @@ class MessageRepository implements IMessageRepository {
     try {
       // A user whose keys were reset first adds a generation of the chat key
       // they can use.
+      // The files go first, because the message refers to them. If the
+      // message then fails, they stay in Storage, unused and unreadable.
+      final attachments = await Future.wait([
+        for (final draft in media.iter) _attachments.upload(id, draft),
+      ]);
+      final sent = message.copyWith(attachments: attachments.toImmutableList());
+
       await _keyring.addGenerationIfNeeded(id);
 
       await _firestore.runTransaction((transaction) async {
@@ -190,7 +203,7 @@ class MessageRepository implements IMessageRepository {
         }
         final current = chat['currentKeyGeneration'] as int;
         final content = await _cipher.encrypt(
-          payloadOf(message),
+          payloadOf(sent),
           chatKey: await _keyring.chatKey(
             id,
             current,

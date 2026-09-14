@@ -26,6 +26,10 @@ import 'swipe_to_reply.dart';
 import 'package:routes_chat/domain/chats/messages/message_links.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'open_link_dialog.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:routes_chat/domain/chats/messages/media_failure.dart';
+import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
 
 class ChatPage extends StatelessWidget {
   static const chatPageRoute = '/home/chats/chat';
@@ -84,6 +88,7 @@ class _ChatViewState extends State<_ChatView> {
 
   /// Here rather than with the composer: replies start from the messages.
   final _chatBar = getIt<ChatBarBloc>();
+  final _media = getIt<IMediaRepository>();
 
   Timer? _searchDebounce;
   Timer? _highlightTimer;
@@ -180,13 +185,14 @@ class _ChatViewState extends State<_ChatView> {
               onTap: () =>
                   Navigator.of(context).pop(() => _startReply(message)),
             ),
-            ListTile(
-              leading: const Icon(Icons.copy_rounded),
-              title: const Text('Copy text'),
-              onTap: () => Navigator.of(
-                context,
-              ).pop(() => _copy(text, 'Message copied')),
-            ),
+            if (text.trim().isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('Copy text'),
+                onTap: () => Navigator.of(
+                  context,
+                ).pop(() => _copy(text, 'Message copied')),
+              ),
             for (final link in links)
               ListTile(
                 leading: const Icon(Icons.link_rounded),
@@ -504,6 +510,8 @@ class _ChatViewState extends State<_ChatView> {
         const CustomSemanticsAction(label: 'Reply'): () => _startReply(message),
       },
       child: SwipeToReply(
+        // Its own state per message, such as which photo a carousel shows.
+        key: ValueKey(message.id.getOrCrash()),
         onReply: () => _startReply(message),
         child: MessageBubble(
           message: message,
@@ -519,6 +527,8 @@ class _ChatViewState extends State<_ChatView> {
               : () => _revealMessage(quote.messageId),
           onLongPress: () => _showMessageActions(message),
           onOpenLink: _openLink,
+          loadAttachment: (attachment) =>
+              _media.load(widget.chat!.id, attachment),
         ),
       ),
     );
@@ -576,7 +586,10 @@ class _SearchResults extends StatelessWidget {
                 fromOtherUser ? otherUser.username.getOrCrash() : 'You',
               ),
               subtitle: Text(
-                message.content.getOrCrash(),
+                summaryOf(
+                  message.content.getOrCrash(),
+                  message.attachments.iter.map((file) => file.kind),
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -619,50 +632,72 @@ class _ChatBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<ChatBarBloc, ChatBarState>(
-      listenWhen: (previousState, currentState) =>
-          previousState.chatCreationFailureOrSuccessOption !=
-              currentState.chatCreationFailureOrSuccessOption ||
-          previousState.messageSendFailureOrSuccessOption !=
-              currentState.messageSendFailureOrSuccessOption,
-      listener: (context, state) {
-        final failureMessage = _sendFailureMessage(state);
-        if (failureMessage != null) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(failureMessage)));
-        }
-      },
-      buildWhen: (previousState, currentState) =>
-          previousState.replyingTo != currentState.replyingTo,
-      builder: (context, state) {
-        final chat = this.chat;
-        final chatBar = BlocProvider.of<ChatBarBloc>(context);
-        final replyingTo = state.replyingTo;
-        return MessageComposer(
-          focusNode: focusNode,
-          replyingTo: replyingTo,
-          replyingToName:
-              replyingTo != null &&
-                  replyingTo.senderId.getOrCrash() == otherUser.id.getOrCrash()
-              ? otherUser.username.getOrCrash()
-              : 'yourself',
-          onCancelReply: () => chatBar.add(const ChatBarEvent.replyCancelled()),
-          onChanged: (value) =>
-              chatBar.add(ChatBarEvent.messageContentChanged(value)),
-          onSend: (value) {
-            if (chat == null) {
-              chatBar.add(
-                ChatBarEvent.newChatCreated([otherUser.id].toImmutableList()),
+    return BlocListener<ChatBarBloc, ChatBarState>(
+      listenWhen: (previous, current) =>
+          previous.mediaFailureOption != current.mediaFailureOption,
+      listener: (context, state) =>
+          state.mediaFailureOption.fold<void>(() {}, (failure) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                SnackBar(content: Text(_mediaFailureMessage(failure))),
               );
-            } else {
-              chatBar.add(
-                ChatBarEvent.newMessageAddedToChatWithId(value, chat.id),
-              );
-            }
-          },
-        );
-      },
+          }),
+      child: BlocConsumer<ChatBarBloc, ChatBarState>(
+        listenWhen: (previousState, currentState) =>
+            previousState.chatCreationFailureOrSuccessOption !=
+                currentState.chatCreationFailureOrSuccessOption ||
+            previousState.messageSendFailureOrSuccessOption !=
+                currentState.messageSendFailureOrSuccessOption,
+        listener: (context, state) {
+          final failureMessage = _sendFailureMessage(state);
+          if (failureMessage != null) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(failureMessage)));
+          }
+        },
+        buildWhen: (previousState, currentState) =>
+            previousState.replyingTo != currentState.replyingTo ||
+            previousState.media != currentState.media ||
+            previousState.preparingMedia != currentState.preparingMedia ||
+            previousState.isSubmitting != currentState.isSubmitting,
+        builder: (context, state) {
+          final chat = this.chat;
+          final chatBar = BlocProvider.of<ChatBarBloc>(context);
+          final replyingTo = state.replyingTo;
+          return MessageComposer(
+            focusNode: focusNode,
+            replyingTo: replyingTo,
+            media: state.media.asList(),
+            preparingMedia: state.preparingMedia,
+            sending: state.isSubmitting,
+            onAddMedia: () => _pickMedia(context, chatBar),
+            onRemoveMedia: (id) => chatBar.add(ChatBarEvent.mediaRemoved(id)),
+            replyingToName:
+                replyingTo != null &&
+                    replyingTo.senderId.getOrCrash() ==
+                        otherUser.id.getOrCrash()
+                ? otherUser.username.getOrCrash()
+                : 'yourself',
+            onCancelReply: () =>
+                chatBar.add(const ChatBarEvent.replyCancelled()),
+            onChanged: (value) =>
+                chatBar.add(ChatBarEvent.messageContentChanged(value)),
+            onSend: (value) {
+              if (chat == null) {
+                chatBar.add(
+                  ChatBarEvent.newChatCreated([otherUser.id].toImmutableList()),
+                );
+              } else {
+                chatBar.add(
+                  ChatBarEvent.newMessageAddedToChatWithId(value, chat.id),
+                );
+              }
+            },
+          );
+        },
+      ),
     );
   }
 }
@@ -730,3 +765,83 @@ String? _sendFailureMessage(ChatBarState state) {
     message_failure.Unexpected() => 'The message could not be sent, try again',
   };
 }
+
+/// Asks where the photos come from, then hands the chosen files to [chatBar].
+Future<void> _pickMedia(BuildContext context, ChatBarBloc chatBar) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final room = MediaLimits.maxPerMessage - chatBar.state.media.size;
+  if (room <= 0) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'A message can hold up to ${MediaLimits.maxPerMessage} photos and '
+            'GIFs.',
+          ),
+        ),
+      );
+    return;
+  }
+  final source = await showModalBottomSheet<ImageSource>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('Photos and GIFs'),
+            onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const Text('Take a photo'),
+            onTap: () => Navigator.of(context).pop(ImageSource.camera),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (source == null) return;
+  final picker = ImagePicker();
+  try {
+    // The files are re-encoded before sending, so their metadata is not
+    // needed, and asking for it needs more permissions on iOS.
+    final files = source == ImageSource.camera
+        ? [
+            ?await picker.pickImage(
+              source: ImageSource.camera,
+              requestFullMetadata: false,
+            ),
+          ]
+        : await picker.pickMultiImage(limit: room, requestFullMetadata: false);
+    if (files.isNotEmpty) {
+      chatBar.add(
+        ChatBarEvent.mediaPicked([for (final file in files) file.path]),
+      );
+    }
+  } on PlatformException {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Photos could not be opened. Check the app\'s permissions.',
+          ),
+        ),
+      );
+  }
+}
+
+/// The snackbar text for photos that could not be added or shown.
+String _mediaFailureMessage(MediaFailure failure) => switch (failure) {
+  MediaTooLarge(:final maxBytes) =>
+    'That file is too big to send. The limit is '
+        '${maxBytes ~/ (1024 * 1024)} MB.',
+  TooManyAttachments(:final max) =>
+    'A message can hold up to $max photos and GIFs.',
+  UnsupportedMedia() => 'That file isn\'t a photo or GIF this app can send.',
+  MediaUnavailable() || MediaUnreadable() => 'That photo could not be loaded.',
+};

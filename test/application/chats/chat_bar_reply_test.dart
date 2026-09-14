@@ -11,6 +11,8 @@ import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
 import 'package:routes_chat/infrastructure/shared/user/current_user_session.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import '../../helpers/unused_media_repository.dart';
 
 class _UnusedChatRepository implements IChatRepository {
   @override
@@ -24,8 +26,9 @@ class _SentMessages implements IMessageRepository {
   @override
   Future<Either<MessageFailure, Unit>> addMessageToChatWithId(
     Message message,
-    UniqueId chatId,
-  ) async {
+    UniqueId chatId, {
+    KtList<MediaDraft> media = const KtList.empty(),
+  }) async {
     sent.add(message);
     return const Right(unit);
   }
@@ -57,6 +60,7 @@ void main() {
       messages,
       CurrentUserSession()
         ..start(const CurrentUserInformationPersistent('uid-alice', 'alice')),
+      UnusedMediaRepository(),
     );
     addTearDown(bloc.close);
   });

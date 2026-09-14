@@ -9,6 +9,7 @@ import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/value_objects.dart';
 import 'package:routes_chat/infrastructure/encryption/chat_cipher.dart';
 import 'package:routes_chat/domain/chats/messages/message_quote.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
 
 part 'message_data_transfer_object.freezed.dart';
 
@@ -44,6 +45,7 @@ abstract class MessageDataTransferObject with _$MessageDataTransferObject {
   Message toDomain({
     required String content,
     MessageQuote? replyTo,
+    KtList<MessageAttachment> attachments = const KtList.empty(),
     bool isReadable = true,
   }) => Message(
     id: UniqueId.fromUniqueString(id!),
@@ -56,6 +58,7 @@ abstract class MessageDataTransferObject with _$MessageDataTransferObject {
         .toImmutableList(),
     content: Content(content),
     replyTo: replyTo,
+    attachments: attachments,
     lastUpdatedAt: timeStamp!,
     isEdited: isEdited,
     isReadable: isReadable,

@@ -61,6 +61,7 @@ dependencies:
   super_sliver_list: ^0.4.1
   characters: ^1.4.1
   url_launcher: ^6.3.2
+  flutter_image_compress: ^2.5.1
 
 dev_dependencies:
   flutter_test:

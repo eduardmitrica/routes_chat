@@ -131,7 +131,7 @@ void main() {
       'content.e == generation',
       'content.nonce.size() == 16',
       'content.mac.size() == 24',
-      '(content.v == 2 && content.cipherText.size() <= 12000)',
+      '(content.v == 2 && content.cipherText.size() <= 48000)',
       "'cipherText', 'mac', 'keyVersion']",
       'sealed.ephemeralPublicKey.size() == 44',
       'sealed.nonce.size() == 16',

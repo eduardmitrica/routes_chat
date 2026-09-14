@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
 import 'package:routes_chat/domain/chats/messages/message_quote.dart';
+import 'package:routes_chat/domain/core/value_objects.dart';
 
 /// Where the user writes a message. While replying, the message being
-/// answered shows above the field, with a way to cancel.
+/// answered shows above the field, with a way to cancel. Chosen photos and
+/// GIFs show above it too, and the text becomes their caption.
 class MessageComposer extends StatefulWidget {
   /// The longest message allowed, in UTF-16 code units (see Content).
   static const maxLength = 1000;
@@ -13,7 +16,8 @@ class MessageComposer extends StatefulWidget {
 
   final ValueChanged<String> onChanged;
 
-  /// Called with the text, trimmed, when the user sends it.
+  /// Called with the text, trimmed, when the user sends it. The text may be
+  /// empty when photos are chosen.
   final ValueChanged<String> onSend;
 
   /// The message the next one sent answers, if the user is replying.
@@ -24,6 +28,20 @@ class MessageComposer extends StatefulWidget {
 
   final VoidCallback onCancelReply;
 
+  /// Photos and GIFs chosen for the next message.
+  final List<MediaDraft> media;
+
+  /// Whether chosen photos are still being made ready.
+  final bool preparingMedia;
+
+  /// Whether a message is on its way, during which nothing else is sent.
+  final bool sending;
+
+  /// Asks for photos to add. Without it there is no button for them.
+  final VoidCallback? onAddMedia;
+
+  final ValueChanged<UniqueId>? onRemoveMedia;
+
   const MessageComposer({
     super.key,
     required this.focusNode,
@@ -32,6 +50,11 @@ class MessageComposer extends StatefulWidget {
     required this.replyingTo,
     required this.replyingToName,
     required this.onCancelReply,
+    this.media = const [],
+    this.preparingMedia = false,
+    this.sending = false,
+    this.onAddMedia,
+    this.onRemoveMedia,
   });
 
   @override
@@ -47,9 +70,14 @@ class _MessageComposerState extends State<MessageComposer> {
     super.dispose();
   }
 
+  bool _canSend(String text) =>
+      (text.trim().isNotEmpty || widget.media.isNotEmpty) &&
+      !widget.sending &&
+      !widget.preparingMedia;
+
   void _send() {
     final text = _text.text.trim();
-    if (text.isEmpty) return;
+    if (!_canSend(text)) return;
     widget.onSend(text);
     _text.clear();
   }
@@ -58,6 +86,7 @@ class _MessageComposerState extends State<MessageComposer> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final replyingTo = widget.replyingTo;
+    final onAddMedia = widget.onAddMedia;
     const pill = OutlineInputBorder(
       borderRadius: BorderRadius.all(Radius.circular(24)),
       borderSide: BorderSide.none,
@@ -70,17 +99,54 @@ class _MessageComposerState extends State<MessageComposer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (widget.sending) const LinearProgressIndicator(),
             if (replyingTo != null)
               _ReplyStrip(
                 name: widget.replyingToName,
                 quote: replyingTo,
                 onCancel: widget.onCancelReply,
               ),
+            if (widget.media.isNotEmpty || widget.preparingMedia)
+              SizedBox(
+                height: 84,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                  children: [
+                    for (final draft in widget.media)
+                      _DraftThumbnail(
+                        draft: draft,
+                        onRemove: widget.sending || widget.onRemoveMedia == null
+                            ? null
+                            : () => widget.onRemoveMedia!(draft.id),
+                      ),
+                    if (widget.preparingMedia)
+                      const SizedBox.square(
+                        dimension: 72,
+                        child: Center(
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+              padding: EdgeInsets.fromLTRB(
+                onAddMedia == null ? 12 : 4,
+                8,
+                4,
+                8,
+              ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
+                  if (onAddMedia != null)
+                    IconButton(
+                      tooltip: 'Add photos or GIFs',
+                      color: scheme.primary,
+                      onPressed: widget.sending ? null : onAddMedia,
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                    ),
                   Expanded(
                     child: TextField(
                       controller: _text,
@@ -96,7 +162,9 @@ class _MessageComposerState extends State<MessageComposer> {
                         ),
                       ],
                       decoration: InputDecoration(
-                        hintText: 'Start typing...',
+                        hintText: widget.media.isEmpty
+                            ? 'Start typing...'
+                            : 'Add a caption...',
                         filled: true,
                         fillColor: scheme.surfaceContainerHighest,
                         contentPadding: const EdgeInsets.symmetric(
@@ -116,13 +184,88 @@ class _MessageComposerState extends State<MessageComposer> {
                     builder: (context, value, _) => IconButton(
                       tooltip: 'Send',
                       color: scheme.primary,
-                      onPressed: value.text.trim().isEmpty ? null : _send,
+                      onPressed: _canSend(value.text) ? _send : null,
                       icon: const Icon(Icons.send_rounded),
                     ),
                   ),
                 ],
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A chosen photo or GIF, with a way to take it out of the message.
+class _DraftThumbnail extends StatelessWidget {
+  final MediaDraft draft;
+  final VoidCallback? onRemove;
+
+  const _DraftThumbnail({required this.draft, required this.onRemove});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final onRemove = this.onRemove;
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: SizedBox.square(
+        dimension: 72,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: Image.memory(
+                draft.bytes,
+                fit: BoxFit.cover,
+                cacheWidth: 216,
+                gaplessPlayback: true,
+                semanticLabel: draft.kind == AttachmentKind.gif
+                    ? 'Chosen GIF'
+                    : 'Chosen photo',
+              ),
+            ),
+            if (draft.kind == AttachmentKind.gif)
+              Positioned(
+                left: 4,
+                bottom: 4,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.inverseSurface.withValues(
+                      alpha: 0.7,
+                    ),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      'GIF',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: theme.colorScheme.onInverseSurface,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            if (onRemove != null)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: IconButton(
+                  tooltip: 'Remove photo',
+                  visualDensity: VisualDensity.compact,
+                  iconSize: 18,
+                  style: IconButton.styleFrom(
+                    backgroundColor: theme.colorScheme.inverseSurface,
+                    foregroundColor: theme.colorScheme.onInverseSurface,
+                  ),
+                  onPressed: onRemove,
+                  icon: const Icon(Icons.close_rounded),
+                ),
+              ),
           ],
         ),
       ),
@@ -146,6 +289,7 @@ class _ReplyStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
+    final thumbnail = quote.thumbnail;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
       child: Row(
@@ -174,6 +318,17 @@ class _ReplyStrip extends StatelessWidget {
               ],
             ),
           ),
+          if (thumbnail != null)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Image.memory(
+                thumbnail,
+                width: 40,
+                height: 40,
+                fit: BoxFit.cover,
+                excludeFromSemantics: true,
+              ),
+            ),
           IconButton(
             tooltip: 'Cancel reply',
             onPressed: onCancel,

@@ -17,6 +17,9 @@ import '../../../domain/chats/value_objects.dart';
 import '../../../domain/core/composite_id.dart';
 import '../../../domain/core/value_objects.dart';
 import 'package:routes_chat/domain/chats/messages/message_quote.dart';
+import 'package:routes_chat/domain/chats/messages/media_failure.dart';
+import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
 
 part 'chat_bar_event.dart';
 
@@ -28,9 +31,14 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
   final IChatRepository _chatRepository;
   final IMessageRepository _messageRepository;
   final ICurrentUserSession _session;
+  final IMediaRepository _mediaRepository;
 
-  ChatBarBloc(this._chatRepository, this._messageRepository, this._session)
-    : super(ChatBarState.initial()) {
+  ChatBarBloc(
+    this._chatRepository,
+    this._messageRepository,
+    this._session,
+    this._mediaRepository,
+  ) : super(ChatBarState.initial()) {
     on<ChatBarEvent>((event, emit) async {
       final userId = _session.current?.id ?? '';
 
@@ -47,6 +55,35 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
           emit(state.copyWith(replyingTo: MessageQuote.of(message)));
         case ReplyCancelled():
           emit(state.copyWith(replyingTo: null));
+        case MediaPicked(:final paths):
+          final room = MediaLimits.maxPerMessage - state.media.size;
+          emit(
+            state.copyWith(preparingMedia: true, mediaFailureOption: none()),
+          );
+          final drafts = <MediaDraft>[];
+          MediaFailure? failure;
+          for (final path in paths.take(room)) {
+            (await _mediaRepository.prepare(path)).fold((problem) {
+              failure ??= problem;
+            }, drafts.add);
+          }
+          if (paths.length > room) {
+            failure ??= const TooManyAttachments(MediaLimits.maxPerMessage);
+          }
+          emit(
+            state.copyWith(
+              media: state.media.plus(drafts.toImmutableList()),
+              preparingMedia: false,
+              mediaFailureOption: optionOf(failure),
+            ),
+          );
+        case MediaRemoved(:final id):
+          emit(
+            state.copyWith(
+              media: state.media.filter((draft) => draft.id != id),
+              mediaFailureOption: none(),
+            ),
+          );
         case NewChatCreated():
           {
             Either<ChatFailure, Unit>? failureOrSuccess;
@@ -86,13 +123,21 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
                 ),
                 lastMessage: message,
               );
-              failureOrSuccess = await _chatRepository.create(chat, message);
+              failureOrSuccess = await _chatRepository.create(
+                chat,
+                message,
+                media: state.media,
+              );
             }
 
             emit(
               state.copyWith(
                 isSubmitting: false,
                 showErrorMessages: true,
+                // Photos stay chosen after a failure, to try again.
+                media: failureOrSuccess?.isRight() ?? false
+                    ? const KtList.empty()
+                    : state.media,
                 chatCreationFailureOrSuccessOption: optionOf(failureOrSuccess),
                 messageSendFailureOrSuccessOption: none(),
               ),
@@ -101,10 +146,12 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
         case NewMessageAddedToChatWithId():
           {
             final content = Content(event.content);
-            if (content.isValid()) {
+            final hasSomething =
+                event.content.trim().isNotEmpty || state.media.isNotEmpty();
+            if (content.isValid() && hasSomething) {
               // The reply goes out with this message, not with the next.
               final replyTo = state.replyingTo;
-              emit(state.copyWith(replyingTo: null));
+              emit(state.copyWith(replyingTo: null, isSubmitting: true));
               final message = Message(
                 id: UniqueId(),
                 senderId: UniqueId.fromUniqueString(userId),
@@ -119,9 +166,18 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
               // is kept in state for the page to report; ignoring it made a
               // failed send vanish.
               final failureOrSuccess = await _messageRepository
-                  .addMessageToChatWithId(message, event.chatId);
+                  .addMessageToChatWithId(
+                    message,
+                    event.chatId,
+                    media: state.media,
+                  );
               emit(
                 state.copyWith(
+                  isSubmitting: false,
+                  // Photos stay chosen after a failure, to try again.
+                  media: failureOrSuccess.isRight()
+                      ? const KtList.empty()
+                      : state.media,
                   chatCreationFailureOrSuccessOption: none(),
                   messageSendFailureOrSuccessOption: some(failureOrSuccess),
                 ),

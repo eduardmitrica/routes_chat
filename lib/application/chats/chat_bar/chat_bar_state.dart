@@ -17,6 +17,15 @@ abstract class ChatBarState with _$ChatBarState {
 
     /// The message the next one sent answers, while the user is replying.
     MessageQuote? replyingTo,
+
+    /// Photos and GIFs chosen for the next message, ready to send.
+    @Default(KtList<MediaDraft>.empty()) KtList<MediaDraft> media,
+
+    /// Whether chosen photos are still being made ready.
+    @Default(false) bool preparingMedia,
+
+    /// Why the last photos chosen could not all be added.
+    required Option<MediaFailure> mediaFailureOption,
   }) = _ChatBarState;
 
   factory ChatBarState.initial() => ChatBarState(
@@ -25,5 +34,6 @@ abstract class ChatBarState with _$ChatBarState {
     showErrorMessages: false,
     chatCreationFailureOrSuccessOption: none(),
     messageSendFailureOrSuccessOption: none(),
+    mediaFailureOption: none(),
   );
 }

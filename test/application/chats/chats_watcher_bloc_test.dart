@@ -24,7 +24,7 @@ void main() {
   setUp(() => session = CurrentUserSession());
 
   test('reads the signed-in user from the injected session', () async {
-    session.start(const CurrentUseInformationPersistent('user-1', 'eduard'));
+    session.start(const CurrentUserInformationPersistent('user-1', 'eduard'));
     final bloc = ChatsWatcherBloc(_FakeChatRepository(), session);
     addTearDown(bloc.close);
 
@@ -34,7 +34,7 @@ void main() {
   });
 
   test('handles chats arriving while nobody is signed in', () async {
-    // Regression: this handler used to call getIt<CurrentUseInformationPersistent>()
+    // Regression: this handler used to call getIt<CurrentUserInformationPersistent>()
     // inside a Firestore stream callback. Sign-out unregistered that type, so a
     // snapshot arriving mid-sign-out threw out of the stream.
     final bloc = ChatsWatcherBloc(_FakeChatRepository(), session);

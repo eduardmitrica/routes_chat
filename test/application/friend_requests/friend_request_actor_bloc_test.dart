@@ -63,7 +63,7 @@ class _FakeUserRepository implements IUserRepository {
 Future<FriendRequest> _sendAs(String username, String receiverUsername) async {
   final friendRequests = _FakeFriendRequestsRepository();
   final session = CurrentUserSession()
-    ..start(CurrentUseInformationPersistent('uid-$username', username));
+    ..start(CurrentUserInformationPersistent('uid-$username', username));
   final bloc = FriendRequestActorBloc(
     friendRequests,
     _FakeUserRepository(),

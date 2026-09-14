@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:routes_chat/domain/shared/user/user.dart' as domain_user;
 import 'package:routes_chat/domain/core/value_objects.dart';
 
-import '../../../domain/shared/user/user_utils_interface.dart';
 import '../../../domain/shared/user/value_objects.dart';
 
 extension FirebaseUserMapper on User {
@@ -13,10 +12,7 @@ extension FirebaseUserMapper on User {
   /// This used to signal "no profile" by returning a user with an invalid
   /// email address. Profiles no longer store an email address, so absence is
   /// now explicit.
-  Future<domain_user.User?> toDomain(
-    FirebaseFirestore fireStore,
-    IUserUtils userUtils,
-  ) async {
+  Future<domain_user.User?> toDomain(FirebaseFirestore fireStore) async {
     final DocumentSnapshot<Map<String, dynamic>> documentSnapshot;
     try {
       documentSnapshot = await fireStore.collection('users').doc(uid).get();
@@ -29,14 +25,9 @@ extension FirebaseUserMapper on User {
       return null;
     }
 
-    final username = await Username.checkAgainstDatabaseWhenFetching(
-      userUtils,
-      profile['username'],
-    );
-
     return domain_user.User(
       id: UniqueId.fromUniqueString(uid),
-      username: Username(username.getOrCrash()),
+      username: Username(profile['username']),
       description: Description(profile['description']),
       imageUrl: ImageUrl(profile['imageUrl']),
     );

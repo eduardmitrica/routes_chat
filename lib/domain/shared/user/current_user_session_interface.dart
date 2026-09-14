@@ -3,7 +3,7 @@ import 'current_user_information_persistent.dart';
 /// Holds the signed-in user's details for the lifetime of the session.
 ///
 /// Consumers receive this through their constructor. It replaces the previous
-/// approach of registering [CurrentUseInformationPersistent] into the service
+/// approach of registering [CurrentUserInformationPersistent] into the service
 /// locator on sign in and unregistering it on sign out, which made every
 /// consumer depend on the container and threw whenever something read the
 /// details outside that window.
@@ -11,7 +11,7 @@ import 'current_user_information_persistent.dart';
 /// [current] is null while nobody is signed in, so callers handle the absence
 /// explicitly instead of crashing.
 abstract interface class ICurrentUserSession {
-  CurrentUseInformationPersistent? get current;
+  CurrentUserInformationPersistent? get current;
 
   /// Emits, synchronously, each time a started session ends.
   ///
@@ -21,7 +21,7 @@ abstract interface class ICurrentUserSession {
   /// instead of outliving it and being rejected by the security rules.
   Stream<void> get ended;
 
-  void start(CurrentUseInformationPersistent user);
+  void start(CurrentUserInformationPersistent user);
 
   void end();
 }

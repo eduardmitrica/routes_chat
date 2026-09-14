@@ -102,16 +102,5 @@ class Username extends ValueObject<String> {
     return Username._(validationResult);
   }
 
-  static Future<Username> checkAgainstDatabaseWhenFetching(
-    IUserUtils userUtils,
-    String input,
-  ) async {
-    final validationResult = await validateUsernameExistsOnlyOnce(
-      userUtils,
-      input,
-    );
-    return Username._(validationResult);
-  }
-
   const Username._(this.value);
 }

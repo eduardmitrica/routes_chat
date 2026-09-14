@@ -26,7 +26,7 @@ class AuthenticationBloc
             },
             (user) {
               _session.start(
-                CurrentUseInformationPersistent(
+                CurrentUserInformationPersistent(
                   user.id.getOrCrash(),
                   user.username.getOrCrash(),
                 ),

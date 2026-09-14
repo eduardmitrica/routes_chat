@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -23,6 +24,7 @@ import 'domain/authentication/authentication_facade_interface.dart';
 import 'domain/chats/chat_repository_interface.dart';
 import 'domain/chats/messages/message_repository_interface.dart';
 import 'domain/friend_requests/friend_requests_repository_interface.dart';
+import 'domain/notifications/push_token_registry_interface.dart';
 import 'domain/shared/user/current_user_session_interface.dart';
 import 'domain/shared/user/user_repository_interface.dart';
 import 'domain/shared/user/user_utils_interface.dart';
@@ -30,6 +32,7 @@ import 'infrastructure/authentication/authentication_facade.dart';
 import 'infrastructure/chats/chat_repository.dart';
 import 'infrastructure/chats/messages/message_repository.dart';
 import 'infrastructure/friend_requests/friend_request_repository.dart';
+import 'infrastructure/notifications/firebase_push_token_registry.dart';
 import 'infrastructure/shared/user/current_user_session.dart';
 import 'infrastructure/shared/user/user_repository.dart';
 import 'infrastructure/shared/user/user_utils.dart';
@@ -59,6 +62,7 @@ void configureDependencies() {
         databaseId: firestoreDatabaseId,
       ),
     )
+    ..registerFactory<FirebaseMessaging>(() => FirebaseMessaging.instance)
     ..registerFactory<FirebaseStorage>(() => FirebaseStorage.instance);
 
   // ─── Session ──────────────────────────────────────────────────────────
@@ -101,12 +105,24 @@ void configureDependencies() {
         getIt<FirebaseFirestore>(),
         getIt<ICurrentUserSession>(),
       ),
+    )
+    // A singleton: it owns the session's token-refresh subscription.
+    ..registerLazySingleton<IPushTokenRegistry>(
+      () => FirebasePushTokenRegistry(
+        getIt<FirebaseMessaging>(),
+        getIt<FirebaseFirestore>(),
+        getIt<ICurrentUserSession>(),
+      ),
     );
 
   // ─── Blocs ────────────────────────────────────────────────────────────
   getIt
     ..registerFactory<AuthenticationBloc>(
-      () => AuthenticationBloc(getIt<IAuthFacade>(), getIt<ICurrentUserSession>()),
+      () => AuthenticationBloc(
+        getIt<IAuthFacade>(),
+        getIt<ICurrentUserSession>(),
+        getIt<IPushTokenRegistry>(),
+      ),
     )
     ..registerFactory<RegisterFormBloc>(
       () => RegisterFormBloc(getIt<IAuthFacade>(), getIt<IUserUtils>()),

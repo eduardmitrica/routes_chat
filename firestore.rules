@@ -42,6 +42,18 @@ service cloud.firestore {
         (request.resource.data.username == resource.data.username ||
          claimsUsername(request.resource.data.username));
       allow delete: if signedIn() && request.auth.uid == userId;
+
+      // This user's devices for push notifications, one document per FCM
+      // token. Private to the owner, who adds a device when signing in and
+      // removes it before signing out. The notifyNewMessage Cloud Function
+      // reads them with the Admin SDK, which is not subject to these rules.
+      match /fcmTokens/{token} {
+        allow read, delete: if signedIn() && request.auth.uid == userId;
+        allow create, update: if signedIn() &&
+          request.auth.uid == userId &&
+          request.resource.data.keys().hasOnly(['platform', 'updatedAt']) &&
+          request.resource.data.updatedAt == request.time;
+      }
     }
 
     // Username uniqueness index: usernames/{username} -> { uid }. Readable

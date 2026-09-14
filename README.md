@@ -11,7 +11,7 @@ Firebase and Google client settings are read from a `.env` file at compile time,
    ```
    flutter run --dart-define-from-file=.env
    ```
-   The shared Android Studio run configuration (`main.dart`) already passes this flag. If the flag is missing, the app stops at startup and lists the missing keys.
+   The shared run configurations already pass this flag: `main.dart` in Android Studio, and `routes_chat` (plus profile and release variants) in VS Code's Run and Debug view. If the flag is missing, the app stops at startup and lists the missing keys.
 3. Android also needs `android/app/google-services.json`, which is git-ignored. Download it from the Firebase console. Android uses it to deliver a notification while the app isn't running.
 
 `flutterfire configure` rewrites `lib/firebase_options.dart` with literal values. If you run it, restore the committed file with `git checkout lib/firebase_options.dart`, and copy any new values into `.env` instead.

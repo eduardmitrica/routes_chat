@@ -9,7 +9,8 @@ import 'package:routes_chat/domain/friend_requests/friend_request.dart';
 import 'package:routes_chat/domain/friend_requests/friend_requests_repository_interface.dart';
 import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
 import 'package:routes_chat/domain/shared/user/user.dart';
-import 'package:routes_chat/domain/shared/user/user_failure.dart' as user_failure;
+import 'package:routes_chat/domain/shared/user/user_failure.dart'
+    as user_failure;
 import 'package:routes_chat/domain/shared/user/user_repository_interface.dart';
 import 'package:routes_chat/domain/shared/user/value_objects.dart'
     as value_objects;
@@ -33,8 +34,7 @@ class _FakeFriendRequestsRepository implements IFriendRequestsRepository {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// Resolves every username to a user whose uid is `uid-<username>`.
@@ -55,8 +55,7 @@ class _FakeUserRepository implements IUserRepository {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// Signs in as [username] and sends a friend request to [receiverUsername].
@@ -90,17 +89,20 @@ void main() {
     expect(fromAlice.id.getOrCrash(), fromBob.id.getOrCrash());
   });
 
-  test('the request id is the pair of uids that firestore.rules requires', () async {
-    final request = await _sendAs('alice', 'bob');
+  test(
+    'the request id is the pair of uids that firestore.rules requires',
+    () async {
+      final request = await _sendAs('alice', 'bob');
 
-    expect(request.senderId.getOrCrash(), 'uid-alice');
-    expect(request.receiverId.getOrCrash(), 'uid-bob');
-    expect(
-      request.id.getOrCrash(),
-      compositeId([request.senderId, request.receiverId]).getOrCrash(),
-    );
-    expect(request.id.getOrCrash(), 'uid-alice_uid-bob');
-  });
+      expect(request.senderId.getOrCrash(), 'uid-alice');
+      expect(request.receiverId.getOrCrash(), 'uid-bob');
+      expect(
+        request.id.getOrCrash(),
+        compositeId([request.senderId, request.receiverId]).getOrCrash(),
+      );
+      expect(request.id.getOrCrash(), 'uid-alice_uid-bob');
+    },
+  );
 
   test('a list of requests is still validated for duplicates', () {
     // The domain-level duplicate check stays meaningful alongside the ids.

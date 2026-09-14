@@ -48,9 +48,7 @@ class FriendRequestActorBloc
                     emit(const FriendRequestActorState.sendingFailure());
                   },
                   (receivingUser) async {
-                    final senderId = UniqueId.fromUniqueString(
-                      sendingUserId,
-                    );
+                    final senderId = UniqueId.fromUniqueString(sendingUserId);
                     final friendRequest = FriendRequest(
                       // One document per pair of users, whichever of them
                       // sends first; see compositeId.

@@ -37,6 +37,17 @@ void main() {
         );
       });
 
+      test('keeps links readable in both kinds of bubble', () {
+        expect(
+          _contrast(colors.sentBubble, colors.linkOnSentBubble),
+          greaterThanOrEqualTo(4.5),
+        );
+        expect(
+          _contrast(colors.receivedBubble, colors.linkOnReceivedBubble),
+          greaterThanOrEqualTo(4.5),
+        );
+      });
+
       test('tells sent and received messages apart', () {
         expect(colors.sentBubble, isNot(colors.receivedBubble));
       });

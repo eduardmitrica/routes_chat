@@ -68,7 +68,10 @@ Either<ValueFailure<String>, String> validateUsernameIsDocumentIdSafe(
   String input,
 ) {
   final hasReservedShape = RegExp(r'^__.*__$').hasMatch(input);
-  if (input.contains('/') || input == '.' || input == '..' || hasReservedShape) {
+  if (input.contains('/') ||
+      input == '.' ||
+      input == '..' ||
+      hasReservedShape) {
     return Left(InvalidUsernameCharacters(failedValue: input));
   }
   return Right(input);
@@ -100,4 +103,36 @@ validateParticipantsList(KtList<Tuple2<UniqueId, UniqueId>> ids) {
   } else {
     return Left(DuplicateIds(failedValue: ids));
   }
+}
+
+/// A passphrase must be at least [minimumLength] and at most [maximumLength]
+/// characters. Spaces count and nothing is trimmed: a passphrase is exactly what
+/// the user typed.
+Either<ValueFailure<String>, String> validatePassphrase(
+  String input, {
+  required int minimumLength,
+  required int maximumLength,
+}) {
+  final length = input.runes.length;
+  if (length < minimumLength) {
+    return Left(
+      PassphraseTooShort(failedValue: input, minimumLength: minimumLength),
+    );
+  }
+  if (length > maximumLength) {
+    return Left(
+      ExceedingLength(failedValue: input, maximumLength: maximumLength),
+    );
+  }
+  return Right(input);
+}
+
+/// A recovery key is 32 base32 characters (A-Z, 2-7). Case, spaces and dashes
+/// are ignored; the valid value is the normalized form.
+Either<ValueFailure<String>, String> validateRecoveryKeyFormat(String input) {
+  final normalized = input.toUpperCase().replaceAll(RegExp(r'[\s-]'), '');
+  if (RegExp(r'^[A-Z2-7]{32}$').hasMatch(normalized)) {
+    return Right(normalized);
+  }
+  return Left(InvalidRecoveryKeyFormat(failedValue: input));
 }

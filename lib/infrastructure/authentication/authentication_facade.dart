@@ -11,6 +11,7 @@ import 'package:routes_chat/domain/authentication/authentication_facade_interfac
 import 'package:routes_chat/domain/authentication/registration_failure.dart'
     as registration_failure;
 import 'package:routes_chat/domain/authentication/sign_in_failure.dart';
+import 'package:routes_chat/domain/authentication/sign_in_method.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/user.dart' as domain_user;
 import 'package:routes_chat/infrastructure/authentication/generated_username.dart';
@@ -262,6 +263,77 @@ class AuthFacade implements IAuthFacade {
       return Left(ServerError());
     }
   }
+
+  @override
+  SignInMethod? currentSignInMethod() {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) return null;
+    return user.providerData.any(
+          (provider) => provider.providerId == GoogleAuthProvider.PROVIDER_ID,
+        )
+        ? SignInMethod.google
+        : SignInMethod.emailAndPassword;
+  }
+
+  @override
+  Future<Either<SignInFailure, Unit>> confirmSignInWithPassword(
+    Password password,
+  ) async {
+    final user = _firebaseAuth.currentUser;
+    final email = user?.email;
+    if (user == null || email == null) {
+      return Left(InvalidUser());
+    }
+    try {
+      await user.reauthenticateWithCredential(
+        EmailAuthProvider.credential(
+          email: email,
+          password: password.getOrCrash(),
+        ),
+      );
+      await _useNewSignInTime(user);
+      return const Right(unit);
+    } on FirebaseAuthException catch (exception) {
+      if (exception.code == 'wrong-password' ||
+          exception.code == 'invalid-credential') {
+        return Left(InvalidEmailAndPasswordCombination());
+      }
+      return Left(ServerError());
+    }
+  }
+
+  @override
+  Future<Either<SignInFailure, Unit>> confirmSignInWithGoogle() async {
+    final user = _firebaseAuth.currentUser;
+    if (user == null) {
+      return Left(InvalidUser());
+    }
+    try {
+      final googleUser = await _googleSignIn.authenticate();
+      await user.reauthenticateWithCredential(
+        GoogleAuthProvider.credential(
+          idToken: googleUser.authentication.idToken,
+        ),
+      );
+      await _useNewSignInTime(user);
+      return const Right(unit);
+    } on GoogleSignInException catch (error) {
+      if (error.code == GoogleSignInExceptionCode.canceled) {
+        return Left(CancelledByUser());
+      }
+      return Left(SignInFailed());
+    } on FirebaseAuthException catch (error) {
+      // Signing in with a different Google account than the signed-in one.
+      if (error.code == 'user-mismatch') {
+        return Left(InvalidUser());
+      }
+      return Left(GoogleError());
+    }
+  }
+
+  /// Fetches an ID token carrying the sign-in time just confirmed. Firestore
+  /// picks it up, and its rules read that time for key resets.
+  Future<void> _useNewSignInTime(User user) => user.getIdToken(true);
 
   /// The uid currently holding [username] in the `usernames` index, or null
   /// when it is unclaimed or cannot be read. Index entries are publicly

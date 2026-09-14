@@ -3,7 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:routes_chat/application/authentication/sign_in_form/sign_in_form_bloc.dart';
 import 'package:routes_chat/domain/authentication/sign_in_failure.dart';
 import 'package:routes_chat/domain/core/failures.dart';
-import 'package:routes_chat/presentation/home/home_page.dart';
+import 'package:routes_chat/presentation/encryption/encryption_gate_page.dart';
 import 'package:routes_chat/presentation/register/register_page.dart';
 
 import '../../../application/authentication/authentication_bloc.dart';
@@ -16,7 +16,9 @@ class SignInForm extends StatelessWidget {
     return BlocListener<AuthenticationBloc, AuthenticationState>(
       listener: (context, state) {
         if (state is Authenticated) {
-          Navigator.of(context).pushReplacementNamed(HomePage.homePageRoute);
+          Navigator.of(
+            context,
+          ).pushReplacementNamed(EncryptionGatePage.encryptionGatePageRoute);
         }
       },
       child: BlocConsumer<SignInFormBloc, SignInFormState>(

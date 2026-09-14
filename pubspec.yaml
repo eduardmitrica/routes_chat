@@ -56,6 +56,9 @@ dependencies:
   chat_bubbles: ^1.10.1
   async: ^2.13.1
   equatable: ^2.1.0
+  cryptography: ^2.9.0
+  cryptography_flutter: ^2.3.4
+  flutter_secure_storage: ^11.1.1
 
 dev_dependencies:
   flutter_test:

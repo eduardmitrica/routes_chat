@@ -20,4 +20,14 @@ extension FirestoreX on FirebaseFirestore {
     String userId,
     String token,
   ) => collection('users').doc(userId).collection('fcmTokens').doc(token);
+
+  /// [userId]'s end-to-end encryption key bundle, readable only by its owner.
+  /// See docs/e2ee.md.
+  DocumentReference<Map<String, dynamic>> encryptionBundleDocument(
+    String userId,
+  ) => collection('users').doc(userId).collection('private').doc('encryption');
+
+  /// [userId]'s published X25519 public key, readable by any signed-in user.
+  DocumentReference<Map<String, dynamic>> publicKeyDocument(String userId) =>
+      collection('userKeys').doc(userId);
 }

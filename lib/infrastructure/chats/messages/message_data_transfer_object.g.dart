@@ -16,7 +16,7 @@ _MessageDataTransferObject _$MessageDataTransferObjectFromJson(
   reactions: (json['reactions'] as List<dynamic>)
       .map((e) => e as String)
       .toList(),
-  content: json['content'] as String,
+  content: const EncryptedContentConverter().fromJson(json['content']),
   repliedMessageId: json['repliedMessageId'] as String,
   isEdited: json['isEdited'] as bool,
   serverTimeStamp: const ServerTimestampConverter().fromJson(
@@ -30,7 +30,7 @@ Map<String, dynamic> _$MessageDataTransferObjectToJson(
   'senderId': instance.senderId,
   'imageUrls': instance.imageUrls,
   'reactions': instance.reactions,
-  'content': instance.content,
+  'content': const EncryptedContentConverter().toJson(instance.content),
   'repliedMessageId': instance.repliedMessageId,
   'isEdited': instance.isEdited,
   'serverTimeStamp': const ServerTimestampConverter().toJson(

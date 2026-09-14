@@ -35,7 +35,7 @@ class _FakeMessageRepository implements IMessageRepository {
 }
 
 CurrentUserSession _signedInAs(String uid) =>
-    CurrentUserSession()..start(CurrentUseInformationPersistent(uid, uid));
+    CurrentUserSession()..start(CurrentUserInformationPersistent(uid, uid));
 
 Message _message(String senderUid) => Message(
   id: UniqueId(),

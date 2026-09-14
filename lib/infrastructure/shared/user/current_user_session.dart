@@ -4,7 +4,7 @@ import '../../../domain/shared/user/current_user_information_persistent.dart';
 import '../../../domain/shared/user/current_user_session_interface.dart';
 
 class CurrentUserSession implements ICurrentUserSession {
-  CurrentUseInformationPersistent? _current;
+  CurrentUserInformationPersistent? _current;
 
   // Synchronous so that end() has already started cancelling every listener
   // bound to [ended] by the time it returns; the caller signs out of Firebase
@@ -12,13 +12,13 @@ class CurrentUserSession implements ICurrentUserSession {
   final _ended = StreamController<void>.broadcast(sync: true);
 
   @override
-  CurrentUseInformationPersistent? get current => _current;
+  CurrentUserInformationPersistent? get current => _current;
 
   @override
   Stream<void> get ended => _ended.stream;
 
   @override
-  void start(CurrentUseInformationPersistent user) => _current = user;
+  void start(CurrentUserInformationPersistent user) => _current = user;
 
   @override
   void end() {

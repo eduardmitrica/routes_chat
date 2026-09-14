@@ -15,14 +15,14 @@ void main() {
   });
 
   test('holds the user after start', () {
-    session.start(const CurrentUseInformationPersistent('id-1', 'eduard'));
+    session.start(const CurrentUserInformationPersistent('id-1', 'eduard'));
 
     expect(session.current?.id, 'id-1');
     expect(session.current?.username, 'eduard');
   });
 
   test('is empty again after end', () {
-    session.start(const CurrentUseInformationPersistent('id-1', 'eduard'));
+    session.start(const CurrentUserInformationPersistent('id-1', 'eduard'));
     session.end();
 
     expect(session.current, isNull);
@@ -37,11 +37,11 @@ void main() {
   test('starting twice replaces the user instead of throwing', () {
     // getIt.registerSingleton threw when the type was already registered, and
     // authenticationRequested is dispatched from three places.
-    session.start(const CurrentUseInformationPersistent('id-1', 'eduard'));
+    session.start(const CurrentUserInformationPersistent('id-1', 'eduard'));
 
     expect(
       () => session.start(
-        const CurrentUseInformationPersistent('id-2', 'someone-else'),
+        const CurrentUserInformationPersistent('id-2', 'someone-else'),
       ),
       returnsNormally,
     );
@@ -57,7 +57,7 @@ void main() {
     test('emits synchronously when a started session ends', () {
       var events = 0;
       session.ended.listen((_) => events++);
-      session.start(const CurrentUseInformationPersistent('id-1', 'eduard'));
+      session.start(const CurrentUserInformationPersistent('id-1', 'eduard'));
 
       session.end();
 
@@ -80,7 +80,7 @@ void main() {
       // This is how repositories bound their Firestore snapshot listeners.
       final source = StreamController<int>();
       addTearDown(source.close);
-      session.start(const CurrentUseInformationPersistent('id-1', 'eduard'));
+      session.start(const CurrentUserInformationPersistent('id-1', 'eduard'));
       final received = source.stream.takeUntil(session.ended).toList();
 
       source.add(1);

@@ -25,7 +25,7 @@ void main() {
     // Firebase signed out first, those listeners outlived the auth token and
     // the security rules rejected them: PERMISSION_DENIED on every sign-out.
     final session = CurrentUserSession()
-      ..start(const CurrentUseInformationPersistent('user-1', 'eduard'));
+      ..start(const CurrentUserInformationPersistent('user-1', 'eduard'));
     var endedEvents = 0;
     session.ended.listen((_) => endedEvents++);
 

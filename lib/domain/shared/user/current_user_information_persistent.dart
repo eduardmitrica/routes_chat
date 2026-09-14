@@ -1,6 +1,6 @@
-class CurrentUseInformationPersistent {
+class CurrentUserInformationPersistent {
   final String id;
   final String username;
 
-  const CurrentUseInformationPersistent(this.id, this.username);
+  const CurrentUserInformationPersistent(this.id, this.username);
 }

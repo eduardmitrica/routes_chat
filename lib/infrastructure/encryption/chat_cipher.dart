@@ -159,10 +159,18 @@ final class KeyGeneration {
   );
 }
 
-/// Message text encrypted with a chat key, stored as a message's `content`.
+/// A message encrypted with a chat key, stored as the message's `content`.
+///
+/// Version 2, the one written, encrypts a [MessagePayload]: the text and, for
+/// a reply, the message it answers. Version 1 encrypted the text alone;
+/// messages stored that way still decrypt.
 @immutable
 final class EncryptedContent {
-  static const currentVersion = 1;
+  static const currentVersion = 2;
+  static const readableVersions = {1, currentVersion};
+
+  /// The format version, which decides how the ciphertext is read.
+  final int version;
 
   /// Which of the chat's key generations it is encrypted under.
   final int keyGeneration;
@@ -171,6 +179,7 @@ final class EncryptedContent {
   final Uint8List mac;
 
   const EncryptedContent({
+    this.version = currentVersion,
     required this.keyGeneration,
     required this.nonce,
     required this.cipherText,
@@ -178,7 +187,7 @@ final class EncryptedContent {
   });
 
   Map<String, Object> toJson() => {
-    'v': currentVersion,
+    'v': version,
     'e': keyGeneration,
     'nonce': base64Encode(nonce),
     'cipherText': base64Encode(cipherText),
@@ -189,10 +198,12 @@ final class EncryptedContent {
     if (json is! Map) {
       throw const FormatException('The message content is not encrypted');
     }
-    if (json['v'] != currentVersion) {
-      throw FormatException('Unsupported content version: ${json['v']}');
+    final version = json['v'];
+    if (version is! int || !readableVersions.contains(version)) {
+      throw FormatException('Unsupported content version: $version');
     }
     return EncryptedContent(
+      version: version,
       keyGeneration: _intField(json, 'e'),
       nonce: _decodeField(json, 'nonce'),
       cipherText: _decodeField(json, 'cipherText'),
@@ -203,6 +214,7 @@ final class EncryptedContent {
   @override
   bool operator ==(Object other) =>
       other is EncryptedContent &&
+      other.version == version &&
       other.keyGeneration == keyGeneration &&
       listEquals(other.nonce, nonce) &&
       listEquals(other.cipherText, cipherText) &&
@@ -210,11 +222,107 @@ final class EncryptedContent {
 
   @override
   int get hashCode => Object.hash(
+    version,
     keyGeneration,
     Object.hashAll(nonce),
     Object.hashAll(cipherText),
     Object.hashAll(mac),
   );
+}
+
+/// What a message's ciphertext holds: its text and, for a reply, the message
+/// it answers. Encrypted together, so the server cannot tell a reply from any
+/// other message.
+@immutable
+final class MessagePayload {
+  final String text;
+  final QuotedMessage? replyTo;
+
+  const MessagePayload(this.text, {this.replyTo});
+
+  Map<String, Object> toJson() => {
+    'text': text,
+    if (replyTo case final replyTo?) 'replyTo': replyTo.toJson(),
+  };
+
+  /// Throws [FormatException] for anything [toJson] could not have made.
+  /// Fields it does not know are passed over, so a later version of the app
+  /// can add some.
+  factory MessagePayload.fromJson(Object? json) {
+    if (json is! Map) {
+      throw const FormatException('Malformed message payload');
+    }
+    final text = json['text'];
+    final replyTo = json['replyTo'];
+    if (text is! String) {
+      throw const FormatException('Malformed message payload');
+    }
+    return MessagePayload(
+      text,
+      replyTo: replyTo == null ? null : QuotedMessage.fromJson(replyTo),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is MessagePayload && other.text == text && other.replyTo == replyTo;
+
+  @override
+  int get hashCode => Object.hash(text, replyTo);
+
+  /// Lengths only: the text is decrypted content, which does not belong in
+  /// logs.
+  @override
+  String toString() =>
+      'MessagePayload(${text.length} code units, reply: ${replyTo != null})';
+}
+
+/// The message a reply answers, as the reply carries it: its id, its sender
+/// and the start of its text.
+@immutable
+final class QuotedMessage {
+  final String messageId;
+  final String senderId;
+  final String text;
+
+  const QuotedMessage({
+    required this.messageId,
+    required this.senderId,
+    required this.text,
+  });
+
+  Map<String, Object> toJson() => {
+    'id': messageId,
+    'senderId': senderId,
+    'text': text,
+  };
+
+  factory QuotedMessage.fromJson(Object? json) {
+    if (json is! Map) {
+      throw const FormatException('Malformed quote');
+    }
+    final messageId = json['id'];
+    final senderId = json['senderId'];
+    final text = json['text'];
+    if (messageId is! String || senderId is! String || text is! String) {
+      throw const FormatException('Malformed quote');
+    }
+    return QuotedMessage(messageId: messageId, senderId: senderId, text: text);
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is QuotedMessage &&
+      other.messageId == messageId &&
+      other.senderId == senderId &&
+      other.text == text;
+
+  @override
+  int get hashCode => Object.hash(messageId, senderId, text);
+
+  /// The id only, for the same reason as [MessagePayload.toString].
+  @override
+  String toString() => 'QuotedMessage($messageId)';
 }
 
 Uint8List _decodeField(Map<dynamic, dynamic> json, String field) {
@@ -247,7 +355,6 @@ class ChatCipher {
 
   static const _sealingKeyInfo = 'routes_chat/v1/chat-key/kek';
   static const _chatKeyPurpose = 'routes_chat/v1/chat-key';
-  static const _messagePurpose = 'routes_chat/v1/message';
 
   // Built on use rather than once, so they always come from the current
   // Cryptography.instance. See UserKeyManager.
@@ -336,8 +443,9 @@ class ChatCipher {
     );
   }
 
+  /// Encrypts [payload] in the current version of the format.
   Future<EncryptedContent> encrypt(
-    String text, {
+    MessagePayload payload, {
     required SecretKey chatKey,
     required String chatId,
     required int keyGeneration,
@@ -345,14 +453,15 @@ class ChatCipher {
     required String senderId,
   }) async {
     final box = await _aead.encrypt(
-      utf8.encode(text),
+      utf8.encode(jsonEncode(payload.toJson())),
       secretKey: chatKey,
-      aad: _associatedData(_messagePurpose, [
-        chatId,
-        '$keyGeneration',
-        messageId,
-        senderId,
-      ]),
+      aad: _messageAssociatedData(
+        EncryptedContent.currentVersion,
+        chatId: chatId,
+        keyGeneration: keyGeneration,
+        messageId: messageId,
+        senderId: senderId,
+      ),
     );
     return EncryptedContent(
       keyGeneration: keyGeneration,
@@ -362,12 +471,12 @@ class ChatCipher {
     );
   }
 
-  /// The text of [content], which [chatKey] must be the key of generation
+  /// What [content] holds, which [chatKey] must be the key of generation
   /// [EncryptedContent.keyGeneration] for.
   ///
-  /// Throws [UnreadableCiphertext] if [chatKey] is wrong, or [content] belongs
-  /// to another chat, message or sender, or was altered.
-  Future<String> decrypt(
+  /// Throws [UnreadableCiphertext] if [chatKey] is wrong, [content] belongs to
+  /// another chat, message or sender or was altered, or it holds no message.
+  Future<MessagePayload> decrypt(
     EncryptedContent content, {
     required SecretKey chatKey,
     required String chatId,
@@ -381,19 +490,39 @@ class ChatCipher {
         mac: Mac(content.mac),
       ),
       chatKey,
-      _associatedData(_messagePurpose, [
-        chatId,
-        '${content.keyGeneration}',
-        messageId,
-        senderId,
-      ]),
+      _messageAssociatedData(
+        content.version,
+        chatId: chatId,
+        keyGeneration: content.keyGeneration,
+        messageId: messageId,
+        senderId: senderId,
+      ),
     );
     try {
-      return utf8.decode(bytes);
+      final plaintext = utf8.decode(bytes);
+      return content.version == 1
+          ? MessagePayload(plaintext)
+          : MessagePayload.fromJson(jsonDecode(plaintext));
     } on FormatException {
       throw const UnreadableCiphertext();
     }
   }
+
+  /// A message's associated data. Each format version has its own purpose, so
+  /// relabelling a message's version makes it fail to decrypt rather than
+  /// read another way.
+  static Uint8List _messageAssociatedData(
+    int version, {
+    required String chatId,
+    required int keyGeneration,
+    required String messageId,
+    required String senderId,
+  }) => _associatedData('routes_chat/v$version/message', [
+    chatId,
+    '$keyGeneration',
+    messageId,
+    senderId,
+  ]);
 
   /// The key a chat key is sealed under: HKDF over the X25519 shared secret,
   /// bound to both public keys. Null if the shared secret is all zeros, which

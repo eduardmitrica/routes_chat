@@ -12,7 +12,7 @@ Message _message(String id, {int generation = 1}) => Message(
   imageUrls: const KtList.empty(),
   reactions: const KtList.empty(),
   content: Content(id),
-  repliedMessageId: UniqueId.empty(),
+
   lastUpdatedAt: null,
   isEdited: false,
   keyGeneration: generation,

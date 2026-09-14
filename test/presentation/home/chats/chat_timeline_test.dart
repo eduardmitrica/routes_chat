@@ -13,7 +13,7 @@ Message _message(String id, {int generation = 1, bool readable = true}) =>
       imageUrls: const KtList.empty(),
       reactions: const KtList.empty(),
       content: Content(id),
-      repliedMessageId: UniqueId.empty(),
+
       lastUpdatedAt: null,
       isEdited: false,
       isReadable: readable,

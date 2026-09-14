@@ -76,7 +76,7 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
           .map((imageUrlString) => ImageUrl(imageUrlString))
           .toImmutableList(),
       isEdited: lastMessage.isEdited,
-      repliedMessageId: UniqueId.fromUniqueString(lastMessage.repliedMessageId),
+
       lastUpdatedAt: lastMessage.timeStamp,
       isReadable: lastMessageReadable,
       keyGeneration: lastMessage.content.keyGeneration,

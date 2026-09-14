@@ -30,7 +30,7 @@ Chat _chatBetween(List<String> participantIds) => Chat(
     imageUrls: const KtList.empty(),
     reactions: const KtList.empty(),
     content: Content('hello'),
-    repliedMessageId: UniqueId.empty(),
+
     lastUpdatedAt: null,
     isEdited: false,
   ),

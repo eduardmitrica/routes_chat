@@ -18,6 +18,7 @@ import 'package:rxdart/rxdart.dart';
 
 import '../../../domain/chats/messages/message_repository_interface.dart';
 import '../../../domain/shared/user/current_user_session_interface.dart';
+import 'package:routes_chat/infrastructure/chats/messages/message_payloads.dart';
 
 /// A chat's messages, encrypted on the way in and decrypted on the way out.
 /// See docs/e2ee.md.
@@ -47,7 +48,7 @@ class MessageRepository implements IMessageRepository {
 
     // Every snapshot carries the whole page again. Messages do not change
     // once sent, so each is decrypted once per listen.
-    final decrypted = <String, (String, bool)>{};
+    final decrypted = <String, (MessagePayload, bool)>{};
     yield* _messages(id)
         .orderBy('serverTimeStamp', descending: true)
         .limit(limit)
@@ -94,7 +95,7 @@ class MessageRepository implements IMessageRepository {
     List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
     String chatId,
     int limit,
-    Map<String, (String, bool)> decrypted,
+    Map<String, (MessagePayload, bool)> decrypted,
   ) async {
     final messages = (await Future.wait(
       documents.map(
@@ -119,7 +120,7 @@ class MessageRepository implements IMessageRepository {
   Future<Message?> _decryptedMessage(
     DocumentSnapshot<Map<String, dynamic>> document,
     String chatId,
-    Map<String, (String, bool)> decrypted,
+    Map<String, (MessagePayload, bool)> decrypted,
   ) async {
     final MessageDataTransferObject message;
     try {
@@ -131,21 +132,25 @@ class MessageRepository implements IMessageRepository {
       return null;
     }
     final cacheEntry = '${document.id}:${base64Encode(message.content.mac)}';
-    final (text, readable) = decrypted[cacheEntry] ??= await _decrypt(
+    final (payload, readable) = decrypted[cacheEntry] ??= await _decrypt(
       message,
       document.id,
       chatId,
     );
-    return message.toDomain(content: text, isReadable: readable);
+    return message.toDomain(
+      content: payload.text,
+      replyTo: quoteIn(payload),
+      isReadable: readable,
+    );
   }
 
-  Future<(String, bool)> _decrypt(
+  Future<(MessagePayload, bool)> _decrypt(
     MessageDataTransferObject message,
     String messageId,
     String chatId,
   ) async {
     try {
-      final text = await _cipher.decrypt(
+      final payload = await _cipher.decrypt(
         message.content,
         chatKey: await _keyring.storedChatKey(
           chatId,
@@ -155,9 +160,9 @@ class MessageRepository implements IMessageRepository {
         messageId: messageId,
         senderId: message.senderId,
       );
-      return (text, true);
+      return (payload, true);
     } on UnreadableCiphertext {
-      return (ChatCipher.unreadableMessageText, false);
+      return (const MessagePayload(ChatCipher.unreadableMessageText), false);
     }
   }
 
@@ -185,7 +190,7 @@ class MessageRepository implements IMessageRepository {
         }
         final current = chat['currentKeyGeneration'] as int;
         final content = await _cipher.encrypt(
-          message.content.getOrCrash(),
+          payloadOf(message),
           chatKey: await _keyring.chatKey(
             id,
             current,

@@ -19,7 +19,7 @@ final _message = Message(
   imageUrls: const KtList.empty(),
   reactions: const KtList.empty(),
   content: Content('hello'),
-  repliedMessageId: UniqueId.empty(),
+
   lastUpdatedAt: null,
   isEdited: false,
 );
@@ -61,6 +61,10 @@ Map<String, dynamic> _storedChat() => ChatDataTransferObject.fromDomain(
 
 final _rules = File('firestore.rules').readAsStringSync();
 
+/// Fields older versions of the app write, which the rules still accept so
+/// those versions keep working, but which this one no longer writes.
+const _legacyMessageFields = {'repliedMessageId'};
+
 /// The string list a rules function such as `chatFields()` returns.
 Set<String> _listReturnedBy(String function) {
   final body = RegExp(
@@ -87,16 +91,23 @@ void main() {
       content: _content,
     ).toJson();
 
-    expect(json.keys.toSet(), _listReturnedBy('messageFields'));
+    expect(
+      json.keys.toSet(),
+      _listReturnedBy('messageFields').difference(_legacyMessageFields),
+    );
   });
 
   test("a chat's last message has messageFields() and its id", () {
     final lastMessage = _storedChat()['lastMessage'] as Map<String, dynamic>;
 
     expect(lastMessage.keys.toSet(), {
-      ..._listReturnedBy('messageFields'),
+      ..._listReturnedBy('messageFields').difference(_legacyMessageFields),
       'id',
     });
+  });
+
+  test('the rules still accept what older versions of the app write', () {
+    expect(_listReturnedBy('messageFields'), containsAll(_legacyMessageFields));
   });
 
   test('a new chat starts at key generation 1, as the rules require', () {
@@ -116,11 +127,11 @@ void main() {
     // chat_cipher_test.dart.
     for (final check in [
       "content.keys().hasOnly(['v', 'e', 'nonce', 'cipherText', 'mac'])",
-      'content.v == 1',
+      '(content.v == 1 && content.cipherText.size() <= 4000)',
       'content.e == generation',
       'content.nonce.size() == 16',
       'content.mac.size() == 24',
-      'content.cipherText.size() <= 4000',
+      '(content.v == 2 && content.cipherText.size() <= 12000)',
       "'cipherText', 'mac', 'keyVersion']",
       'sealed.ephemeralPublicKey.size() == 44',
       'sealed.nonce.size() == 16',

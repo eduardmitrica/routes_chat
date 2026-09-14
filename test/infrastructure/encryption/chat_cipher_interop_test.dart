@@ -38,6 +38,24 @@ const _vector = {
   'text': 'Salut din Node! 👋 ăîșț',
 };
 
+/// A version 2 message, a reply, encrypted by the same separate
+/// implementation: JSON built by Node's JSON.stringify, with a quote holding a
+/// quotation mark, a newline and an emoji with a skin tone.
+const _replyVector = {
+  'chatKey': 'CtYG+Izq+c2drflPL2ied+HdchSoT7s1vCHYr7h1Kq8=',
+  'chatId': 'alice_bob',
+  'messageId': 'message-1',
+  'senderId': 'alice',
+  'content': {
+    'v': 2,
+    'e': 2,
+    'nonce': 'vqVszKE/PBj1JQnO',
+    'cipherText':
+        'Z2gBvikkNAKCiIU5+kR7fRTfB9Sf8acujSg/AOqXDhcFzEel/IdpgmNQRG3GPpl98dUuDeSSONxf/wdzDfY/Zfo7ExFXVKNDsEbwbrvSjKd0G8MfRSyuPD0rwMBJg0M4zdAzkTLwJItfzp+Pn1wH8fqqzVAkAC+SbzOj3gmo',
+    'mac': 'Og/iKQnBCFLCTFfeS+ouyw==',
+  },
+};
+
 void main() {
   final cipher = ChatCipher();
 
@@ -65,7 +83,7 @@ void main() {
     final content = EncryptedContent.fromJson(_vector['content']);
     expect(content.keyGeneration, 2);
 
-    final text = await cipher.decrypt(
+    final payload = await cipher.decrypt(
       content,
       chatKey: SecretKeyData(base64Decode(_vector['chatKey']! as String)),
       chatId: _vector['chatId']! as String,
@@ -73,6 +91,28 @@ void main() {
       senderId: _vector['senderId']! as String,
     );
 
-    expect(text, _vector['text']);
+    expect(payload, MessagePayload(_vector['text']! as String));
+  });
+
+  test('a reply encrypted by the other implementation decrypts', () async {
+    final payload = await cipher.decrypt(
+      EncryptedContent.fromJson(_replyVector['content']),
+      chatKey: SecretKeyData(base64Decode(_replyVector['chatKey']! as String)),
+      chatId: _replyVector['chatId']! as String,
+      messageId: _replyVector['messageId']! as String,
+      senderId: _replyVector['senderId']! as String,
+    );
+
+    expect(
+      payload,
+      const MessagePayload(
+        'Salut din Node! 👋 ăîșț',
+        replyTo: QuotedMessage(
+          messageId: 'message-0',
+          senderId: 'bob',
+          text: 'Ne vedem "mâine"?\n👍🏽',
+        ),
+      ),
+    );
   });
 }

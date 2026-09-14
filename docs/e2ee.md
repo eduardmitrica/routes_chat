@@ -27,7 +27,7 @@ recovery key ──HKDF-SHA256─────────▶ recovery KEK ──
 X25519 public key ─────────────────────────────────── published for chat partners
 
 chat key (random, 32 bytes, one per chat per key generation) ── sealed to each participant's public key
-message text and last-message preview ──AES-256-GCM(chat key)──▶ ciphertext
+message text and any reply quote, last-message preview ──AES-256-GCM(chat key)──▶ ciphertext
 ```
 
 - **Wrapping** uses AES-256-GCM with a random 96-bit nonce, so a wrong passphrase
@@ -58,10 +58,21 @@ message text and last-message preview ──AES-256-GCM(chat key)──▶ ciphe
   a new chat key sealed to both participants' current keys. Generations are
   only ever added, so earlier messages keep the key they were sent under.
 - **Each message** is encrypted with AES-256-GCM under the chat key of the
-  chat's current generation. The associated data is `routes_chat/v1/message`,
-  the chat id, the key generation, the message id and the sender id, so
-  ciphertext cannot be moved to another message, chat, generation or sender.
-  The chat's last message is the same ciphertext as the message.
+  chat's current generation. What it encrypts is JSON as UTF-8: `{text}`,
+  and for a reply also `replyTo: {id, senderId, text}`, the message it
+  answers and the start of that message's text (at most 100 UTF-16 code
+  units, never cut inside a character, then an ellipsis). Every message is
+  written this way, so the server cannot tell a reply from any other
+  message, and a quote still shows once the original cannot be read. The
+  associated data is `routes_chat/v2/message`, the chat id, the key
+  generation, the message id and the sender id, so ciphertext cannot be moved
+  to another message, chat, generation or sender. The chat's last message is
+  the same ciphertext as the message.
+- **Version 1 messages**, sent before replies, encrypt the text alone (UTF-8,
+  not JSON), with `routes_chat/v1/message` in place of
+  `routes_chat/v2/message`. They still decrypt. Each version has its own
+  associated data, so changing a message's version makes it fail to decrypt
+  rather than read another way.
 - **Associated data** is each of those strings as UTF-8, prefixed with its
   length in bytes as a 32-bit big-endian integer.
 - **Opened chat keys** stay in memory for the session only. A message that does
@@ -78,7 +89,8 @@ message text and last-message preview ──AES-256-GCM(chat key)──▶ ciphe
 | `chats/{chatId}/messages/{id}` | The encrypted message | The chat's participants |
 
 Stored formats (keys, nonces, ciphertext and tags as base64):
-- a message's `content`: `{v: 1, e: <key generation>, nonce, cipherText, mac}`,
+- a message's `content`: `{v: 2, e: <key generation>, nonce, cipherText, mac}`
+  (`v: 1` for messages sent before replies),
   with a 12-byte nonce and a 16-byte tag;
 - a chat's `keyGenerations`: generation number to `{createdBy, sealedKeys}`,
   where `sealedKeys` maps each participant's id to `{ephemeralPublicKey,
@@ -123,8 +135,9 @@ They also:
 ## What this does not protect against
 
 - A compromised or unlocked phone with the app installed.
-- Metadata: who talks to whom, when, and how often. The server sees chat
-  membership and timestamps.
+- Metadata: who talks to whom, when, and how often. The server sees chat membership and timestamps.
+- Message length. Ciphertext is as long as the text and any quote, so the
+  server can estimate how long a message is.
 - A malicious chat partner, who can read everything sent to them.
 - Replacing a user's public key through the server. A future improvement is
   showing a safety number that two people can compare.

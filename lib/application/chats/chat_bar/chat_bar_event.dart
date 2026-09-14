@@ -12,6 +12,8 @@ sealed class ChatBarEvent extends Equatable {
     String content,
     UniqueId chatId,
   ) = NewMessageAddedToChatWithId;
+  const factory ChatBarEvent.replyStarted(Message message) = ReplyStarted;
+  const factory ChatBarEvent.replyCancelled() = ReplyCancelled;
 
   @override
   List<Object?> get props => const [];
@@ -37,4 +39,17 @@ final class NewMessageAddedToChatWithId extends ChatBarEvent {
   const NewMessageAddedToChatWithId(this.content, this.chatId);
   @override
   List<Object?> get props => [content, chatId];
+}
+
+/// The user chose to reply to [message]: the next message sent answers it.
+final class ReplyStarted extends ChatBarEvent {
+  final Message message;
+  const ReplyStarted(this.message);
+  @override
+  List<Object?> get props => [message];
+}
+
+/// The user no longer replies: the next message sent stands on its own.
+final class ReplyCancelled extends ChatBarEvent {
+  const ReplyCancelled();
 }

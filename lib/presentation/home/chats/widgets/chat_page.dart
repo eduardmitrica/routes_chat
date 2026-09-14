@@ -1,7 +1,8 @@
 import 'dart:async';
 
-import 'package:chat_bubbles/chat_bubbles.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/application/chats/chat_bar/chat_bar_bloc.dart';
@@ -12,13 +13,16 @@ import 'package:routes_chat/domain/chats/chat_failure.dart' as chat_failure;
 import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/message_failure.dart'
     as message_failure;
+import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/injection.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import 'chat_timeline.dart';
-import 'package:routes_chat/presentation/core/theme/app_colors.dart';
+import 'message_bubble.dart';
+import 'message_composer.dart';
 import 'messages_skeleton.dart';
+import 'swipe_to_reply.dart';
 
 class ChatPage extends StatelessWidget {
   static const chatPageRoute = '/home/chats/chat';
@@ -54,8 +58,10 @@ class ChatPage extends StatelessWidget {
   }
 }
 
-/// The chat with [otherUser]: its messages, a page at a time, and a search
-/// over them. [chat] is null until the first message is sent.
+enum _MessageAction { reply, copy }
+
+/// The chat with [otherUser]: its messages, a page at a time, a search over
+/// them, and replies to them. [chat] is null until the first message is sent.
 class _ChatView extends StatefulWidget {
   final Chat? chat;
   final User otherUser;
@@ -73,6 +79,11 @@ class _ChatViewState extends State<_ChatView> {
   final _scrollController = ScrollController();
   final _listController = ListController();
   final _searchField = TextEditingController();
+  final _composerFocus = FocusNode();
+
+  /// Here rather than with the composer: replies start from the messages.
+  final _chatBar = getIt<ChatBarBloc>();
+
   Timer? _searchDebounce;
   Timer? _highlightTimer;
   var _searchOpen = false;
@@ -91,6 +102,7 @@ class _ChatViewState extends State<_ChatView> {
       ..dispose();
     _listController.dispose();
     _searchField.dispose();
+    _composerFocus.dispose();
     _searchDebounce?.cancel();
     _highlightTimer?.cancel();
     super.dispose();
@@ -98,6 +110,9 @@ class _ChatViewState extends State<_ChatView> {
 
   MessagesWatcherBloc? get _messages =>
       widget.chat == null ? null : context.read<MessagesWatcherBloc>();
+
+  bool _isFromOtherUser(UniqueId senderId) =>
+      senderId.getOrCrash() == widget.otherUser.id.getOrCrash();
 
   /// The list is reversed, newest at the bottom, so the oldest loaded
   /// messages are at the far end of the scroll extent.
@@ -131,17 +146,87 @@ class _ChatViewState extends State<_ChatView> {
     );
   }
 
-  /// Leaves the search and scrolls the chat to [message], highlighted for a
-  /// moment. The search already loaded every page up to it.
+  /// Leaves the search and scrolls the chat to [message]. The search already
+  /// loaded every page up to it.
   void _showInChat(Message message) {
-    final id = message.id.getOrCrash();
     _closeSearch();
+    _highlightAndJump(message.id.getOrCrash());
+  }
+
+  void _startReply(Message message) {
+    _chatBar.add(ChatBarEvent.replyStarted(message));
+    _composerFocus.requestFocus();
+  }
+
+  Future<void> _showMessageActions(Message message) async {
+    final action = await showModalBottomSheet<_MessageAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.reply_rounded),
+              title: const Text('Reply'),
+              onTap: () => Navigator.of(context).pop(_MessageAction.reply),
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_rounded),
+              title: const Text('Copy text'),
+              onTap: () => Navigator.of(context).pop(_MessageAction.copy),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    switch (action) {
+      case _MessageAction.reply:
+        _startReply(message);
+      case _MessageAction.copy:
+        await Clipboard.setData(
+          ClipboardData(text: message.content.getOrCrash()),
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(const SnackBar(content: Text('Message copied')));
+      case null:
+        break;
+    }
+  }
+
+  /// Asks for the message a reply quotes, loading older pages if it is not
+  /// loaded yet. [_onRevealed] scrolls to it.
+  void _revealMessage(UniqueId messageId) =>
+      _messages?.add(MessagesWatcherEvent.messageRevealRequested(messageId));
+
+  void _onRevealed(MessageReveal reveal) {
+    final message = reveal.message;
+    final problem = switch (message) {
+      null => 'The original message is not in this chat.',
+      Message(isReadable: false) =>
+        'The original message can\'t be read on this device.',
+      _ => null,
+    };
+    if (message == null || problem != null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(problem!)));
+      return;
+    }
+    _highlightAndJump(message.id.getOrCrash());
+  }
+
+  /// Scrolls the chat to [messageId], highlighted for a moment.
+  void _highlightAndJump(String messageId) {
     _highlightTimer?.cancel();
-    setState(() => _highlightedMessageId = id);
+    setState(() => _highlightedMessageId = messageId);
     _highlightTimer = Timer(const Duration(seconds: 2), () {
       if (mounted) setState(() => _highlightedMessageId = null);
     });
-    WidgetsBinding.instance.addPostFrameCallback((_) => _jumpTo(id));
+    WidgetsBinding.instance.addPostFrameCallback((_) => _jumpTo(messageId));
   }
 
   void _jumpTo(String messageId) {
@@ -179,49 +264,54 @@ class _ChatViewState extends State<_ChatView> {
   @override
   Widget build(BuildContext context) {
     final chat = widget.chat;
-    return PopScope(
-      // Back leaves the search first, then the chat.
-      canPop: !_searchOpen,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _closeSearch();
-      },
-      child: Scaffold(
-        appBar: _searchOpen ? _searchBar() : _titleBar(canSearch: chat != null),
-        body: Column(
-          children: [
-            Expanded(
-              child: chat == null
-                  ? const Center(
-                      child: Text('You have no messages with this user'),
-                    )
-                  // The messages stay underneath the search, so closing it
-                  // returns to where the chat was scrolled.
-                  : IndexedStack(
-                      index: _searchOpen ? 1 : 0,
-                      sizing: StackFit.expand,
-                      children: [
-                        _messageList(chat),
-                        if (_searchOpen)
-                          _SearchResults(
-                            otherUser: widget.otherUser,
-                            onSelected: _showInChat,
-                          )
-                        else
-                          const SizedBox.shrink(),
-                      ],
-                    ),
-            ),
-            // Hidden, not removed, so a half-typed message survives a search.
-            Offstage(
-              offstage: _searchOpen,
-              child: Column(
-                children: [
-                  const SizedBox(height: 20),
-                  _ChatBar(chat: chat, otherUser: widget.otherUser),
-                ],
+    return BlocProvider(
+      create: (_) => _chatBar,
+      child: PopScope(
+        // Back leaves the search first, then the chat.
+        canPop: !_searchOpen,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _closeSearch();
+        },
+        child: Scaffold(
+          appBar: _searchOpen
+              ? _searchBar()
+              : _titleBar(canSearch: chat != null),
+          body: Column(
+            children: [
+              Expanded(
+                child: chat == null
+                    ? const Center(
+                        child: Text('You have no messages with this user'),
+                      )
+                    // The messages stay underneath the search, so closing it
+                    // returns to where the chat was scrolled.
+                    : IndexedStack(
+                        index: _searchOpen ? 1 : 0,
+                        sizing: StackFit.expand,
+                        children: [
+                          _messageList(chat),
+                          if (_searchOpen)
+                            _SearchResults(
+                              otherUser: widget.otherUser,
+                              onSelected: _showInChat,
+                            )
+                          else
+                            const SizedBox.shrink(),
+                        ],
+                      ),
               ),
-            ),
-          ],
+              // Hidden, not removed, so a half-typed message survives a
+              // search.
+              Offstage(
+                offstage: _searchOpen,
+                child: _ChatBar(
+                  chat: chat,
+                  otherUser: widget.otherUser,
+                  focusNode: _composerFocus,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -268,65 +358,80 @@ class _ChatViewState extends State<_ChatView> {
   );
 
   Widget _messageList(Chat chat) {
-    return BlocConsumer<MessagesWatcherBloc, MessagesWatcherState>(
+    return BlocListener<MessagesWatcherBloc, MessagesWatcherState>(
       listenWhen: (previous, current) =>
-          previous.messages != current.messages ||
-          previous.failureOption != current.failureOption,
-      listener: (context, state) {
-        if (state.status == MessagesStatus.loaded &&
-            state.failureOption.isSome()) {
-          ScaffoldMessenger.of(context)
-            ..hideCurrentSnackBar()
-            ..showSnackBar(
-              const SnackBar(
-                content: Text('Older messages could not be loaded'),
-              ),
-            );
-        }
-        // A new page may still not fill the screen.
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _loadOlderIfNearTop(),
-        );
-      },
-      buildWhen: (previous, current) =>
-          previous.status != current.status ||
-          previous.messages != current.messages ||
-          previous.loadingOlder != current.loadingOlder ||
-          previous.reachedStart != current.reachedStart,
-      builder: (context, state) => switch (state.status) {
-        MessagesStatus.initial ||
-        MessagesStatus.loading => const MessagesSkeleton(),
-        MessagesStatus.failure when state.messages.isEmpty() => const Center(
-          child: Text('Messages could not be loaded'),
-        ),
-        _ => _messagesView(chat, state),
-      },
+          current.lastReveal != null &&
+          previous.lastReveal != current.lastReveal,
+      listener: (context, state) => _onRevealed(state.lastReveal!),
+      child: BlocConsumer<MessagesWatcherBloc, MessagesWatcherState>(
+        listenWhen: (previous, current) =>
+            previous.messages != current.messages ||
+            previous.failureOption != current.failureOption,
+        listener: (context, state) {
+          if (state.status == MessagesStatus.loaded &&
+              state.failureOption.isSome()) {
+            ScaffoldMessenger.of(context)
+              ..hideCurrentSnackBar()
+              ..showSnackBar(
+                const SnackBar(
+                  content: Text('Older messages could not be loaded'),
+                ),
+              );
+          }
+          // A new page may still not fill the screen.
+          WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _loadOlderIfNearTop(),
+          );
+        },
+        buildWhen: (previous, current) =>
+            previous.status != current.status ||
+            previous.messages != current.messages ||
+            previous.loadingOlder != current.loadingOlder ||
+            previous.reachedStart != current.reachedStart ||
+            previous.revealingMessage != current.revealingMessage,
+        builder: (context, state) => switch (state.status) {
+          MessagesStatus.initial ||
+          MessagesStatus.loading => const MessagesSkeleton(),
+          MessagesStatus.failure when state.messages.isEmpty() => const Center(
+            child: Text('Messages could not be loaded'),
+          ),
+          _ => _messagesView(chat, state),
+        },
+      ),
     );
   }
 
   Widget _messagesView(Chat chat, MessagesWatcherState state) {
     final items = _timeline(chat, state);
-    return SuperListView.builder(
-      controller: _scrollController,
-      listController: _listController,
-      // Newest at the bottom. An older page is added at the far end, so the
-      // messages in view do not move when it arrives.
-      reverse: true,
-      itemCount: items.length + (state.loadingOlder ? 1 : 0),
-      itemBuilder: (context, index) => index < items.length
-          ? _row(items[items.length - 1 - index])
-          : const MessagesSkeleton.older(),
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        SuperListView.builder(
+          controller: _scrollController,
+          listController: _listController,
+          // Newest at the bottom. An older page is added at the far end, so
+          // the messages in view do not move when it arrives.
+          reverse: true,
+          itemCount: items.length + (state.loadingOlder ? 1 : 0),
+          itemBuilder: (context, index) => index < items.length
+              ? _row(items[items.length - 1 - index])
+              : const MessagesSkeleton.older(),
+        ),
+        // Older pages load above, out of sight, while finding the message a
+        // reply quotes.
+        if (state.revealingMessage)
+          const Align(
+            alignment: Alignment.topCenter,
+            child: LinearProgressIndicator(),
+          ),
+      ],
     );
   }
 
   Widget _row(ChatTimelineItem item) {
     final otherUser = widget.otherUser;
     return switch (item) {
-      MessageItem(:final message) => _MessageBubble(
-        message: message,
-        sent: message.senderId.getOrCrash() != otherUser.id.getOrCrash(),
-        highlighted: message.id.getOrCrash() == _highlightedMessageId,
-      ),
+      MessageItem(:final message) => _messageRow(message),
       UnreadableMessagesItem(:final count) => _ChatNotice(
         icon: Icons.lock_outline,
         text: count == 1
@@ -337,12 +442,39 @@ class _ChatViewState extends State<_ChatView> {
       ),
       KeyResetItem(:final reset) => _ChatNotice(
         icon: Icons.key_outlined,
-        text: reset.userId.getOrCrash() == otherUser.id.getOrCrash()
+        text: _isFromOtherUser(reset.userId)
             ? '${otherUser.username.getOrCrash()} reset their encryption '
                   'keys.'
             : 'You reset your encryption keys.',
       ),
     };
+  }
+
+  Widget _messageRow(Message message) {
+    final quote = message.replyTo;
+    return Semantics(
+      // Swiping is not available to everyone; this is the same as a swipe.
+      customSemanticsActions: {
+        const CustomSemanticsAction(label: 'Reply'): () => _startReply(message),
+      },
+      child: SwipeToReply(
+        onReply: () => _startReply(message),
+        child: MessageBubble(
+          message: message,
+          sent: !_isFromOtherUser(message.senderId),
+          highlighted: message.id.getOrCrash() == _highlightedMessageId,
+          quoteAuthor: quote == null
+              ? null
+              : _isFromOtherUser(quote.senderId)
+              ? widget.otherUser.username.getOrCrash()
+              : 'You',
+          onQuoteTap: quote == null
+              ? null
+              : () => _revealMessage(quote.messageId),
+          onLongPress: () => _showMessageActions(message),
+        ),
+      ),
+    );
   }
 }
 
@@ -430,69 +562,60 @@ class _SearchResults extends StatelessWidget {
 class _ChatBar extends StatelessWidget {
   final Chat? chat;
   final User otherUser;
+  final FocusNode focusNode;
 
-  const _ChatBar({required this.chat, required this.otherUser});
+  const _ChatBar({
+    required this.chat,
+    required this.otherUser,
+    required this.focusNode,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => getIt<ChatBarBloc>(),
-      child: BlocConsumer<ChatBarBloc, ChatBarState>(
-        listenWhen: (previousState, currentState) =>
-            previousState.chatCreationFailureOrSuccessOption !=
-                currentState.chatCreationFailureOrSuccessOption ||
-            previousState.messageSendFailureOrSuccessOption !=
-                currentState.messageSendFailureOrSuccessOption,
-        listener: (context, state) {
-          final failureMessage = _sendFailureMessage(state);
-          if (failureMessage != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(failureMessage)));
-          }
-        },
-        buildWhen: (previousState, currentState) =>
-            previousState.showErrorMessages != currentState.showErrorMessages,
-        builder: (context, state) {
-          final chat = this.chat;
-          final scheme = Theme.of(context).colorScheme;
-          return MessageBar(
-            messageBarColor: scheme.surfaceContainer,
-            sendButtonColor: scheme.primary,
-            textFieldTextStyle: TextStyle(color: scheme.onSurface),
-            messageBarHintStyle: TextStyle(
-              fontSize: 16,
-              color: scheme.onSurfaceVariant,
-            ),
-            messageBarStyle: MessageBarStyle(
-              fillColor: scheme.surfaceContainerHighest,
-              enabledBorder: const OutlineInputBorder(
-                borderRadius: BorderRadius.all(Radius.circular(24)),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: const BorderRadius.all(Radius.circular(24)),
-                borderSide: BorderSide(color: scheme.primary),
-              ),
-            ),
-            messageBarHintText: 'Start typing...',
-            onTextChanged: (value) => BlocProvider.of<ChatBarBloc>(
-              context,
-            ).add(ChatBarEvent.messageContentChanged(value)),
-            onSend: (value) {
-              if (chat == null) {
-                BlocProvider.of<ChatBarBloc>(context).add(
-                  ChatBarEvent.newChatCreated([otherUser.id].toImmutableList()),
-                );
-              } else if (value.isNotEmpty) {
-                BlocProvider.of<ChatBarBloc>(
-                  context,
-                ).add(ChatBarEvent.newMessageAddedToChatWithId(value, chat.id));
-              }
-            },
-          );
-        },
-      ),
+    return BlocConsumer<ChatBarBloc, ChatBarState>(
+      listenWhen: (previousState, currentState) =>
+          previousState.chatCreationFailureOrSuccessOption !=
+              currentState.chatCreationFailureOrSuccessOption ||
+          previousState.messageSendFailureOrSuccessOption !=
+              currentState.messageSendFailureOrSuccessOption,
+      listener: (context, state) {
+        final failureMessage = _sendFailureMessage(state);
+        if (failureMessage != null) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(failureMessage)));
+        }
+      },
+      buildWhen: (previousState, currentState) =>
+          previousState.replyingTo != currentState.replyingTo,
+      builder: (context, state) {
+        final chat = this.chat;
+        final chatBar = BlocProvider.of<ChatBarBloc>(context);
+        final replyingTo = state.replyingTo;
+        return MessageComposer(
+          focusNode: focusNode,
+          replyingTo: replyingTo,
+          replyingToName:
+              replyingTo != null &&
+                  replyingTo.senderId.getOrCrash() == otherUser.id.getOrCrash()
+              ? otherUser.username.getOrCrash()
+              : 'yourself',
+          onCancelReply: () => chatBar.add(const ChatBarEvent.replyCancelled()),
+          onChanged: (value) =>
+              chatBar.add(ChatBarEvent.messageContentChanged(value)),
+          onSend: (value) {
+            if (chat == null) {
+              chatBar.add(
+                ChatBarEvent.newChatCreated([otherUser.id].toImmutableList()),
+              );
+            } else {
+              chatBar.add(
+                ChatBarEvent.newMessageAddedToChatWithId(value, chat.id),
+              );
+            }
+          },
+        );
+      },
     );
   }
 }
@@ -530,7 +653,7 @@ class _ChatNotice extends StatelessWidget {
 /// The snackbar text for the chat bar's latest failed send, or null when the
 /// latest send succeeded or nothing has been sent since the last keystroke.
 ///
-/// The message bar clears its text as soon as Send is tapped, so this is the
+/// The composer clears its text as soon as Send is tapped, so this is the
 /// only sign a message did not go through.
 String? _sendFailureMessage(ChatBarState state) {
   final chat_failure.ChatFailure? chatFailure = state
@@ -559,37 +682,4 @@ String? _sendFailureMessage(ChatBarState state) {
       'You are not allowed to send messages in this chat',
     message_failure.Unexpected() => 'The message could not be sent, try again',
   };
-}
-
-/// A message in the chat, on the side of whoever sent it.
-class _MessageBubble extends StatelessWidget {
-  final Message message;
-  final bool sent;
-
-  /// Whether the chat was just scrolled to it, from a search.
-  final bool highlighted;
-
-  const _MessageBubble({
-    required this.message,
-    required this.sent,
-    required this.highlighted,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = AppColors.of(context);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      color: highlighted ? colors.messageHighlight : Colors.transparent,
-      child: BubbleSpecialThree(
-        color: sent ? colors.sentBubble : colors.receivedBubble,
-        textStyle: TextStyle(
-          color: sent ? colors.onSentBubble : colors.onReceivedBubble,
-        ),
-        tail: false,
-        text: message.content.getOrCrash(),
-        isSender: sent,
-      ),
-    );
-  }
 }

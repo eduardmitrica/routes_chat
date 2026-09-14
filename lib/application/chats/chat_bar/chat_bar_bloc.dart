@@ -16,6 +16,7 @@ import '../../../domain/chats/messages/message.dart';
 import '../../../domain/chats/value_objects.dart';
 import '../../../domain/core/composite_id.dart';
 import '../../../domain/core/value_objects.dart';
+import 'package:routes_chat/domain/chats/messages/message_quote.dart';
 
 part 'chat_bar_event.dart';
 
@@ -42,6 +43,10 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
               messageSendFailureOrSuccessOption: none(),
             ),
           );
+        case ReplyStarted(:final message):
+          emit(state.copyWith(replyingTo: MessageQuote.of(message)));
+        case ReplyCancelled():
+          emit(state.copyWith(replyingTo: null));
         case NewChatCreated():
           {
             Either<ChatFailure, Unit>? failureOrSuccess;
@@ -66,7 +71,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
                 imageUrls: const KtList.empty(),
                 reactions: const KtList.empty(),
                 content: content,
-                repliedMessageId: UniqueId.empty(),
+
                 lastUpdatedAt: null,
                 isEdited: false,
               );
@@ -97,13 +102,16 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
           {
             final content = Content(event.content);
             if (content.isValid()) {
+              // The reply goes out with this message, not with the next.
+              final replyTo = state.replyingTo;
+              emit(state.copyWith(replyingTo: null));
               final message = Message(
                 id: UniqueId(),
                 senderId: UniqueId.fromUniqueString(userId),
                 imageUrls: const KtList.empty(),
                 reactions: const KtList.empty(),
                 content: content,
-                repliedMessageId: UniqueId.empty(),
+                replyTo: replyTo,
                 lastUpdatedAt: null,
                 isEdited: false,
               );

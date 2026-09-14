@@ -20,7 +20,7 @@ Message _message(int number, {String? text, bool readable = true}) => Message(
   imageUrls: const KtList.empty(),
   reactions: const KtList.empty(),
   content: Content(text ?? 'message $number'),
-  repliedMessageId: UniqueId.empty(),
+
   lastUpdatedAt: DateTime.utc(2026, 9, 14).add(Duration(minutes: number)),
   isEdited: false,
   isReadable: readable,
@@ -269,6 +269,61 @@ void main() {
       await send(const MessagesWatcherEvent.searchChanged('secret'));
 
       expect(bloc.state.toString(), isNot(contains('secret')));
+    });
+  });
+
+  group('revealing a message', () {
+    UniqueId id(String value) => UniqueId.fromUniqueString(value);
+
+    test('a loaded message is revealed without loading more', () async {
+      await open(List.generate(45, _message));
+
+      await send(MessagesWatcherEvent.messageRevealRequested(id('m0040')));
+
+      expect(messages.pagesRequestedBefore, isEmpty);
+      expect(bloc.state.lastReveal?.message?.id, id('m0040'));
+      expect(bloc.state.revealingMessage, isFalse);
+    });
+
+    test('an older message loads the pages up to it', () async {
+      await open(List.generate(100, _message));
+
+      await send(MessagesWatcherEvent.messageRevealRequested(id('m0003')));
+
+      expect(messages.pagesRequestedBefore, hasLength(3));
+      expect(bloc.state.lastReveal?.message?.id, id('m0003'));
+      expect(bloc.state.revealingMessage, isFalse);
+    });
+
+    test('a message the chat does not have is not found', () async {
+      await open(List.generate(45, _message));
+
+      await send(MessagesWatcherEvent.messageRevealRequested(id('elsewhere')));
+
+      expect(bloc.state.reachedStart, isTrue);
+      expect(bloc.state.lastReveal?.messageId, id('elsewhere'));
+      expect(bloc.state.lastReveal?.message, isNull);
+    });
+
+    test('a page that fails stops the search for it', () async {
+      await open(List.generate(100, _message));
+      messages.pageFailure = Unexpected();
+
+      await send(MessagesWatcherEvent.messageRevealRequested(id('m0003')));
+
+      expect(messages.pagesRequestedBefore, hasLength(1));
+      expect(bloc.state.lastReveal?.message, isNull);
+      expect(bloc.state.revealingMessage, isFalse);
+    });
+
+    test('asking for the same message again is a new reveal', () async {
+      await open(List.generate(10, _message));
+
+      await send(MessagesWatcherEvent.messageRevealRequested(id('m0005')));
+      final first = bloc.state.lastReveal;
+      await send(MessagesWatcherEvent.messageRevealRequested(id('m0005')));
+
+      expect(bloc.state.lastReveal, isNot(first));
     });
   });
 }

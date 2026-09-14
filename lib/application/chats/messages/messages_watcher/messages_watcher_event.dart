@@ -12,6 +12,9 @@ sealed class MessagesWatcherEvent extends Equatable {
   const factory MessagesWatcherEvent.searchChanged(String query) =
       MessagesSearchChanged;
   const factory MessagesWatcherEvent.searchClosed() = MessagesSearchClosed;
+  const factory MessagesWatcherEvent.messageRevealRequested(
+    UniqueId messageId,
+  ) = MessageRevealRequested;
 
   @override
   List<Object?> get props => const [];
@@ -49,4 +52,13 @@ final class MessagesSearchChanged extends MessagesWatcherEvent {
 /// The user left the search.
 final class MessagesSearchClosed extends MessagesWatcherEvent {
   const MessagesSearchClosed();
+}
+
+/// The user wants to see [messageId], such as the message a reply quotes.
+/// Older pages load until it is loaded.
+final class MessageRevealRequested extends MessagesWatcherEvent {
+  final UniqueId messageId;
+  const MessageRevealRequested(this.messageId);
+  @override
+  List<Object?> get props => [messageId];
 }

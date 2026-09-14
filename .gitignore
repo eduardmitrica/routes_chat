@@ -17,7 +17,9 @@
 *.iml
 *.ipr
 *.iws
-.idea/
+.idea/*
+# Shared run configurations pass --dart-define-from-file=.env.
+!.idea/runConfigurations/
 
 # Visual Studio Code related
 .classpath
@@ -138,9 +140,13 @@ app.*.symbols
 !.vscode/settings.json
 
 firebase.json
-firebase_options.dart
 devtools_options.yaml
 web/index.html
 .firebase/hosting.*.cache
 android/app/.cxx
 android/.kotlin/sessions
+
+# Local configuration, read at compile time (see .env.example).
+.env
+.env.*
+!.env.example

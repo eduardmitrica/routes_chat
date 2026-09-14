@@ -1,4 +1,5 @@
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { defineString } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
@@ -8,9 +9,11 @@ const { recipientsOf, notificationFor, deadTokens } = require("./notify");
 
 initializeApp();
 
-// The app's data lives in the named database "routes"; "(default)" does not
-// exist in this project.
-const db = getFirestore("routes");
+// The named Firestore database the app uses, from functions/.env (see
+// .env.example). This project has no "(default)" database.
+const databaseId = defineString("FIRESTORE_DATABASE_ID", {
+  description: "Named Firestore database the app reads and writes",
+});
 
 /**
  * Notifies the other participants of a chat when a message is sent.
@@ -22,7 +25,7 @@ const db = getFirestore("routes");
 exports.notifyNewMessage = onDocumentCreated(
   {
     document: "chats/{chatId}/messages/{messageId}",
-    database: "routes",
+    database: databaseId,
     // The database is in the eur3 multi-region.
     region: "europe-west1",
   },
@@ -30,6 +33,7 @@ exports.notifyNewMessage = onDocumentCreated(
     const message = event.data && event.data.data();
     if (!message) return;
     const { chatId } = event.params;
+    const db = getFirestore(databaseId.value());
 
     // The first message of a chat is written in the same transaction as the
     // chat itself, so the chat exists by the time this runs.

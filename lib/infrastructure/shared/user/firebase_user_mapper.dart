@@ -7,35 +7,38 @@ import '../../../domain/shared/user/user_utils_interface.dart';
 import '../../../domain/shared/user/value_objects.dart';
 
 extension FirebaseUserMapper on User {
-  Future<domain_user.User> toDomain(
+  /// The signed-in user's profile, or null when it does not exist or cannot be
+  /// read, for example an Auth account whose registration never completed.
+  ///
+  /// This used to signal "no profile" by returning a user with an invalid
+  /// email address. Profiles no longer store an email address, so absence is
+  /// now explicit.
+  Future<domain_user.User?> toDomain(
     FirebaseFirestore fireStore,
     IUserUtils userUtils,
   ) async {
-    DocumentSnapshot<Map<String, dynamic>> documentSnapshot;
+    final DocumentSnapshot<Map<String, dynamic>> documentSnapshot;
     try {
       documentSnapshot = await fireStore.collection('users').doc(uid).get();
     } on FirebaseException catch (_) {
-      return domain_user.User(
-        id: UniqueId(),
-        description: Description(''),
-        emailAddress: EmailAddress(''),
-        imageUrl: ImageUrl(''),
-        username: Username(''),
-      );
+      return null;
+    }
+
+    final profile = documentSnapshot.data();
+    if (!documentSnapshot.exists || profile == null) {
+      return null;
     }
 
     final username = await Username.checkAgainstDatabaseWhenFetching(
       userUtils,
-      documentSnapshot['username'],
+      profile['username'],
     );
-    final usernameString = username.getOrCrash();
 
     return domain_user.User(
       id: UniqueId.fromUniqueString(uid),
-      emailAddress: EmailAddress(documentSnapshot['emailAddress']),
-      username: Username(usernameString),
-      description: Description(documentSnapshot['description']),
-      imageUrl: ImageUrl(documentSnapshot['imageUrl']),
+      username: Username(username.getOrCrash()),
+      description: Description(profile['description']),
+      imageUrl: ImageUrl(profile['imageUrl']),
     );
   }
 }

@@ -47,7 +47,6 @@ class _FakeUserRepository implements IUserRepository {
     return Right(
       User(
         id: UniqueId.fromUniqueString('uid-$name'),
-        emailAddress: value_objects.EmailAddress('$name@example.com'),
         imageUrl: value_objects.ImageUrl('https://example.com/$name.jpg'),
         username: value_objects.Username(name),
         description: value_objects.Description(''),

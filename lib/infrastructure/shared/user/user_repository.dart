@@ -156,7 +156,11 @@ class UserFacade implements IUserRepository {
   Stream<Either<UserFailure, KtList<User>>> watchUsersWithIds(
     KtList<UniqueId> ids,
   ) async* {
-    final uniqueIds = ids.map((id) => id.getOrCrash()).asList().toSet().toList();
+    final uniqueIds = ids
+        .map((id) => id.getOrCrash())
+        .asList()
+        .toSet()
+        .toList();
     if (uniqueIds.isEmpty) {
       yield right<UserFailure, KtList<User>>(const KtList<User>.empty());
       return;

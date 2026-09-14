@@ -12,7 +12,9 @@ class UserUtils implements IUserUtils {
   Future<bool> checkIfUsernameAlreadyExists(String usernameInput) async {
     // Reads the public index instead of querying `users`: this runs before
     // the account exists, and `users` is only readable once signed in.
-    final claim = await _firebaseFirestore.usernameDocument(usernameInput).get();
+    final claim = await _firebaseFirestore
+        .usernameDocument(usernameInput)
+        .get();
     return claim.exists;
   }
 }

@@ -23,6 +23,9 @@ import 'message_bubble.dart';
 import 'message_composer.dart';
 import 'messages_skeleton.dart';
 import 'swipe_to_reply.dart';
+import 'package:routes_chat/domain/chats/messages/message_links.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'open_link_dialog.dart';
 
 class ChatPage extends StatelessWidget {
   static const chatPageRoute = '/home/chats/chat';
@@ -57,8 +60,6 @@ class ChatPage extends StatelessWidget {
     );
   }
 }
-
-enum _MessageAction { reply, copy }
 
 /// The chat with [otherUser]: its messages, a page at a time, a search over
 /// them, and replies to them. [chat] is null until the first message is sent.
@@ -159,7 +160,14 @@ class _ChatViewState extends State<_ChatView> {
   }
 
   Future<void> _showMessageActions(Message message) async {
-    final action = await showModalBottomSheet<_MessageAction>(
+    final text = message.content.getOrCrash();
+    // A few at most: the sheet is for this message, not a list of links.
+    final links = {
+      for (final part in splitLinks(text))
+        if (part.link != null) part.text,
+    }.take(3);
+    // Each item returns what to do once the sheet has closed.
+    final action = await showModalBottomSheet<VoidCallback>(
       context: context,
       showDragHandle: true,
       builder: (context) => SafeArea(
@@ -169,32 +177,70 @@ class _ChatViewState extends State<_ChatView> {
             ListTile(
               leading: const Icon(Icons.reply_rounded),
               title: const Text('Reply'),
-              onTap: () => Navigator.of(context).pop(_MessageAction.reply),
+              onTap: () =>
+                  Navigator.of(context).pop(() => _startReply(message)),
             ),
             ListTile(
               leading: const Icon(Icons.copy_rounded),
               title: const Text('Copy text'),
-              onTap: () => Navigator.of(context).pop(_MessageAction.copy),
+              onTap: () => Navigator.of(
+                context,
+              ).pop(() => _copy(text, 'Message copied')),
             ),
+            for (final link in links)
+              ListTile(
+                leading: const Icon(Icons.link_rounded),
+                title: const Text('Copy link'),
+                subtitle: Text(
+                  link,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onTap: () =>
+                    Navigator.of(context).pop(() => _copy(link, 'Link copied')),
+              ),
           ],
         ),
       ),
     );
+    if (mounted) action?.call();
+  }
+
+  Future<void> _copy(String text, String confirmation) async {
+    await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
-    switch (action) {
-      case _MessageAction.reply:
-        _startReply(message);
-      case _MessageAction.copy:
-        await Clipboard.setData(
-          ClipboardData(text: message.content.getOrCrash()),
-        );
-        if (!mounted) return;
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(const SnackBar(content: Text('Message copied')));
-      case null:
-        break;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(confirmation)));
+  }
+
+  /// Asks first, then opens [link]: a web page in a browser tab over the
+  /// app, an email address in the mail app.
+  ///
+  /// The tab is the browser's own (Custom Tabs on Android, Safari View
+  /// Controller on iOS), not a web view inside the app. The page keeps the
+  /// browser's protections, such as Safe Browsing, and the app cannot see what
+  /// is typed into it. Closing the tab returns to the chat.
+  Future<void> _openLink(Uri link) async {
+    if (!await confirmOpenLink(context, link) || !mounted) return;
+    bool opened;
+    try {
+      opened = link.scheme == 'mailto'
+          ? await launchUrl(link, mode: LaunchMode.externalApplication)
+          : await launchUrl(link, mode: LaunchMode.inAppBrowserView) ||
+                // Without a browser that supports tabs, the browser itself.
+                await launchUrl(link, mode: LaunchMode.externalApplication);
+    } on PlatformException {
+      opened = false;
     }
+    if (opened || !mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('No app on this phone can open that link'),
+        ),
+      );
   }
 
   /// Asks for the message a reply quotes, loading older pages if it is not
@@ -472,6 +518,7 @@ class _ChatViewState extends State<_ChatView> {
               ? null
               : () => _revealMessage(quote.messageId),
           onLongPress: () => _showMessageActions(message),
+          onOpenLink: _openLink,
         ),
       ),
     );

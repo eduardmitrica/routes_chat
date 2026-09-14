@@ -60,6 +60,7 @@ dependencies:
   flutter_secure_storage: ^11.1.1
   super_sliver_list: ^0.4.1
   characters: ^1.4.1
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

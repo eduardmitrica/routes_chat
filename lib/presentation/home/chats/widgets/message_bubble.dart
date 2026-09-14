@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/presentation/core/theme/app_colors.dart';
 
+import 'linkified_text.dart';
+
 /// A message in the chat, on the side of whoever sent it. A reply shows the
-/// message it answers above its own text.
+/// message it answers above its own text, and links in the text open when
+/// tapped.
 class MessageBubble extends StatelessWidget {
   final Message message;
 
@@ -21,6 +24,9 @@ class MessageBubble extends StatelessWidget {
 
   final VoidCallback? onLongPress;
 
+  /// Called with a link in the text that was tapped.
+  final ValueChanged<Uri>? onOpenLink;
+
   const MessageBubble({
     super.key,
     required this.message,
@@ -29,12 +35,19 @@ class MessageBubble extends StatelessWidget {
     this.quoteAuthor,
     this.onQuoteTap,
     this.onLongPress,
+    this.onOpenLink,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = AppColors.of(context);
     final foreground = sent ? colors.onSentBubble : colors.onReceivedBubble;
+    final linkColor = sent
+        ? colors.linkOnSentBubble
+        : colors.linkOnReceivedBubble;
+    final textStyle = Theme.of(
+      context,
+    ).textTheme.bodyLarge?.copyWith(color: foreground);
     final quote = message.replyTo;
     const round = Radius.circular(18);
     const tucked = Radius.circular(4);
@@ -77,11 +90,15 @@ class MessageBubble extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
                     ],
-                    Text(
+                    LinkifiedText(
                       message.content.getOrCrash(),
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodyLarge?.copyWith(color: foreground),
+                      style: textStyle,
+                      linkStyle: TextStyle(
+                        color: linkColor,
+                        decoration: TextDecoration.underline,
+                        decorationColor: linkColor,
+                      ),
+                      onOpenLink: onOpenLink,
                     ),
                   ],
                 ),

@@ -112,8 +112,10 @@ void main() {
 
   test('nothing registers or unregisters dependencies at runtime', () {
     final offenders = <String>[];
-    final runtimeMutation = RegExp(r'\b(?:getIt|GetIt\.instance)\s*\.\s*'
-        r'(?:register\w*|unregister|reset|pushNewScope|popScope)\b');
+    final runtimeMutation = RegExp(
+      r'\b(?:getIt|GetIt\.instance)\s*\.\s*'
+      r'(?:register\w*|unregister|reset|pushNewScope|popScope)\b',
+    );
 
     for (final directory in [...guardedDirectories, 'lib/presentation']) {
       for (final file in dartFilesIn(directory)) {

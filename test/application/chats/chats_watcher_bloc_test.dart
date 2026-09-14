@@ -14,8 +14,7 @@ class _FakeChatRepository implements IChatRepository {
       Stream.value(right(const KtList<Chat>.empty()));
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 void main() {
@@ -50,9 +49,7 @@ void main() {
     final bloc = ChatsWatcherBloc(_FakeChatRepository(), session);
     addTearDown(bloc.close);
 
-    bloc.add(
-      ChatsWatcherEvent.chatsReceived(left(InsufficientPermissions())),
-    );
+    bloc.add(ChatsWatcherEvent.chatsReceived(left(InsufficientPermissions())));
 
     await expectLater(bloc.stream, emits(isA<ChatsWatcherLoadFailure>()));
   });

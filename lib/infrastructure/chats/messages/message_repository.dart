@@ -8,6 +8,7 @@ import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/messages/message.dart';
 
 import 'package:routes_chat/domain/chats/messages/message_failure.dart';
+import 'package:routes_chat/domain/chats/messages/message_page.dart';
 
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/infrastructure/chats/messages/message_data_transfer_object.dart';
@@ -34,40 +35,78 @@ class MessageRepository implements IMessageRepository {
   );
 
   @override
-  Stream<Either<MessageFailure, KtList<Message>>> watchAllForChatWithId(
-    UniqueId chatId,
-  ) async* {
+  Stream<Either<MessageFailure, MessagePage>> watchLatestForChatWithId(
+    UniqueId chatId, {
+    required int limit,
+  }) async* {
     final id = chatId.getOrCrash();
     if (_session.current == null) {
       yield left(InsufficientPermissions());
       return;
     }
 
-    // Every snapshot carries all the messages again. They do not change once
-    // sent, so each is decrypted once per listen.
+    // Every snapshot carries the whole page again. Messages do not change
+    // once sent, so each is decrypted once per listen.
     final decrypted = <String, (String, bool)>{};
-    yield* _firestore
-        .collection('chats')
-        .doc(id)
-        .collection('messages')
-        .orderBy('serverTimeStamp', descending: false)
+    yield* _messages(id)
+        .orderBy('serverTimeStamp', descending: true)
+        .limit(limit)
         .snapshots()
         .takeUntil(_session.ended)
         .asyncMap(
-          (snapShot) async => (await Future.wait(
-            snapShot.docs.map(
-              (document) => _decryptedMessage(document, id, decrypted),
-            ),
-          )).nonNulls,
-        )
-        .map(
-          (messages) => right<MessageFailure, KtList<Message>>(
-            messages.toImmutableList(),
+          (snapShot) async => right<MessageFailure, MessagePage>(
+            await _page(snapShot.docs, id, limit, decrypted),
           ),
         )
         .onErrorReturnWith(
           (exception, stackTrace) => left(_failureFor(exception)),
         );
+  }
+
+  @override
+  Future<Either<MessageFailure, MessagePage>> getPageBefore(
+    UniqueId chatId,
+    UniqueId messageId, {
+    required int limit,
+  }) async {
+    final id = chatId.getOrCrash();
+    try {
+      final messages = _messages(id);
+      // The page starts right after this message, in the same order as the
+      // live page, so no message falls between the two.
+      final cursor = await messages.doc(messageId.getOrCrash()).get();
+      if (!cursor.exists) {
+        return Left(Unexpected());
+      }
+      final older = await messages
+          .orderBy('serverTimeStamp', descending: true)
+          .startAfterDocument(cursor)
+          .limit(limit)
+          .get();
+      return Right(await _page(older.docs, id, limit, {}));
+    } on Exception catch (exception) {
+      return Left(_failureFor(exception));
+    }
+  }
+
+  /// [documents], newest first as queried, as a page of messages oldest first.
+  Future<MessagePage> _page(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
+    String chatId,
+    int limit,
+    Map<String, (String, bool)> decrypted,
+  ) async {
+    final messages = (await Future.wait(
+      documents.map(
+        (document) => _decryptedMessage(document, chatId, decrypted),
+      ),
+    )).nonNulls.toList().reversed;
+    // Fewer documents than asked for means there are none older. Counted
+    // before any document not in the stored format is left out.
+    return MessagePage(
+      messages.toImmutableList(),
+      reachesStart: documents.length < limit,
+    );
   }
 
   /// [document] as a message, its text decrypted. One that does not decrypt,
@@ -171,6 +210,9 @@ class MessageRepository implements IMessageRepository {
       return Left(_failureFor(exception));
     }
   }
+
+  CollectionReference<Map<String, dynamic>> _messages(String chatId) =>
+      _firestore.collection('chats').doc(chatId).collection('messages');
 
   static MessageFailure _failureFor(Object exception) {
     if (exception is FirebaseException &&

@@ -122,20 +122,25 @@ service cloud.firestore {
          resource.data.receiverId == request.auth.uid);
     }
 
-    // Reads and writes are both enforced against participantIds, the flat
-    // mirror of participants that ChatDataTransferObject derives for exactly
-    // this purpose (rules cannot iterate participants, which is a list of
-    // maps). ChatRepository queries with
-    // `where('participantIds', arrayContains: <uid>)`, which is what lets a
-    // list query satisfy the read rule below — Firestore validates a list
-    // against what it could return, so an unscoped listen is denied outright.
+    // Chats are readable and writable only by their participants. Writes and
+    // list queries are enforced against participantIds, the flat mirror of
+    // participants that ChatDataTransferObject derives for exactly this
+    // purpose (rules cannot iterate participants, which is a list of maps).
     match /chats/{chatId} {
       function participantIds() {
         return get(/databases/$(database)/documents/chats/$(chatId))
           .data.participantIds;
       }
 
-      allow read: if signedIn() &&
+      // A direct read is checked against the chat id, which the create rule
+      // below ties to the participants. That lets it work for a chat that does
+      // not exist yet: ChatRepository.create reads the chat in its transaction
+      // before deciding to create it, and a rule over resource.data denies
+      // that read, which made starting any chat fail. A list query must be
+      // scoped with `participantIds arrayContains <uid>`, which the app always
+      // does; Firestore checks a list against everything it could return.
+      allow get: if signedIn() && request.auth.uid in chatId.split('_');
+      allow list: if signedIn() &&
         request.auth.uid in resource.data.participantIds;
       // The chat id is the two participant ids, sorted and joined with "_"
       // (compositeId in the app), so the same two people always share one

@@ -35,5 +35,10 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # Fails on errors and warnings, and on infos too (Flutter's default), so
+      # lints stay at zero the way they are locally.
+      - name: Analyze
+        run: flutter analyze
+
       - name: Run tests
         run: flutter test

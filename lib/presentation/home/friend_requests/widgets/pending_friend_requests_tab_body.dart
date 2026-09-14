@@ -76,8 +76,10 @@ class PendingFriendRequestsTabBody extends StatelessWidget {
                                           receivingUser?.username
                                                   .getOrCrash() ??
                                               '',
-                                          style: const TextStyle(
-                                            color: Colors.deepPurpleAccent,
+                                          style: TextStyle(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primary,
                                           ),
                                         ),
                                         const SizedBox(height: 10),
@@ -93,7 +95,6 @@ class PendingFriendRequestsTabBody extends StatelessWidget {
                               );
                             },
                             child: CircleAvatar(
-                              backgroundColor: Colors.deepPurpleAccent,
                               foregroundImage: NetworkImage(
                                 receivingUser?.imageUrl.getOrCrash() ??
                                     getIt<PlaceholderFetcherBloc>()

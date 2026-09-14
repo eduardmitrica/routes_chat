@@ -17,6 +17,8 @@ import 'package:routes_chat/injection.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 
 import 'chat_timeline.dart';
+import 'package:routes_chat/presentation/core/theme/app_colors.dart';
+import 'messages_skeleton.dart';
 
 class ChatPage extends StatelessWidget {
   static const chatPageRoute = '/home/chats/chat';
@@ -230,10 +232,7 @@ class _ChatViewState extends State<_ChatView> {
       onPressed: () => Navigator.of(context).pop(),
       icon: const Icon(Icons.arrow_back_rounded),
     ),
-    title: Text(
-      widget.otherUser.username.getOrCrash(),
-      style: const TextStyle(color: Colors.deepPurpleAccent),
-    ),
+    title: Text(widget.otherUser.username.getOrCrash()),
     actions: [
       if (canSearch)
         IconButton(
@@ -241,8 +240,11 @@ class _ChatViewState extends State<_ChatView> {
           onPressed: _openSearch,
           icon: const Icon(Icons.search),
         ),
-      CircleAvatar(
-        foregroundImage: NetworkImage(widget.otherUser.imageUrl.getOrCrash()),
+      Padding(
+        padding: const EdgeInsets.only(left: 4, right: 12),
+        child: CircleAvatar(
+          foregroundImage: NetworkImage(widget.otherUser.imageUrl.getOrCrash()),
+        ),
       ),
     ],
   );
@@ -292,9 +294,8 @@ class _ChatViewState extends State<_ChatView> {
           previous.loadingOlder != current.loadingOlder ||
           previous.reachedStart != current.reachedStart,
       builder: (context, state) => switch (state.status) {
-        MessagesStatus.initial || MessagesStatus.loading => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        MessagesStatus.initial ||
+        MessagesStatus.loading => const MessagesSkeleton(),
         MessagesStatus.failure when state.messages.isEmpty() => const Center(
           child: Text('Messages could not be loaded'),
         ),
@@ -314,33 +315,17 @@ class _ChatViewState extends State<_ChatView> {
       itemCount: items.length + (state.loadingOlder ? 1 : 0),
       itemBuilder: (context, index) => index < items.length
           ? _row(items[items.length - 1 - index])
-          : const Padding(
-              padding: EdgeInsets.all(12),
-              child: Center(
-                child: SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            ),
+          : const MessagesSkeleton.older(),
     );
   }
 
   Widget _row(ChatTimelineItem item) {
     final otherUser = widget.otherUser;
     return switch (item) {
-      MessageItem(:final message) => AnimatedContainer(
-        duration: const Duration(milliseconds: 300),
-        color: message.id.getOrCrash() == _highlightedMessageId
-            ? Colors.amber.withValues(alpha: 0.3)
-            : Colors.transparent,
-        child: BubbleSpecialThree(
-          color: Colors.deepPurpleAccent,
-          textStyle: const TextStyle(color: Colors.white),
-          tail: false,
-          text: message.content.getOrCrash(),
-          isSender: message.senderId.getOrCrash() != otherUser.id.getOrCrash(),
-        ),
+      MessageItem(:final message) => _MessageBubble(
+        message: message,
+        sent: message.senderId.getOrCrash() != otherUser.id.getOrCrash(),
+        highlighted: message.id.getOrCrash() == _highlightedMessageId,
       ),
       UnreadableMessagesItem(:final count) => _ChatNotice(
         icon: Icons.lock_outline,
@@ -470,8 +455,26 @@ class _ChatBar extends StatelessWidget {
             previousState.showErrorMessages != currentState.showErrorMessages,
         builder: (context, state) {
           final chat = this.chat;
+          final scheme = Theme.of(context).colorScheme;
           return MessageBar(
-            messageBarColor: Colors.deepPurpleAccent,
+            messageBarColor: scheme.surfaceContainer,
+            sendButtonColor: scheme.primary,
+            textFieldTextStyle: TextStyle(color: scheme.onSurface),
+            messageBarHintStyle: TextStyle(
+              fontSize: 16,
+              color: scheme.onSurfaceVariant,
+            ),
+            messageBarStyle: MessageBarStyle(
+              fillColor: scheme.surfaceContainerHighest,
+              enabledBorder: const OutlineInputBorder(
+                borderRadius: BorderRadius.all(Radius.circular(24)),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: const BorderRadius.all(Radius.circular(24)),
+                borderSide: BorderSide(color: scheme.primary),
+              ),
+            ),
             messageBarHintText: 'Start typing...',
             onTextChanged: (value) => BlocProvider.of<ChatBarBloc>(
               context,
@@ -556,4 +559,37 @@ String? _sendFailureMessage(ChatBarState state) {
       'You are not allowed to send messages in this chat',
     message_failure.Unexpected() => 'The message could not be sent, try again',
   };
+}
+
+/// A message in the chat, on the side of whoever sent it.
+class _MessageBubble extends StatelessWidget {
+  final Message message;
+  final bool sent;
+
+  /// Whether the chat was just scrolled to it, from a search.
+  final bool highlighted;
+
+  const _MessageBubble({
+    required this.message,
+    required this.sent,
+    required this.highlighted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppColors.of(context);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      color: highlighted ? colors.messageHighlight : Colors.transparent,
+      child: BubbleSpecialThree(
+        color: sent ? colors.sentBubble : colors.receivedBubble,
+        textStyle: TextStyle(
+          color: sent ? colors.onSentBubble : colors.onReceivedBubble,
+        ),
+        tail: false,
+        text: message.content.getOrCrash(),
+        isSender: sent,
+      ),
+    );
+  }
 }

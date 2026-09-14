@@ -72,7 +72,7 @@ class SearchPageBody extends StatelessWidget {
                       FocusManager.instance.primaryFocus?.unfocus(),
                 ),
                 const SizedBox(height: 20.0),
-                ElevatedButton(
+                FilledButton(
                   onPressed: state is FriendRequestActorActionInProgress
                       ? null
                       : () => BlocProvider.of<FriendRequestActorBloc>(context)

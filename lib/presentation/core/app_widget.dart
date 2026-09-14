@@ -7,6 +7,8 @@ import 'package:routes_chat/application/authentication/sign_in_form/sign_in_form
 import 'package:routes_chat/presentation/core/routes/routes.dart';
 
 import '../../injection.dart';
+import 'package:routes_chat/application/settings/appearance/appearance_bloc.dart';
+import 'package:routes_chat/presentation/core/theme/app_theme.dart';
 
 class AppWidget extends StatelessWidget {
   const AppWidget({super.key});
@@ -28,14 +30,16 @@ class AppWidget extends StatelessWidget {
         ),
         BlocProvider(create: (_) => getIt<SignInFormBloc>()),
         BlocProvider(create: (_) => getIt<RegisterFormBloc>(), lazy: false),
+        BlocProvider(create: (_) => getIt<AppearanceBloc>()),
       ],
-      child: MaterialApp(
-        title: 'Routes Chat',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-          useMaterial3: true,
+      child: BlocBuilder<AppearanceBloc, Appearance>(
+        builder: (context, appearance) => MaterialApp(
+          title: 'Routes Chat',
+          theme: AppTheme.light,
+          darkTheme: AppTheme.dark,
+          themeMode: appearance.themeMode,
+          routes: routes,
         ),
-        routes: routes,
       ),
     );
   }

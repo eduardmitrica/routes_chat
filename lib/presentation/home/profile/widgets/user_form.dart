@@ -11,6 +11,7 @@ import 'package:routes_chat/presentation/home/profile/widgets/sign_out.dart';
 import '../../../../domain/core/failures.dart';
 import '../../../../domain/shared/user/user.dart';
 import '../../../../domain/shared/user/user_failure.dart';
+import 'package:routes_chat/presentation/home/profile/widgets/appearance_picker.dart';
 
 class UserForm extends StatefulWidget {
   final User user;
@@ -129,7 +130,7 @@ class _UserFormState extends State<UserForm> {
 
         return Form(
           child: ListView(
-            padding: const EdgeInsets.all(15.0),
+            padding: const EdgeInsets.all(24),
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -144,7 +145,6 @@ class _UserFormState extends State<UserForm> {
                           previousState.imagePath != currentState.imagePath,
                       builder: (context, state) {
                         return CircleAvatar(
-                          backgroundColor: Colors.deepPurpleAccent,
                           foregroundImage: state.imagePath.comesFromUrl()
                               ? NetworkImage(state.user.imageUrl.getOrCrash())
                               : FileImage(File(state.imagePath.getOrCrash())),
@@ -192,6 +192,7 @@ class _UserFormState extends State<UserForm> {
                       (_) => null,
                     ),
               ),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _descriptionController,
                 autovalidateMode: state.showErrorMessages
@@ -220,19 +221,17 @@ class _UserFormState extends State<UserForm> {
                     ),
               ),
               const SizedBox(height: 20),
-              Row(
-                children: [
-                  const Spacer(flex: 1),
-                  ElevatedButton(
-                    onPressed: () => BlocProvider.of<UserFormBloc>(
-                      context,
-                    ).add(const UserFormEvent.saved()),
-                    child: const Text('Save changes'),
-                  ),
-                  const Spacer(flex: 1),
-                ],
+              FilledButton(
+                onPressed: () => BlocProvider.of<UserFormBloc>(
+                  context,
+                ).add(const UserFormEvent.saved()),
+                child: const Text('Save changes'),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 32),
+              Text('Appearance', style: Theme.of(context).textTheme.titleSmall),
+              const SizedBox(height: 8),
+              const AppearancePicker(),
+              const SizedBox(height: 32),
               const SignOut(),
               const SizedBox(height: 10),
               BlocBuilder<UserFormBloc, UserFormState>(

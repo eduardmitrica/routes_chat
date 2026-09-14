@@ -20,17 +20,12 @@ class SignOut extends StatelessWidget {
             ).pushReplacementNamed(SignInPage.signInPageRoute);
         }
       },
-      child: Row(
-        children: [
-          const Spacer(flex: 1),
-          ElevatedButton(
-            onPressed: () => BlocProvider.of<AuthenticationBloc>(
-              context,
-            ).add(const AuthenticationEvent.signedOut()),
-            child: const Text('Sign out'),
-          ),
-          const Spacer(flex: 1),
-        ],
+      child: OutlinedButton.icon(
+        onPressed: () => BlocProvider.of<AuthenticationBloc>(
+          context,
+        ).add(const AuthenticationEvent.signedOut()),
+        icon: const Icon(Icons.logout_rounded),
+        label: const Text('Sign out'),
       ),
     );
   }

@@ -18,5 +18,14 @@ abstract class Message with _$Message {
     required UniqueId repliedMessageId,
     required DateTime? lastUpdatedAt,
     required bool isEdited,
+
+    /// Whether this device could decrypt the message. When it could not, for
+    /// example because it was sent before the user reset their keys,
+    /// [content] is only a placeholder.
+    @Default(true) bool isReadable,
+
+    /// The generation of the chat's key it was encrypted under. It grows each
+    /// time a participant resets their keys.
+    @Default(1) int keyGeneration,
   }) = _Message;
 }

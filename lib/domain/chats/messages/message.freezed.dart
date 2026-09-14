@@ -15,7 +15,12 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Message {
 
- UniqueId get id; UniqueId get senderId; KtList<ImageUrl> get imageUrls; KtList<UniqueId> get reactions; Content get content; UniqueId get repliedMessageId; DateTime? get lastUpdatedAt; bool get isEdited;
+ UniqueId get id; UniqueId get senderId; KtList<ImageUrl> get imageUrls; KtList<UniqueId> get reactions; Content get content; UniqueId get repliedMessageId; DateTime? get lastUpdatedAt; bool get isEdited;/// Whether this device could decrypt the message. When it could not, for
+/// example because it was sent before the user reset their keys,
+/// [content] is only a placeholder.
+ bool get isReadable;/// The generation of the chat's key it was encrypted under. It grows each
+/// time a participant resets their keys.
+ int get keyGeneration;
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,20 +32,20 @@ $MessageCopyWith<Message> get copyWith => _$MessageCopyWithImpl<Message>(this as
 @override
 bool operator ==(Object other) {
   final _this = this as Message;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.senderId, _this.senderId) || other.senderId == _this.senderId)&&(identical(other.imageUrls, _this.imageUrls) || other.imageUrls == _this.imageUrls)&&(identical(other.reactions, _this.reactions) || other.reactions == _this.reactions)&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.repliedMessageId, _this.repliedMessageId) || other.repliedMessageId == _this.repliedMessageId)&&(identical(other.lastUpdatedAt, _this.lastUpdatedAt) || other.lastUpdatedAt == _this.lastUpdatedAt)&&(identical(other.isEdited, _this.isEdited) || other.isEdited == _this.isEdited));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Message&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.senderId, _this.senderId) || other.senderId == _this.senderId)&&(identical(other.imageUrls, _this.imageUrls) || other.imageUrls == _this.imageUrls)&&(identical(other.reactions, _this.reactions) || other.reactions == _this.reactions)&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.repliedMessageId, _this.repliedMessageId) || other.repliedMessageId == _this.repliedMessageId)&&(identical(other.lastUpdatedAt, _this.lastUpdatedAt) || other.lastUpdatedAt == _this.lastUpdatedAt)&&(identical(other.isEdited, _this.isEdited) || other.isEdited == _this.isEdited)&&(identical(other.isReadable, _this.isReadable) || other.isReadable == _this.isReadable)&&(identical(other.keyGeneration, _this.keyGeneration) || other.keyGeneration == _this.keyGeneration));
 }
 
 
 @override
 int get hashCode {
   final _this = this as Message;
-  return Object.hash(runtimeType,_this.id,_this.senderId,_this.imageUrls,_this.reactions,_this.content,_this.repliedMessageId,_this.lastUpdatedAt,_this.isEdited);
+  return Object.hash(runtimeType,_this.id,_this.senderId,_this.imageUrls,_this.reactions,_this.content,_this.repliedMessageId,_this.lastUpdatedAt,_this.isEdited,_this.isReadable,_this.keyGeneration);
 }
 
 @override
 String toString() {
   final _this = this as Message;
-  return 'Message(id: ${_this.id}, senderId: ${_this.senderId}, imageUrls: ${_this.imageUrls}, reactions: ${_this.reactions}, content: ${_this.content}, repliedMessageId: ${_this.repliedMessageId}, lastUpdatedAt: ${_this.lastUpdatedAt}, isEdited: ${_this.isEdited})';
+  return 'Message(id: ${_this.id}, senderId: ${_this.senderId}, imageUrls: ${_this.imageUrls}, reactions: ${_this.reactions}, content: ${_this.content}, repliedMessageId: ${_this.repliedMessageId}, lastUpdatedAt: ${_this.lastUpdatedAt}, isEdited: ${_this.isEdited}, isReadable: ${_this.isReadable}, keyGeneration: ${_this.keyGeneration})';
 }
 
 
@@ -51,7 +56,7 @@ abstract mixin class $MessageCopyWith<$Res>  {
   factory $MessageCopyWith(Message value, $Res Function(Message) _then) = _$MessageCopyWithImpl;
 @useResult
 $Res call({
- UniqueId id, UniqueId senderId, KtList<ImageUrl> imageUrls, KtList<UniqueId> reactions, Content content, UniqueId repliedMessageId, DateTime? lastUpdatedAt, bool isEdited
+ UniqueId id, UniqueId senderId, KtList<ImageUrl> imageUrls, KtList<UniqueId> reactions, Content content, UniqueId repliedMessageId, DateTime? lastUpdatedAt, bool isEdited, bool isReadable, int keyGeneration
 });
 
 
@@ -68,7 +73,7 @@ class _$MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? senderId = null,Object? imageUrls = null,Object? reactions = null,Object? content = null,Object? repliedMessageId = null,Object? lastUpdatedAt = freezed,Object? isEdited = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? senderId = null,Object? imageUrls = null,Object? reactions = null,Object? content = null,Object? repliedMessageId = null,Object? lastUpdatedAt = freezed,Object? isEdited = null,Object? isReadable = null,Object? keyGeneration = null,}) {
   return _then(Message(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as UniqueId,senderId: null == senderId ? _self.senderId : senderId // ignore: cast_nullable_to_non_nullable
@@ -78,7 +83,9 @@ as KtList<UniqueId>,content: null == content ? _self.content : content // ignore
 as Content,repliedMessageId: null == repliedMessageId ? _self.repliedMessageId : repliedMessageId // ignore: cast_nullable_to_non_nullable
 as UniqueId,lastUpdatedAt: freezed == lastUpdatedAt ? _self.lastUpdatedAt : lastUpdatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,isEdited: null == isEdited ? _self.isEdited : isEdited // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,isReadable: null == isReadable ? _self.isReadable : isReadable // ignore: cast_nullable_to_non_nullable
+as bool,keyGeneration: null == keyGeneration ? _self.keyGeneration : keyGeneration // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 
@@ -163,10 +170,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( UniqueId id,  UniqueId senderId,  KtList<ImageUrl> imageUrls,  KtList<UniqueId> reactions,  Content content,  UniqueId repliedMessageId,  DateTime? lastUpdatedAt,  bool isEdited)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( UniqueId id,  UniqueId senderId,  KtList<ImageUrl> imageUrls,  KtList<UniqueId> reactions,  Content content,  UniqueId repliedMessageId,  DateTime? lastUpdatedAt,  bool isEdited,  bool isReadable,  int keyGeneration)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
-return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.content,_that.repliedMessageId,_that.lastUpdatedAt,_that.isEdited);case _:
+return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.content,_that.repliedMessageId,_that.lastUpdatedAt,_that.isEdited,_that.isReadable,_that.keyGeneration);case _:
   return orElse();
 
 }
@@ -184,10 +191,10 @@ return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.co
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( UniqueId id,  UniqueId senderId,  KtList<ImageUrl> imageUrls,  KtList<UniqueId> reactions,  Content content,  UniqueId repliedMessageId,  DateTime? lastUpdatedAt,  bool isEdited)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( UniqueId id,  UniqueId senderId,  KtList<ImageUrl> imageUrls,  KtList<UniqueId> reactions,  Content content,  UniqueId repliedMessageId,  DateTime? lastUpdatedAt,  bool isEdited,  bool isReadable,  int keyGeneration)  $default,) {final _that = this;
 switch (_that) {
 case _Message():
-return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.content,_that.repliedMessageId,_that.lastUpdatedAt,_that.isEdited);case _:
+return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.content,_that.repliedMessageId,_that.lastUpdatedAt,_that.isEdited,_that.isReadable,_that.keyGeneration);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -204,10 +211,10 @@ return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.co
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( UniqueId id,  UniqueId senderId,  KtList<ImageUrl> imageUrls,  KtList<UniqueId> reactions,  Content content,  UniqueId repliedMessageId,  DateTime? lastUpdatedAt,  bool isEdited)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( UniqueId id,  UniqueId senderId,  KtList<ImageUrl> imageUrls,  KtList<UniqueId> reactions,  Content content,  UniqueId repliedMessageId,  DateTime? lastUpdatedAt,  bool isEdited,  bool isReadable,  int keyGeneration)?  $default,) {final _that = this;
 switch (_that) {
 case _Message() when $default != null:
-return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.content,_that.repliedMessageId,_that.lastUpdatedAt,_that.isEdited);case _:
+return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.content,_that.repliedMessageId,_that.lastUpdatedAt,_that.isEdited,_that.isReadable,_that.keyGeneration);case _:
   return null;
 
 }
@@ -219,7 +226,7 @@ return $default(_that.id,_that.senderId,_that.imageUrls,_that.reactions,_that.co
 
 
 class _Message implements Message {
-  const _Message({required this.id, required this.senderId, required this.imageUrls, required this.reactions, required this.content, required this.repliedMessageId, required this.lastUpdatedAt, required this.isEdited});
+  const _Message({required this.id, required this.senderId, required this.imageUrls, required this.reactions, required this.content, required this.repliedMessageId, required this.lastUpdatedAt, required this.isEdited, this.isReadable = true, this.keyGeneration = 1});
   
 
 @override final  UniqueId id;
@@ -230,6 +237,13 @@ class _Message implements Message {
 @override final  UniqueId repliedMessageId;
 @override final  DateTime? lastUpdatedAt;
 @override final  bool isEdited;
+/// Whether this device could decrypt the message. When it could not, for
+/// example because it was sent before the user reset their keys,
+/// [content] is only a placeholder.
+@override@JsonKey() final  bool isReadable;
+/// The generation of the chat's key it was encrypted under. It grows each
+/// time a participant resets their keys.
+@override@JsonKey() final  int keyGeneration;
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
@@ -241,18 +255,18 @@ _$MessageCopyWith<_Message> get copyWith => __$MessageCopyWithImpl<_Message>(thi
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Message&&(identical(other.id, id) || other.id == id)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.imageUrls, imageUrls) || other.imageUrls == imageUrls)&&(identical(other.reactions, reactions) || other.reactions == reactions)&&(identical(other.content, content) || other.content == content)&&(identical(other.repliedMessageId, repliedMessageId) || other.repliedMessageId == repliedMessageId)&&(identical(other.lastUpdatedAt, lastUpdatedAt) || other.lastUpdatedAt == lastUpdatedAt)&&(identical(other.isEdited, isEdited) || other.isEdited == isEdited));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Message&&(identical(other.id, id) || other.id == id)&&(identical(other.senderId, senderId) || other.senderId == senderId)&&(identical(other.imageUrls, imageUrls) || other.imageUrls == imageUrls)&&(identical(other.reactions, reactions) || other.reactions == reactions)&&(identical(other.content, content) || other.content == content)&&(identical(other.repliedMessageId, repliedMessageId) || other.repliedMessageId == repliedMessageId)&&(identical(other.lastUpdatedAt, lastUpdatedAt) || other.lastUpdatedAt == lastUpdatedAt)&&(identical(other.isEdited, isEdited) || other.isEdited == isEdited)&&(identical(other.isReadable, isReadable) || other.isReadable == isReadable)&&(identical(other.keyGeneration, keyGeneration) || other.keyGeneration == keyGeneration));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,senderId,imageUrls,reactions,content,repliedMessageId,lastUpdatedAt,isEdited);
+    return Object.hash(runtimeType,id,senderId,imageUrls,reactions,content,repliedMessageId,lastUpdatedAt,isEdited,isReadable,keyGeneration);
 }
 
 @override
 String toString() {
-    return 'Message(id: $id, senderId: $senderId, imageUrls: $imageUrls, reactions: $reactions, content: $content, repliedMessageId: $repliedMessageId, lastUpdatedAt: $lastUpdatedAt, isEdited: $isEdited)';
+    return 'Message(id: $id, senderId: $senderId, imageUrls: $imageUrls, reactions: $reactions, content: $content, repliedMessageId: $repliedMessageId, lastUpdatedAt: $lastUpdatedAt, isEdited: $isEdited, isReadable: $isReadable, keyGeneration: $keyGeneration)';
 }
 
 
@@ -263,7 +277,7 @@ abstract mixin class _$MessageCopyWith<$Res> implements $MessageCopyWith<$Res> {
   factory _$MessageCopyWith(_Message value, $Res Function(_Message) _then) = __$MessageCopyWithImpl;
 @override @useResult
 $Res call({
- UniqueId id, UniqueId senderId, KtList<ImageUrl> imageUrls, KtList<UniqueId> reactions, Content content, UniqueId repliedMessageId, DateTime? lastUpdatedAt, bool isEdited
+ UniqueId id, UniqueId senderId, KtList<ImageUrl> imageUrls, KtList<UniqueId> reactions, Content content, UniqueId repliedMessageId, DateTime? lastUpdatedAt, bool isEdited, bool isReadable, int keyGeneration
 });
 
 
@@ -280,7 +294,7 @@ class __$MessageCopyWithImpl<$Res>
 
 /// Create a copy of Message
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? senderId = null,Object? imageUrls = null,Object? reactions = null,Object? content = null,Object? repliedMessageId = null,Object? lastUpdatedAt = freezed,Object? isEdited = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? senderId = null,Object? imageUrls = null,Object? reactions = null,Object? content = null,Object? repliedMessageId = null,Object? lastUpdatedAt = freezed,Object? isEdited = null,Object? isReadable = null,Object? keyGeneration = null,}) {
   return _then(_Message(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as UniqueId,senderId: null == senderId ? _self.senderId : senderId // ignore: cast_nullable_to_non_nullable
@@ -290,7 +304,9 @@ as KtList<UniqueId>,content: null == content ? _self.content : content // ignore
 as Content,repliedMessageId: null == repliedMessageId ? _self.repliedMessageId : repliedMessageId // ignore: cast_nullable_to_non_nullable
 as UniqueId,lastUpdatedAt: freezed == lastUpdatedAt ? _self.lastUpdatedAt : lastUpdatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,isEdited: null == isEdited ? _self.isEdited : isEdited // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,isReadable: null == isReadable ? _self.isReadable : isReadable // ignore: cast_nullable_to_non_nullable
+as bool,keyGeneration: null == keyGeneration ? _self.keyGeneration : keyGeneration // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 

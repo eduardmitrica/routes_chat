@@ -60,3 +60,18 @@ final class DuplicateIds
   const DuplicateIds({required KtList<Tuple2<UniqueId, UniqueId>> failedValue})
     : super(failedValue);
 }
+
+/// A passphrase shorter than [minimumLength] characters. It protects the
+/// user's encryption keys against offline guessing, so length matters.
+final class PassphraseTooShort extends ValueFailure<String> {
+  final int minimumLength;
+
+  PassphraseTooShort({required String failedValue, required this.minimumLength})
+    : super(failedValue);
+}
+
+/// Text that cannot be a recovery key: not 32 base32 characters once case,
+/// spaces and dashes are ignored.
+final class InvalidRecoveryKeyFormat extends ValueFailure<String> {
+  InvalidRecoveryKeyFormat({required String failedValue}) : super(failedValue);
+}

@@ -9,7 +9,7 @@ import 'package:routes_chat/presentation/home/profile/widgets/appearance_picker.
 import '../../../helpers/memory_storage.dart';
 
 void main() {
-  testWidgets('switches the whole app between system, light and dark', (
+  testWidgets('switches the whole app between device, light and dark', (
     tester,
   ) async {
     HydratedBloc.storage = MemoryStorage();
@@ -48,7 +48,7 @@ void main() {
     expect(brightness(), Brightness.dark);
 
     tester.platformDispatcher.platformBrightnessTestValue = Brightness.light;
-    await tester.tap(find.text('System'));
+    await tester.tap(find.text('Device'));
     await tester.pumpAndSettle();
     expect(bloc.state, Appearance.system);
     expect(brightness(), Brightness.light, reason: 'follows the light phone');

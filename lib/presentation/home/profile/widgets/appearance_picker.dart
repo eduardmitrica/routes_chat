@@ -16,8 +16,8 @@ class AppearancePicker extends StatelessWidget {
         segments: const [
           ButtonSegment(
             value: Appearance.system,
-            icon: Icon(Icons.brightness_auto_outlined),
-            label: Text('System'),
+            icon: Icon(Icons.smartphone_outlined),
+            label: Text('Device'),
           ),
           ButtonSegment(
             value: Appearance.light,

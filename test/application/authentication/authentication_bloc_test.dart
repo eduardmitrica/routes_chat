@@ -29,7 +29,6 @@ class _FakeAuthFacade implements IAuthFacade {
 
 User _user() => User(
   id: UniqueId.fromUniqueString('user-1'),
-  emailAddress: value_objects.EmailAddress('eduard@example.com'),
   imageUrl: value_objects.ImageUrl('https://example.com/avatar.jpg'),
   username: value_objects.Username('eduard'),
   description: value_objects.Description('hello'),

@@ -72,7 +72,6 @@ class AuthFacade implements IAuthFacade {
         await _createProfile(
           domain_user.User(
             id: UniqueId.fromUniqueString(uid),
-            emailAddress: EmailAddress(emailAddressString),
             imageUrl: ImageUrl(imageUrlString),
             username: Username(usernameString),
             description: Description(descriptionString),
@@ -155,7 +154,6 @@ class AuthFacade implements IAuthFacade {
       final generatedUsername = const Uuid().v1();
       final user = domain_user.User(
         id: UniqueId.fromUniqueString(uid),
-        emailAddress: EmailAddress(emailAddressString),
         imageUrl: ImageUrl(imagePath.getOrCrash()),
         username: Username(
           generatedUsername.substring(generatedUsername.length - 12),
@@ -193,15 +191,13 @@ class AuthFacade implements IAuthFacade {
 
   @override
   Future<Option<domain_user.User>> getSignedInUser() async {
+    // No readable profile (for example an Auth account whose registration
+    // never completed) means not signed in, as far as the app is concerned.
     final user = await _firebaseAuth.currentUser?.toDomain(
       _firebaseFirestore,
       _userUtils,
     );
-    if (user != null && user.emailAddress.isValid()) {
-      return optionOf(user);
-    } else {
-      return none();
-    }
+    return optionOf(user);
   }
 
   @override

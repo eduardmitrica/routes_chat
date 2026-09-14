@@ -17,7 +17,6 @@ abstract class UserDataTransferObject with _$UserDataTransferObject {
 
   const factory UserDataTransferObject({
     @JsonKey(includeToJson: false, includeFromJson: false) String? id,
-    required String emailAddress,
     required String username,
     required String imageUrl,
     required String description,
@@ -28,7 +27,6 @@ abstract class UserDataTransferObject with _$UserDataTransferObject {
 
   User toDomain() => User(
     id: UniqueId.fromUniqueString(id!),
-    emailAddress: EmailAddress(emailAddress),
     imageUrl: ImageUrl(imageUrl),
     username: Username(username),
     description: Description(description),
@@ -37,7 +35,6 @@ abstract class UserDataTransferObject with _$UserDataTransferObject {
   factory UserDataTransferObject.fromDomain(User user) =>
       UserDataTransferObject(
         id: user.id.getOrCrash(),
-        emailAddress: user.emailAddress.getOrCrash(),
         username: user.username.getOrCrash(),
         imageUrl: user.imageUrl.getOrCrash(),
         description: user.description.getOrCrash(),

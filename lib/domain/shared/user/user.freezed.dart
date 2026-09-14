@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$User implements DiagnosticableTreeMixin {
 
- UniqueId get id; EmailAddress get emailAddress; ImageUrl get imageUrl; Username get username; Description get description;
+ UniqueId get id; ImageUrl get imageUrl; Username get username; Description get description;
 /// Create a copy of User
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,26 +28,26 @@ void debugFillProperties(DiagnosticPropertiesBuilder properties) {
   final _this = this as User;
   properties
     ..add(DiagnosticsProperty('type', 'User'))
-    ..add(DiagnosticsProperty('id', _this.id))..add(DiagnosticsProperty('emailAddress', _this.emailAddress))..add(DiagnosticsProperty('imageUrl', _this.imageUrl))..add(DiagnosticsProperty('username', _this.username))..add(DiagnosticsProperty('description', _this.description));
+    ..add(DiagnosticsProperty('id', _this.id))..add(DiagnosticsProperty('imageUrl', _this.imageUrl))..add(DiagnosticsProperty('username', _this.username))..add(DiagnosticsProperty('description', _this.description));
 }
 
 @override
 bool operator ==(Object other) {
   final _this = this as User;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is User&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.emailAddress, _this.emailAddress) || other.emailAddress == _this.emailAddress)&&(identical(other.imageUrl, _this.imageUrl) || other.imageUrl == _this.imageUrl)&&(identical(other.username, _this.username) || other.username == _this.username)&&(identical(other.description, _this.description) || other.description == _this.description));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is User&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.imageUrl, _this.imageUrl) || other.imageUrl == _this.imageUrl)&&(identical(other.username, _this.username) || other.username == _this.username)&&(identical(other.description, _this.description) || other.description == _this.description));
 }
 
 
 @override
 int get hashCode {
   final _this = this as User;
-  return Object.hash(runtimeType,_this.id,_this.emailAddress,_this.imageUrl,_this.username,_this.description);
+  return Object.hash(runtimeType,_this.id,_this.imageUrl,_this.username,_this.description);
 }
 
 @override
 String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
   final _this = this as User;
-  return 'User(id: ${_this.id}, emailAddress: ${_this.emailAddress}, imageUrl: ${_this.imageUrl}, username: ${_this.username}, description: ${_this.description})';
+  return 'User(id: ${_this.id}, imageUrl: ${_this.imageUrl}, username: ${_this.username}, description: ${_this.description})';
 }
 
 
@@ -58,7 +58,7 @@ abstract mixin class $UserCopyWith<$Res>  {
   factory $UserCopyWith(User value, $Res Function(User) _then) = _$UserCopyWithImpl;
 @useResult
 $Res call({
- UniqueId id, EmailAddress emailAddress, ImageUrl imageUrl, Username username, Description description
+ UniqueId id, ImageUrl imageUrl, Username username, Description description
 });
 
 
@@ -75,11 +75,10 @@ class _$UserCopyWithImpl<$Res>
 
 /// Create a copy of User
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? emailAddress = null,Object? imageUrl = null,Object? username = null,Object? description = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? imageUrl = null,Object? username = null,Object? description = null,}) {
   return _then(User(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as UniqueId,emailAddress: null == emailAddress ? _self.emailAddress : emailAddress // ignore: cast_nullable_to_non_nullable
-as EmailAddress,imageUrl: null == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
+as UniqueId,imageUrl: null == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
 as ImageUrl,username: null == username ? _self.username : username // ignore: cast_nullable_to_non_nullable
 as Username,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as Description,
@@ -167,10 +166,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( UniqueId id,  EmailAddress emailAddress,  ImageUrl imageUrl,  Username username,  Description description)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( UniqueId id,  ImageUrl imageUrl,  Username username,  Description description)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _User() when $default != null:
-return $default(_that.id,_that.emailAddress,_that.imageUrl,_that.username,_that.description);case _:
+return $default(_that.id,_that.imageUrl,_that.username,_that.description);case _:
   return orElse();
 
 }
@@ -188,10 +187,10 @@ return $default(_that.id,_that.emailAddress,_that.imageUrl,_that.username,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( UniqueId id,  EmailAddress emailAddress,  ImageUrl imageUrl,  Username username,  Description description)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( UniqueId id,  ImageUrl imageUrl,  Username username,  Description description)  $default,) {final _that = this;
 switch (_that) {
 case _User():
-return $default(_that.id,_that.emailAddress,_that.imageUrl,_that.username,_that.description);case _:
+return $default(_that.id,_that.imageUrl,_that.username,_that.description);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -208,10 +207,10 @@ return $default(_that.id,_that.emailAddress,_that.imageUrl,_that.username,_that.
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( UniqueId id,  EmailAddress emailAddress,  ImageUrl imageUrl,  Username username,  Description description)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( UniqueId id,  ImageUrl imageUrl,  Username username,  Description description)?  $default,) {final _that = this;
 switch (_that) {
 case _User() when $default != null:
-return $default(_that.id,_that.emailAddress,_that.imageUrl,_that.username,_that.description);case _:
+return $default(_that.id,_that.imageUrl,_that.username,_that.description);case _:
   return null;
 
 }
@@ -223,11 +222,10 @@ return $default(_that.id,_that.emailAddress,_that.imageUrl,_that.username,_that.
 
 
 class _User with DiagnosticableTreeMixin implements User {
-  const _User({required this.id, required this.emailAddress, required this.imageUrl, required this.username, required this.description});
+  const _User({required this.id, required this.imageUrl, required this.username, required this.description});
   
 
 @override final  UniqueId id;
-@override final  EmailAddress emailAddress;
 @override final  ImageUrl imageUrl;
 @override final  Username username;
 @override final  Description description;
@@ -243,23 +241,23 @@ _$UserCopyWith<_User> get copyWith => __$UserCopyWithImpl<_User>(this, _$identit
 void debugFillProperties(DiagnosticPropertiesBuilder properties) {
     properties
     ..add(DiagnosticsProperty('type', 'User'))
-    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('emailAddress', emailAddress))..add(DiagnosticsProperty('imageUrl', imageUrl))..add(DiagnosticsProperty('username', username))..add(DiagnosticsProperty('description', description));
+    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('imageUrl', imageUrl))..add(DiagnosticsProperty('username', username))..add(DiagnosticsProperty('description', description));
 }
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _User&&(identical(other.id, id) || other.id == id)&&(identical(other.emailAddress, emailAddress) || other.emailAddress == emailAddress)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.username, username) || other.username == username)&&(identical(other.description, description) || other.description == description));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _User&&(identical(other.id, id) || other.id == id)&&(identical(other.imageUrl, imageUrl) || other.imageUrl == imageUrl)&&(identical(other.username, username) || other.username == username)&&(identical(other.description, description) || other.description == description));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,emailAddress,imageUrl,username,description);
+    return Object.hash(runtimeType,id,imageUrl,username,description);
 }
 
 @override
 String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
-    return 'User(id: $id, emailAddress: $emailAddress, imageUrl: $imageUrl, username: $username, description: $description)';
+    return 'User(id: $id, imageUrl: $imageUrl, username: $username, description: $description)';
 }
 
 
@@ -270,7 +268,7 @@ abstract mixin class _$UserCopyWith<$Res> implements $UserCopyWith<$Res> {
   factory _$UserCopyWith(_User value, $Res Function(_User) _then) = __$UserCopyWithImpl;
 @override @useResult
 $Res call({
- UniqueId id, EmailAddress emailAddress, ImageUrl imageUrl, Username username, Description description
+ UniqueId id, ImageUrl imageUrl, Username username, Description description
 });
 
 
@@ -287,11 +285,10 @@ class __$UserCopyWithImpl<$Res>
 
 /// Create a copy of User
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? emailAddress = null,Object? imageUrl = null,Object? username = null,Object? description = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? imageUrl = null,Object? username = null,Object? description = null,}) {
   return _then(_User(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as UniqueId,emailAddress: null == emailAddress ? _self.emailAddress : emailAddress // ignore: cast_nullable_to_non_nullable
-as EmailAddress,imageUrl: null == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
+as UniqueId,imageUrl: null == imageUrl ? _self.imageUrl : imageUrl // ignore: cast_nullable_to_non_nullable
 as ImageUrl,username: null == username ? _self.username : username // ignore: cast_nullable_to_non_nullable
 as Username,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as Description,

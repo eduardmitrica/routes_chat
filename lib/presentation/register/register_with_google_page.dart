@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import 'package:routes_chat/presentation/home/home_page.dart';
+import 'package:routes_chat/presentation/encryption/encryption_gate_page.dart';
 
 import '../../domain/shared/user/value_objects.dart';
 
@@ -25,9 +25,9 @@ class RegisterWithGooglePage extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.of(
-                context,
-              ).pushReplacementNamed(HomePage.homePageRoute);
+              Navigator.of(context).pushReplacementNamed(
+                EncryptionGatePage.encryptionGatePageRoute,
+              );
             },
             child: const Text('Continue to the chats page'),
           ),

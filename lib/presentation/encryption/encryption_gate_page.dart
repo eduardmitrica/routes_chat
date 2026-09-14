@@ -85,7 +85,8 @@ class EncryptionGatePage extends StatelessWidget {
                   buttonLabel: 'Create my keys',
                   askForConfirmation: true,
                   isWorking: state.isWorking,
-                  workingMessage: 'Creating your keys. This takes a few seconds.',
+                  workingMessage:
+                      'Creating your keys. This takes a few seconds.',
                   onSubmitted: (passphrase) =>
                       bloc.add(EncryptionEvent.setUpRequested(passphrase)),
                 ),
@@ -110,18 +111,15 @@ class EncryptionGatePage extends StatelessWidget {
                   onSubmitted: (passphrase) =>
                       bloc.add(EncryptionEvent.unlockRequested(passphrase)),
                   secondaryActionLabel: 'Forgot your passphrase?',
-                  onSecondaryAction: () => bloc.add(
-                    const EncryptionEvent.forgotPassphraseChosen(),
-                  ),
+                  onSecondaryAction: () =>
+                      bloc.add(const EncryptionEvent.forgotPassphraseChosen()),
                 ),
                 EncryptionPhase.needsRecoveryKey => RecoveryKeyForm(
                   isWorking: state.isWorking,
-                  onSubmitted: (recoveryKey) => bloc.add(
-                    EncryptionEvent.recoveryKeyEntered(recoveryKey),
-                  ),
-                  onBack: () => bloc.add(
-                    const EncryptionEvent.passphraseRemembered(),
-                  ),
+                  onSubmitted: (recoveryKey) =>
+                      bloc.add(EncryptionEvent.recoveryKeyEntered(recoveryKey)),
+                  onBack: () =>
+                      bloc.add(const EncryptionEvent.passphraseRemembered()),
                 ),
                 EncryptionPhase.needsNewPassphrase => PassphraseForm(
                   key: const ValueKey('new-passphrase'),
@@ -133,7 +131,8 @@ class EncryptionGatePage extends StatelessWidget {
                   buttonLabel: 'Save new passphrase',
                   askForConfirmation: true,
                   isWorking: state.isWorking,
-                  workingMessage: 'Protecting your keys. This takes a few seconds.',
+                  workingMessage:
+                      'Protecting your keys. This takes a few seconds.',
                   onSubmitted: (passphrase) =>
                       bloc.add(EncryptionEvent.newPassphraseChosen(passphrase)),
                 ),

@@ -99,7 +99,8 @@ class _PassphraseFormState extends State<PassphraseForm> {
               ),
             ),
             validator: _validatePassphrase,
-            onFieldSubmitted: (_) => widget.askForConfirmation ? null : _submit(),
+            onFieldSubmitted: (_) =>
+                widget.askForConfirmation ? null : _submit(),
           ),
           if (widget.askForConfirmation) ...[
             const SizedBox(height: 12),

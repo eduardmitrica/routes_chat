@@ -8,7 +8,7 @@ import 'package:routes_chat/application/authentication/register_form/register_fo
 import 'package:routes_chat/application/shared/picture_placeholder_fetcher/placeholder_fetcher_bloc.dart';
 import 'package:routes_chat/domain/authentication/registration_failure.dart';
 import 'package:routes_chat/domain/core/failures.dart';
-import 'package:routes_chat/presentation/home/home_page.dart';
+import 'package:routes_chat/presentation/encryption/encryption_gate_page.dart';
 import 'package:routes_chat/presentation/register/register_with_google_page.dart';
 import 'package:routes_chat/presentation/sign_in/sign_in_page.dart';
 
@@ -63,9 +63,9 @@ class RegisterForm extends StatelessWidget {
                   );
                 },
                 (_) {
-                  Navigator.of(
-                    context,
-                  ).pushReplacementNamed(HomePage.homePageRoute);
+                  Navigator.of(context).pushReplacementNamed(
+                    EncryptionGatePage.encryptionGatePageRoute,
+                  );
                 },
               );
             }),

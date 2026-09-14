@@ -79,9 +79,7 @@ class _RecoveryKeyConfirmationState extends State<RecoveryKeyConfirmation> {
           autocorrect: false,
           enableSuggestions: false,
           textCapitalization: TextCapitalization.characters,
-          decoration: InputDecoration(
-            labelText: 'Group ${widget.groupNumber}',
-          ),
+          decoration: InputDecoration(labelText: 'Group ${widget.groupNumber}'),
           onSubmitted: (_) => _confirm(),
         ),
         const SizedBox(height: 16),

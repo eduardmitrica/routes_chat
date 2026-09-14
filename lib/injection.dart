@@ -140,6 +140,7 @@ void configureDependencies() {
         getIt<IAuthFacade>(),
         getIt<ICurrentUserSession>(),
         getIt<IPushTokenRegistry>(),
+        getIt<IEncryptionRepository>(),
       ),
     )
     ..registerFactory<EncryptionBloc>(

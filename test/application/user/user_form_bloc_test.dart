@@ -21,8 +21,7 @@ class _FakeUserRepository implements IUserRepository {
   }
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 /// Treats every name in [taken] as claimed, and counts the lookups.
@@ -104,5 +103,82 @@ void main() {
     expect(userUtils.lookups, 1);
     expect(repository.saved, hasLength(1));
     expect(repository.saved.single.username.getOrCrash(), 'eduard2');
+  });
+
+  group('a newer stored profile arriving while the form is open', () {
+    // Regression: UserForm dispatched initialized on every rebuild, and the
+    // bloc replaced the whole form with the stored profile. Any rebuild, or a
+    // save made on another device, threw away what was being typed.
+
+    test('keeps a field that is being edited', () async {
+      bloc.add(const UserFormEvent.descriptionChanged('draft bio'));
+      await pumpEventQueue();
+
+      bloc.add(
+        UserFormEvent.initialized(
+          some(
+            _profile().copyWith(
+              description: value_objects.Description('remote bio'),
+            ),
+          ),
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(bloc.state.user.description.getOrCrash(), 'draft bio');
+    });
+
+    test('updates the fields that were not edited', () async {
+      bloc.add(const UserFormEvent.descriptionChanged('draft bio'));
+      await pumpEventQueue();
+
+      bloc.add(
+        UserFormEvent.initialized(
+          some(
+            _profile().copyWith(username: value_objects.Username('renamed')),
+          ),
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(bloc.state.user.username.getOrCrash(), 'renamed');
+      expect(bloc.state.user.description.getOrCrash(), 'draft bio');
+    });
+
+    test('shows the newer profile in a form nobody touched', () async {
+      final newer = _profile().copyWith(
+        username: value_objects.Username('renamed'),
+        description: value_objects.Description('remote bio'),
+      );
+
+      bloc.add(UserFormEvent.initialized(some(newer)));
+      await pumpEventQueue();
+
+      expect(bloc.state.user, newer);
+    });
+
+    test('makes the next save compare against the newer profile', () async {
+      bloc.add(
+        UserFormEvent.initialized(
+          some(
+            _profile().copyWith(username: value_objects.Username('renamed')),
+          ),
+        ),
+      );
+      await pumpEventQueue();
+
+      bloc
+        ..add(const UserFormEvent.descriptionChanged('new bio'))
+        ..add(const UserFormEvent.saved());
+      await pumpEventQueue();
+
+      expect(
+        userUtils.lookups,
+        0,
+        reason: 'the username equals the stored one, so it is not a change',
+      );
+      expect(repository.saved.single.username.getOrCrash(), 'renamed');
+      expect(repository.saved.single.description.getOrCrash(), 'new bio');
+    });
   });
 }

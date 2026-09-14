@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:routes_chat/application/authentication/authentication_bloc.dart';
 import 'package:routes_chat/domain/authentication/authentication_facade_interface.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
+import 'package:routes_chat/domain/notifications/push_token_registry_interface.dart';
 import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/domain/shared/user/value_objects.dart'
     as value_objects;
@@ -23,8 +24,19 @@ class _FakeAuthFacade implements IAuthFacade {
   Future<void> signOut() async => signOutCallCount++;
 
   @override
-  dynamic noSuchMethod(Invocation invocation) =>
-      super.noSuchMethod(invocation);
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// Records which users this device was registered and unregistered for.
+class _FakePushTokens implements IPushTokenRegistry {
+  final registered = <String>[];
+  final unregistered = <String>[];
+
+  @override
+  Future<void> register(String uid) async => registered.add(uid);
+
+  @override
+  Future<void> unregister(String uid) async => unregistered.add(uid);
 }
 
 User _user() => User(
@@ -36,11 +48,19 @@ User _user() => User(
 
 void main() {
   late CurrentUserSession session;
+  late _FakePushTokens pushTokens;
 
-  setUp(() => session = CurrentUserSession());
+  setUp(() {
+    session = CurrentUserSession();
+    pushTokens = _FakePushTokens();
+  });
 
   test('populates the session when a user is signed in', () async {
-    final bloc = AuthenticationBloc(_FakeAuthFacade(some(_user())), session);
+    final bloc = AuthenticationBloc(
+      _FakeAuthFacade(some(_user())),
+      session,
+      pushTokens,
+    );
     addTearDown(bloc.close);
 
     bloc.add(const AuthenticationEvent.authenticationRequested());
@@ -51,7 +71,11 @@ void main() {
   });
 
   test('leaves the session empty when nobody is signed in', () async {
-    final bloc = AuthenticationBloc(_FakeAuthFacade(none()), session);
+    final bloc = AuthenticationBloc(
+      _FakeAuthFacade(none()),
+      session,
+      pushTokens,
+    );
     addTearDown(bloc.close);
 
     bloc.add(const AuthenticationEvent.authenticationRequested());
@@ -60,9 +84,42 @@ void main() {
     expect(session.current, isNull);
   });
 
-  test('clears the session on sign out', () async {
+  test('registers this device for push notifications once signed in', () async {
+    final bloc = AuthenticationBloc(
+      _FakeAuthFacade(some(_user())),
+      session,
+      pushTokens,
+    );
+    addTearDown(bloc.close);
+
+    bloc.add(const AuthenticationEvent.authenticationRequested());
+    await expectLater(bloc.stream, emits(const Authenticated()));
+    await pumpEventQueue();
+
+    expect(pushTokens.registered, ['user-1']);
+  });
+
+  test(
+    'does not register for push notifications when nobody is signed in',
+    () async {
+      final bloc = AuthenticationBloc(
+        _FakeAuthFacade(none()),
+        session,
+        pushTokens,
+      );
+      addTearDown(bloc.close);
+
+      bloc.add(const AuthenticationEvent.authenticationRequested());
+      await expectLater(bloc.stream, emits(const Unauthenticated()));
+      await pumpEventQueue();
+
+      expect(pushTokens.registered, isEmpty);
+    },
+  );
+
+  test('clears the session and the push token on sign out', () async {
     final facade = _FakeAuthFacade(some(_user()));
-    final bloc = AuthenticationBloc(facade, session);
+    final bloc = AuthenticationBloc(facade, session, pushTokens);
     addTearDown(bloc.close);
 
     bloc.add(const AuthenticationEvent.authenticationRequested());
@@ -73,6 +130,7 @@ void main() {
 
     expect(session.current, isNull);
     expect(facade.signOutCallCount, 1);
+    expect(pushTokens.unregistered, ['user-1']);
   });
 
   test('authenticating twice does not throw', () async {
@@ -82,7 +140,11 @@ void main() {
     // Bloc suppresses a repeated identical state, so the second pass is
     // verified by pumping the queue rather than awaiting another emission; an
     // exception in the handler would surface as an unhandled zone error.
-    final bloc = AuthenticationBloc(_FakeAuthFacade(some(_user())), session);
+    final bloc = AuthenticationBloc(
+      _FakeAuthFacade(some(_user())),
+      session,
+      pushTokens,
+    );
     addTearDown(bloc.close);
 
     bloc.add(const AuthenticationEvent.authenticationRequested());
@@ -99,7 +161,7 @@ void main() {
     // Regression: the matching getIt.unregister threw when nothing was
     // registered.
     final facade = _FakeAuthFacade(none());
-    final bloc = AuthenticationBloc(facade, session);
+    final bloc = AuthenticationBloc(facade, session, pushTokens);
     addTearDown(bloc.close);
 
     bloc.add(const AuthenticationEvent.signedOut());
@@ -111,5 +173,10 @@ void main() {
     expect(bloc.state, const Unauthenticated());
     expect(session.current, isNull);
     expect(facade.signOutCallCount, 2);
+    expect(
+      pushTokens.unregistered,
+      isEmpty,
+      reason: 'with no session there is no user whose token could be removed',
+    );
   });
 }

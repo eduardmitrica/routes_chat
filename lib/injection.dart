@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -8,7 +9,6 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'application/authentication/authentication_bloc.dart';
 import 'application/authentication/register_form/register_form_bloc.dart';
 import 'application/authentication/sign_in_form/sign_in_form_bloc.dart';
-import 'application/chats/chat_actor/chat_actor_bloc.dart';
 import 'application/chats/chat_bar/chat_bar_bloc.dart';
 import 'application/chats/chats_watcher/chats_watcher_bloc.dart';
 import 'application/chats/friends_watcher/friends_watcher_bloc.dart';
@@ -24,13 +24,16 @@ import 'domain/authentication/authentication_facade_interface.dart';
 import 'domain/chats/chat_repository_interface.dart';
 import 'domain/chats/messages/message_repository_interface.dart';
 import 'domain/friend_requests/friend_requests_repository_interface.dart';
+import 'domain/notifications/push_token_registry_interface.dart';
 import 'domain/shared/user/current_user_session_interface.dart';
 import 'domain/shared/user/user_repository_interface.dart';
 import 'domain/shared/user/user_utils_interface.dart';
 import 'infrastructure/authentication/authentication_facade.dart';
 import 'infrastructure/chats/chat_repository.dart';
 import 'infrastructure/chats/messages/message_repository.dart';
+import 'infrastructure/core/environment.dart';
 import 'infrastructure/friend_requests/friend_request_repository.dart';
+import 'infrastructure/notifications/firebase_push_token_registry.dart';
 import 'infrastructure/shared/user/current_user_session.dart';
 import 'infrastructure/shared/user/user_repository.dart';
 import 'infrastructure/shared/user/user_utils.dart';
@@ -45,7 +48,9 @@ final getIt = GetIt.instance;
 /// [FirebaseFirestore.instanceFor]. Deploys need it too: `firestore` in
 /// firebase.json names this database, otherwise the CLI targets `(default)`
 /// and 404s.
-const firestoreDatabaseId = 'routes';
+///
+/// The id itself comes from `FIRESTORE_DATABASE_ID` in `.env`; see [Environment].
+const firestoreDatabaseId = Environment.firestoreDatabaseId;
 
 /// Wires the object graph. Replaces the previous `injectable`-generated
 /// `injection.config.dart`; keep this in sync when constructors change.
@@ -60,6 +65,7 @@ void configureDependencies() {
         databaseId: firestoreDatabaseId,
       ),
     )
+    ..registerFactory<FirebaseMessaging>(() => FirebaseMessaging.instance)
     ..registerFactory<FirebaseStorage>(() => FirebaseStorage.instance);
 
   // ─── Session ──────────────────────────────────────────────────────────
@@ -76,7 +82,6 @@ void configureDependencies() {
         getIt<GoogleSignIn>(),
         getIt<FirebaseFirestore>(),
         getIt<FirebaseStorage>(),
-        getIt<IUserUtils>(),
       ),
     )
     ..registerLazySingleton<IUserRepository>(
@@ -103,12 +108,24 @@ void configureDependencies() {
         getIt<FirebaseFirestore>(),
         getIt<ICurrentUserSession>(),
       ),
+    )
+    // A singleton: it owns the session's token-refresh subscription.
+    ..registerLazySingleton<IPushTokenRegistry>(
+      () => FirebasePushTokenRegistry(
+        getIt<FirebaseMessaging>(),
+        getIt<FirebaseFirestore>(),
+        getIt<ICurrentUserSession>(),
+      ),
     );
 
   // ─── Blocs ────────────────────────────────────────────────────────────
   getIt
     ..registerFactory<AuthenticationBloc>(
-      () => AuthenticationBloc(getIt<IAuthFacade>(), getIt<ICurrentUserSession>()),
+      () => AuthenticationBloc(
+        getIt<IAuthFacade>(),
+        getIt<ICurrentUserSession>(),
+        getIt<IPushTokenRegistry>(),
+      ),
     )
     ..registerFactory<RegisterFormBloc>(
       () => RegisterFormBloc(getIt<IAuthFacade>(), getIt<IUserUtils>()),
@@ -134,9 +151,6 @@ void configureDependencies() {
         getIt<IMessageRepository>(),
         getIt<ICurrentUserSession>(),
       ),
-    )
-    ..registerFactory<ChatActorBloc>(
-      () => ChatActorBloc(getIt<IChatRepository>(), getIt<ICurrentUserSession>()),
     )
     ..registerFactory<ChatsWatcherBloc>(
       () => ChatsWatcherBloc(

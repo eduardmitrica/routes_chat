@@ -39,11 +39,6 @@ final class UsernameAlreadyExists extends ValueFailure<String> {
   UsernameAlreadyExists({required String failedValue}) : super(failedValue);
 }
 
-final class UsernameExistsMoreThanOnce extends ValueFailure<String> {
-  UsernameExistsMoreThanOnce({required String failedValue})
-    : super(failedValue);
-}
-
 /// The username cannot be a Firestore document id, which the
 /// `usernames/{username}` uniqueness index requires: it contains `/`, is `.`
 /// or `..`, or has the reserved `__name__` shape.

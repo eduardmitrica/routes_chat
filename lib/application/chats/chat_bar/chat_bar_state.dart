@@ -8,6 +8,12 @@ abstract class ChatBarState with _$ChatBarState {
     required bool showErrorMessages,
     required Option<Either<ChatFailure, Unit>>
     chatCreationFailureOrSuccessOption,
+
+    /// The outcome of the last message sent to an existing chat. At most one
+    /// of this and [chatCreationFailureOrSuccessOption] is set: each send
+    /// clears the other, so the page only ever reports the latest attempt.
+    required Option<Either<message_failure.MessageFailure, Unit>>
+    messageSendFailureOrSuccessOption,
   }) = _ChatBarState;
 
   factory ChatBarState.initial() => ChatBarState(
@@ -15,5 +21,6 @@ abstract class ChatBarState with _$ChatBarState {
     isSubmitting: false,
     showErrorMessages: false,
     chatCreationFailureOrSuccessOption: none(),
+    messageSendFailureOrSuccessOption: none(),
   );
 }

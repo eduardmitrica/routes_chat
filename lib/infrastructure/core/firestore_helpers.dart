@@ -8,16 +8,16 @@ extension FirestoreX on FirebaseFirestore {
   /// only `{uid}`.
   ///
   /// It lets registration check uniqueness while signed out without making
-  /// `users` (which carries email addresses) publicly readable, and lets the
+  /// `users` publicly readable, and lets the
   /// security rules enforce uniqueness: a profile may only carry a username
   /// whose entry here belongs to it.
   DocumentReference<Map<String, dynamic>> usernameDocument(String username) =>
       collection('usernames').doc(username);
-}
 
-extension DocumentReferenceX on DocumentReference {
-  CollectionReference get userCollection => collection('users');
-
-  CollectionReference get friendRequestCollection =>
-      collection('friendRequests');
+  /// One of [userId]'s devices, registered for push notifications. The
+  /// document id is the device's FCM token.
+  DocumentReference<Map<String, dynamic>> pushTokenDocument(
+    String userId,
+    String token,
+  ) => collection('users').doc(userId).collection('fcmTokens').doc(token);
 }

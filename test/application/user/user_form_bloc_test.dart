@@ -37,10 +37,6 @@ class _FakeUserUtils implements IUserUtils {
     lookups++;
     return taken.contains(username);
   }
-
-  @override
-  Future<bool> checkIfUsernameExistsMoreThanOnce(String username) async =>
-      false;
 }
 
 User _profile() => User(

@@ -13,13 +13,12 @@ import 'package:routes_chat/domain/authentication/registration_failure.dart'
 import 'package:routes_chat/domain/authentication/sign_in_failure.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/user.dart' as domain_user;
+import 'package:routes_chat/infrastructure/authentication/generated_username.dart';
 import 'package:routes_chat/infrastructure/authentication/profile_write_failure.dart';
 import 'package:routes_chat/infrastructure/core/firestore_helpers.dart';
 import 'package:routes_chat/infrastructure/shared/user/firebase_user_mapper.dart';
 import 'package:routes_chat/infrastructure/shared/user/user_data_transfer_object.dart';
-import 'package:uuid/uuid.dart';
 
-import '../../domain/shared/user/user_utils_interface.dart';
 import '../../domain/shared/user/value_objects.dart';
 
 class AuthFacade implements IAuthFacade {
@@ -27,14 +26,12 @@ class AuthFacade implements IAuthFacade {
   final GoogleSignIn _googleSignIn;
   final FirebaseFirestore _firebaseFirestore;
   final FirebaseStorage _firebaseStorage;
-  final IUserUtils _userUtils;
 
   const AuthFacade(
     this._firebaseAuth,
     this._googleSignIn,
     this._firebaseFirestore,
     this._firebaseStorage,
-    this._userUtils,
   );
 
   @override
@@ -157,13 +154,10 @@ class AuthFacade implements IAuthFacade {
       }
 
       final emailAddressString = googleUser.email;
-      final generatedUsername = const Uuid().v1();
       final user = domain_user.User(
         id: UniqueId.fromUniqueString(uid),
         imageUrl: ImageUrl(imagePath.getOrCrash()),
-        username: Username(
-          generatedUsername.substring(generatedUsername.length - 12),
-        ),
+        username: Username(generateUsername()),
         description: Description(''),
       );
 
@@ -205,10 +199,7 @@ class AuthFacade implements IAuthFacade {
   Future<Option<domain_user.User>> getSignedInUser() async {
     // No readable profile (for example an Auth account whose registration
     // never completed) means not signed in, as far as the app is concerned.
-    final user = await _firebaseAuth.currentUser?.toDomain(
-      _firebaseFirestore,
-      _userUtils,
-    );
+    final user = await _firebaseAuth.currentUser?.toDomain(_firebaseFirestore);
     return optionOf(user);
   }
 

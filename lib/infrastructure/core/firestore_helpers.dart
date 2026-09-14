@@ -13,4 +13,11 @@ extension FirestoreX on FirebaseFirestore {
   /// whose entry here belongs to it.
   DocumentReference<Map<String, dynamic>> usernameDocument(String username) =>
       collection('usernames').doc(username);
+
+  /// One of [userId]'s devices, registered for push notifications. The
+  /// document id is the device's FCM token.
+  DocumentReference<Map<String, dynamic>> pushTokenDocument(
+    String userId,
+    String token,
+  ) => collection('users').doc(userId).collection('fcmTokens').doc(token);
 }

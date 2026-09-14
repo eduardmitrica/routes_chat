@@ -90,6 +90,8 @@ class RegisterForm extends StatelessWidget {
               (failure) {
                 final message = switch (failure) {
                   EmailAlreadyInUse() => 'Email already in use',
+                  UsernameTaken() =>
+                    'That username was just taken, please choose another',
                   ServerError() => 'Server Error',
                   CancelledByUser() => 'Cancelled',
                   UserAlreadyRegistered() =>

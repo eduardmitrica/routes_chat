@@ -13,6 +13,7 @@ import 'package:routes_chat/domain/authentication/registration_failure.dart'
 import 'package:routes_chat/domain/authentication/sign_in_failure.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/user.dart' as domain_user;
+import 'package:routes_chat/infrastructure/authentication/profile_write_failure.dart';
 import 'package:routes_chat/infrastructure/core/firestore_helpers.dart';
 import 'package:routes_chat/infrastructure/shared/user/firebase_user_mapper.dart';
 import 'package:routes_chat/infrastructure/shared/user/user_data_transfer_object.dart';
@@ -78,12 +79,17 @@ class AuthFacade implements IAuthFacade {
           ),
         );
       } on FirebaseException catch (_) {
-        // The account exists but its profile does not, most likely because
-        // the username was claimed by someone else between the uniqueness
-        // check and this write. Remove the account rather than leave the email
-        // registered with no profile behind it.
+        // The account exists but its profile does not. The usual cause is that
+        // someone claimed the username between the form's uniqueness check and
+        // this write; report that as such, so the user picks another name
+        // instead of seeing a generic error. Either way, remove the account
+        // rather than leave the email registered with no profile behind it.
+        final failure = profileWriteFailure(
+          usernameClaimOwner: await _usernameClaimOwner(usernameString),
+          uid: uid,
+        );
         await userCredentials.user?.delete();
-        return Left(registration_failure.ServerError());
+        return Left(failure);
       }
 
       return const Right(unit);
@@ -164,11 +170,17 @@ class AuthFacade implements IAuthFacade {
       try {
         await _createProfile(user);
       } on FirebaseException catch (_) {
+        final failure = profileWriteFailure(
+          usernameClaimOwner: await _usernameClaimOwner(
+            user.username.getOrCrash(),
+          ),
+          uid: uid,
+        );
         if (userCredentials.additionalUserInfo?.isNewUser ?? false) {
           await userCredentials.user?.delete();
         }
         await signOut();
-        return Left(registration_failure.ServerError());
+        return Left(failure);
       }
 
       return Right(EmailAddress(emailAddressString));
@@ -257,6 +269,18 @@ class AuthFacade implements IAuthFacade {
     } on FirebaseException catch (_) {
       await signOut();
       return Left(ServerError());
+    }
+  }
+
+  /// The uid currently holding [username] in the `usernames` index, or null
+  /// when it is unclaimed or cannot be read. Index entries are publicly
+  /// readable, so this works whatever the caller's sign-in state.
+  Future<String?> _usernameClaimOwner(String username) async {
+    try {
+      final claim = await _firebaseFirestore.usernameDocument(username).get();
+      return claim.data()?['uid'] as String?;
+    } on FirebaseException catch (_) {
+      return null;
     }
   }
 

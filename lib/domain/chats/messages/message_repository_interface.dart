@@ -3,6 +3,8 @@ import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/message_failure.dart';
 import 'package:routes_chat/domain/chats/messages/message_page.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
+import 'package:kt_dart/collection.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
 
 abstract interface class IMessageRepository {
   /// The newest [limit] messages of [chatId], oldest first, updated as
@@ -22,6 +24,7 @@ abstract interface class IMessageRepository {
 
   Future<Either<MessageFailure, Unit>> addMessageToChatWithId(
     Message message,
-    UniqueId chatId,
-  );
+    UniqueId chatId, {
+    KtList<MediaDraft> media = const KtList.empty(),
+  });
 }

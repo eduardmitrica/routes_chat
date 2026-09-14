@@ -45,6 +45,10 @@ import 'infrastructure/shared/user/current_user_session.dart';
 import 'infrastructure/shared/user/user_repository.dart';
 import 'infrastructure/shared/user/user_utils.dart';
 import 'application/settings/appearance/appearance_bloc.dart';
+import 'domain/chats/messages/media_repository_interface.dart';
+import 'infrastructure/chats/messages/attachment_store.dart';
+import 'infrastructure/chats/messages/image_tools.dart';
+import 'infrastructure/chats/messages/media_repository.dart';
 
 final getIt = GetIt.instance;
 
@@ -106,6 +110,7 @@ void configureDependencies() {
         getIt<ICurrentUserSession>(),
         getIt<ChatKeyring>(),
         getIt<ChatCipher>(),
+        getIt<AttachmentStore>(),
       ),
     )
     ..registerLazySingleton<IChatRepository>(
@@ -114,6 +119,7 @@ void configureDependencies() {
         getIt<ICurrentUserSession>(),
         getIt<ChatKeyring>(),
         getIt<ChatCipher>(),
+        getIt<AttachmentStore>(),
       ),
     )
     ..registerLazySingleton<IFriendRequestsRepository>(
@@ -145,6 +151,14 @@ void configureDependencies() {
       () => getIt<FirebaseEncryptionRepository>(),
     )
     ..registerLazySingleton<ChatCipher>(ChatCipher.new)
+    ..registerLazySingleton<AttachmentStore>(
+      () => AttachmentStore(getIt<FirebaseStorage>(), getIt<ChatCipher>()),
+    )
+    ..registerLazySingleton<ImageTools>(NativeImageTools.new)
+    // A singleton: it keeps decrypted photos in memory while the app runs.
+    ..registerLazySingleton<IMediaRepository>(
+      () => MediaRepository(getIt<AttachmentStore>(), getIt<ImageTools>()),
+    )
     // A singleton: it holds the session's opened chat keys.
     ..registerLazySingleton<ChatKeyring>(
       () => ChatKeyring(
@@ -193,6 +207,7 @@ void configureDependencies() {
         getIt<IChatRepository>(),
         getIt<IMessageRepository>(),
         getIt<ICurrentUserSession>(),
+        getIt<IMediaRepository>(),
       ),
     )
     ..registerFactory<ChatsWatcherBloc>(

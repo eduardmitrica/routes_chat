@@ -17,6 +17,8 @@ import 'package:rxdart/rxdart.dart';
 
 import '../../domain/chats/messages/message.dart';
 import 'package:routes_chat/infrastructure/chats/messages/message_payloads.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import 'package:routes_chat/infrastructure/chats/messages/attachment_store.dart';
 
 /// Chats, with the last message encrypted on the way in and decrypted on the
 /// way out. See docs/e2ee.md.
@@ -25,12 +27,14 @@ class ChatRepository implements IChatRepository {
   final ICurrentUserSession _session;
   final ChatKeyring _keyring;
   final ChatCipher _cipher;
+  final AttachmentStore _attachments;
 
   const ChatRepository(
     this._firestore,
     this._session,
     this._keyring,
     this._cipher,
+    this._attachments,
   );
 
   @override
@@ -111,7 +115,7 @@ class ChatRepository implements IChatRepository {
         chatId: document.id,
         messageId: lastMessage.id!,
         senderId: lastMessage.senderId,
-      )).text;
+      )).summary;
     } on UnreadableCiphertext {
       text = ChatCipher.unreadableMessageText;
       readable = false;
@@ -125,8 +129,9 @@ class ChatRepository implements IChatRepository {
   @override
   Future<Either<ChatFailure, Unit>> create(
     Chat chat,
-    Message firstMessage,
-  ) async {
+    Message firstMessage, {
+    KtList<MediaDraft> media = const KtList.empty(),
+  }) async {
     if (_session.current == null) {
       return Left(InsufficientPermissions());
     }
@@ -145,6 +150,14 @@ class ChatRepository implements IChatRepository {
             .getOrCrash()
             .map((participant) => participant.value1.getOrCrash())
             .asList(),
+      );
+
+      // The files go first, because the message refers to them.
+      final attachments = await Future.wait([
+        for (final draft in media.iter) _attachments.upload(chatId, draft),
+      ]);
+      final sent = firstMessage.copyWith(
+        attachments: attachments.toImmutableList(),
       );
 
       final created = await _firestore.runTransaction((transaction) async {
@@ -170,7 +183,7 @@ class ChatRepository implements IChatRepository {
           chatKey = firstGeneration.key;
         }
         final content = await _cipher.encrypt(
-          payloadOf(firstMessage),
+          payloadOf(sent),
           chatKey: chatKey,
           chatId: chatId,
           keyGeneration: keyGeneration,

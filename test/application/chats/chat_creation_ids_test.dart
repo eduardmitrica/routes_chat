@@ -10,13 +10,19 @@ import 'package:routes_chat/domain/chats/messages/message_repository_interface.d
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
 import 'package:routes_chat/infrastructure/shared/user/current_user_session.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import '../../helpers/unused_media_repository.dart';
 
 /// Records every chat the bloc asks to create.
 class _FakeChatRepository implements IChatRepository {
   final created = <Chat>[];
 
   @override
-  Future<Either<ChatFailure, Unit>> create(Chat chat, Message message) async {
+  Future<Either<ChatFailure, Unit>> create(
+    Chat chat,
+    Message message, {
+    KtList<MediaDraft> media = const KtList.empty(),
+  }) async {
     created.add(chat);
     return const Right(unit);
   }
@@ -39,6 +45,7 @@ Future<Chat> _createWithChatBar(String currentUid, String otherUid) async {
     chats,
     _FakeMessageRepository(),
     _signedInAs(currentUid),
+    UnusedMediaRepository(),
   );
   addTearDown(bloc.close);
 

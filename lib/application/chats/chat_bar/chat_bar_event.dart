@@ -14,6 +14,8 @@ sealed class ChatBarEvent extends Equatable {
   ) = NewMessageAddedToChatWithId;
   const factory ChatBarEvent.replyStarted(Message message) = ReplyStarted;
   const factory ChatBarEvent.replyCancelled() = ReplyCancelled;
+  const factory ChatBarEvent.mediaPicked(List<String> paths) = MediaPicked;
+  const factory ChatBarEvent.mediaRemoved(UniqueId id) = MediaRemoved;
 
   @override
   List<Object?> get props => const [];
@@ -52,4 +54,20 @@ final class ReplyStarted extends ChatBarEvent {
 /// The user no longer replies: the next message sent stands on its own.
 final class ReplyCancelled extends ChatBarEvent {
   const ReplyCancelled();
+}
+
+/// The user chose photos or GIFs at [paths] for the next message.
+final class MediaPicked extends ChatBarEvent {
+  final List<String> paths;
+  const MediaPicked(this.paths);
+  @override
+  List<Object?> get props => [paths];
+}
+
+/// The user took the chosen photo or GIF [id] out of the next message.
+final class MediaRemoved extends ChatBarEvent {
+  final UniqueId id;
+  const MediaRemoved(this.id);
+  @override
+  List<Object?> get props => [id];
 }

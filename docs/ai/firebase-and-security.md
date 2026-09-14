@@ -39,6 +39,7 @@ The project has no `(default)` database.
 | `chats/{pairId}/messages/{id}` | Sender, encrypted `content`, timestamps | The two people |
 | Storage `placeholders/…` | Shared placeholder avatar (public read, no client writes) | Anyone |
 | Storage `user_images/{uid}.jpg` | Profile photo | Signed-in users; only the owner writes |
+| Storage `chat_media/{chatId}/{fileId}` | A photo or GIF of a chat, encrypted (never readable by the server), never replaced | The two people |
 
 ## Rules: principles the code depends on
 
@@ -100,7 +101,7 @@ The full design is [docs/e2ee.md](../e2ee.md). What every change must keep:
 - **Plaintext stays on the device.** The server never receives message text, a
   reply quote, a search query or keys.
 - **Message metadata goes inside the payload.** A message's ciphertext holds a
-  JSON payload (format version 2): `{text, replyTo?}`. New data such as
+  JSON payload (format version 2): `{text, replyTo?, attachments?}`. New data such as
   reactions or attachments goes there, as a new field (readers pass over fields
   they do not know) or in a new version, never as a plaintext Firestore field.
 - **One format for all messages.** Every new message uses the same format

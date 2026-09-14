@@ -5,6 +5,7 @@ import 'package:routes_chat/domain/shared/user/value_objects.dart';
 
 import '../../core/value_objects.dart';
 import 'package:routes_chat/domain/chats/messages/message_quote.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
 
 part 'message.freezed.dart';
 
@@ -19,6 +20,10 @@ abstract class Message with _$Message {
 
     /// For a reply, the message it answers.
     MessageQuote? replyTo,
+
+    /// The photos and GIFs it carries, with the keys they are encrypted with.
+    @Default(KtList<MessageAttachment>.empty())
+    KtList<MessageAttachment> attachments,
     required DateTime? lastUpdatedAt,
     required bool isEdited,
 

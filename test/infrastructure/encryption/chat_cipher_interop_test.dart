@@ -115,4 +115,26 @@ void main() {
       ),
     );
   });
+
+  test('a photo encrypted by the other implementation decrypts', () async {
+    // Node's AES-256-GCM, a key of the file's own, stored as nonce, ciphertext
+    // and tag, with associated data routes_chat/v2/file, chat id, file id.
+    const file = {
+      'chatId': 'alice_bob',
+      'fileId': 'file-1',
+      'key': 'wis7hJscslkEl+C6vBmnrmB5LFgxhb1VugIM23BevYY=',
+      'stored':
+          'sCfk4MI6Gce6g0AuXp8CnYZFyi9GP+TTxeHZ4D3bUGoDA8bvSXypuLomUncBdmouZkYK7W1jOD64L4trfMkx',
+      'content': 'R0lGODlhIHJvdXRlc19jaGF0IGZpbGUgdmVjdG9yIPCfkYs=',
+    };
+
+    final content = await cipher.decryptFile(
+      base64Decode(file['stored']!),
+      key: base64Decode(file['key']!),
+      chatId: file['chatId']!,
+      fileId: file['fileId']!,
+    );
+
+    expect(content, base64Decode(file['content']!));
+  });
 }

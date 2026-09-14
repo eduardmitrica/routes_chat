@@ -12,13 +12,16 @@ import 'package:routes_chat/domain/chats/messages/message_repository_interface.d
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
 import 'package:routes_chat/infrastructure/shared/user/current_user_session.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import '../../helpers/unused_media_repository.dart';
 
 class _FailingChatRepository implements IChatRepository {
   @override
   Future<Either<chat_failure.ChatFailure, Unit>> create(
     Chat chat,
-    Message message,
-  ) async => Left(chat_failure.InsufficientPermissions());
+    Message message, {
+    KtList<MediaDraft> media = const KtList.empty(),
+  }) async => Left(chat_failure.InsufficientPermissions());
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -28,8 +31,9 @@ class _FailingMessageRepository implements IMessageRepository {
   @override
   Future<Either<message_failure.MessageFailure, Unit>> addMessageToChatWithId(
     Message message,
-    UniqueId chatId,
-  ) async => Left(message_failure.Unexpected());
+    UniqueId chatId, {
+    KtList<MediaDraft> media = const KtList.empty(),
+  }) async => Left(message_failure.Unexpected());
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
@@ -41,6 +45,7 @@ ChatBarBloc _bloc() {
     _FailingMessageRepository(),
     CurrentUserSession()
       ..start(const CurrentUserInformationPersistent('uid-alice', 'alice')),
+    UnusedMediaRepository(),
   );
   addTearDown(bloc.close);
   return bloc;

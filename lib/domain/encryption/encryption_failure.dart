@@ -36,3 +36,25 @@ final class RecoveryKeyNotConfirmed extends EncryptionFailure {
 final class EncryptionServerError extends EncryptionFailure {
   const EncryptionServerError();
 }
+
+/// Resetting the keys needs a sign-in from the last few minutes, and there was
+/// none. The user has to confirm their sign-in again.
+final class RecentSignInRequired extends EncryptionFailure {
+  const RecentSignInRequired();
+}
+
+/// The account password entered to confirm a key reset is wrong.
+final class WrongAccountPassword extends EncryptionFailure {
+  const WrongAccountPassword();
+}
+
+/// The user cancelled signing in again to confirm a key reset.
+final class ConfirmationSignInCancelled extends EncryptionFailure {
+  const ConfirmationSignInCancelled();
+}
+
+/// Signing in again to confirm a key reset failed, for example with another
+/// Google account than the signed-in one.
+final class ConfirmationSignInFailed extends EncryptionFailure {
+  const ConfirmationSignInFailed();
+}

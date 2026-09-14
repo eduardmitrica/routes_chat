@@ -37,21 +37,25 @@ abstract class MessageDataTransferObject with _$MessageDataTransferObject {
 
   Map<String, dynamic> toJsonWithId() => toJson()..putIfAbsent('id', () => id);
 
-  /// The message, with [content] as its decrypted text.
-  Message toDomain({required String content}) => Message(
-    id: UniqueId.fromUniqueString(id!),
-    senderId: UniqueId.fromUniqueString(senderId),
-    imageUrls: imageUrls
-        .map((imageUrl) => ImageUrl(imageUrl))
-        .toImmutableList(),
-    reactions: reactions
-        .map((reaction) => UniqueId.fromUniqueString(reaction))
-        .toImmutableList(),
-    content: Content(content),
-    repliedMessageId: UniqueId.fromUniqueString(repliedMessageId),
-    lastUpdatedAt: timeStamp!,
-    isEdited: isEdited,
-  );
+  /// The message, with [content] as its decrypted text, or as a placeholder
+  /// when it could not be decrypted ([isReadable] false).
+  Message toDomain({required String content, bool isReadable = true}) =>
+      Message(
+        id: UniqueId.fromUniqueString(id!),
+        senderId: UniqueId.fromUniqueString(senderId),
+        imageUrls: imageUrls
+            .map((imageUrl) => ImageUrl(imageUrl))
+            .toImmutableList(),
+        reactions: reactions
+            .map((reaction) => UniqueId.fromUniqueString(reaction))
+            .toImmutableList(),
+        content: Content(content),
+        repliedMessageId: UniqueId.fromUniqueString(repliedMessageId),
+        lastUpdatedAt: timeStamp!,
+        isEdited: isEdited,
+        isReadable: isReadable,
+        keyGeneration: this.content.keyGeneration,
+      );
 
   /// [message] as stored, with [content] as its encrypted text.
   factory MessageDataTransferObject.fromDomain(

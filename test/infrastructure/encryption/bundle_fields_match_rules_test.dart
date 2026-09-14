@@ -14,6 +14,7 @@ WrappedKey _wrapped() => WrappedKey(
 Set<String> _storedFields() {
   final bundle = KeyBundle(
     version: KeyBundle.currentVersion,
+    keyVersion: 1,
     kdf: PassphraseKdf(
       memoryKiB: 65536,
       iterations: 3,
@@ -58,5 +59,18 @@ void main() {
 
     expect(rules, contains('request.resource.data.publicKey.size() == 44'));
     expect(base64Encode(Uint8List(32)), hasLength(44));
+  });
+
+  test('replacing keys needs a recent sign-in, for both key documents', () {
+    // Otherwise a device someone left signed in could reset the keys, and
+    // receive every message sent after.
+    final rules = File('firestore.rules').readAsStringSync();
+
+    expect(rules, contains('request.auth.token.auth_time * 1000'));
+    expect(
+      'signedInRecently()'.allMatches(rules),
+      hasLength(3),
+      reason: 'defined once, then required by the bundle and userKeys updates',
+    );
   });
 }

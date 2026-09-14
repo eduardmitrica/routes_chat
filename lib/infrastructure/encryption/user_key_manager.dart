@@ -74,7 +74,11 @@ class UserKeyManager {
   X25519 get _x25519 => X25519();
   Hkdf get _hkdf => Hkdf(hmac: Hmac.sha256(), outputLength: masterKeyLength);
 
-  Future<NewUserKeys> create(String passphrase) async {
+  /// New keys protected by [passphrase].
+  ///
+  /// [keyVersion] is 1 for a user's first keys, and one more than before for
+  /// keys that replace lost ones (see docs/e2ee.md).
+  Future<NewUserKeys> create(String passphrase, {int keyVersion = 1}) async {
     final masterKey = SecretKeyData.random(length: masterKeyLength);
     final keyPair = await _x25519.newKeyPair();
     final publicKey = await keyPair.extractPublicKey();
@@ -83,6 +87,7 @@ class UserKeyManager {
 
     final bundle = KeyBundle(
       version: KeyBundle.currentVersion,
+      keyVersion: keyVersion,
       kdf: kdf,
       masterKeyByPassphrase: await _wrap(
         masterKey.bytes,

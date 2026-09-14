@@ -15,7 +15,8 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Chat {
 
- UniqueId get id; ParticipantsList get participantsList; Message get lastMessage;
+ UniqueId get id; ParticipantsList get participantsList; Message get lastMessage;/// Every time a participant reset their encryption keys, oldest first.
+ KtList<KeyReset> get keyResets;
 /// Create a copy of Chat
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,20 +28,20 @@ $ChatCopyWith<Chat> get copyWith => _$ChatCopyWithImpl<Chat>(this as Chat, _$ide
 @override
 bool operator ==(Object other) {
   final _this = this as Chat;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Chat&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.participantsList, _this.participantsList) || other.participantsList == _this.participantsList)&&(identical(other.lastMessage, _this.lastMessage) || other.lastMessage == _this.lastMessage));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Chat&&(identical(other.id, _this.id) || other.id == _this.id)&&(identical(other.participantsList, _this.participantsList) || other.participantsList == _this.participantsList)&&(identical(other.lastMessage, _this.lastMessage) || other.lastMessage == _this.lastMessage)&&(identical(other.keyResets, _this.keyResets) || other.keyResets == _this.keyResets));
 }
 
 
 @override
 int get hashCode {
   final _this = this as Chat;
-  return Object.hash(runtimeType,_this.id,_this.participantsList,_this.lastMessage);
+  return Object.hash(runtimeType,_this.id,_this.participantsList,_this.lastMessage,_this.keyResets);
 }
 
 @override
 String toString() {
   final _this = this as Chat;
-  return 'Chat(id: ${_this.id}, participantsList: ${_this.participantsList}, lastMessage: ${_this.lastMessage})';
+  return 'Chat(id: ${_this.id}, participantsList: ${_this.participantsList}, lastMessage: ${_this.lastMessage}, keyResets: ${_this.keyResets})';
 }
 
 
@@ -51,7 +52,7 @@ abstract mixin class $ChatCopyWith<$Res>  {
   factory $ChatCopyWith(Chat value, $Res Function(Chat) _then) = _$ChatCopyWithImpl;
 @useResult
 $Res call({
- UniqueId id, ParticipantsList participantsList, Message lastMessage
+ UniqueId id, ParticipantsList participantsList, Message lastMessage, KtList<KeyReset> keyResets
 });
 
 
@@ -68,12 +69,13 @@ class _$ChatCopyWithImpl<$Res>
 
 /// Create a copy of Chat
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? participantsList = null,Object? lastMessage = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? participantsList = null,Object? lastMessage = null,Object? keyResets = null,}) {
   return _then(Chat(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as UniqueId,participantsList: null == participantsList ? _self.participantsList : participantsList // ignore: cast_nullable_to_non_nullable
 as ParticipantsList,lastMessage: null == lastMessage ? _self.lastMessage : lastMessage // ignore: cast_nullable_to_non_nullable
-as Message,
+as Message,keyResets: null == keyResets ? _self.keyResets : keyResets // ignore: cast_nullable_to_non_nullable
+as KtList<KeyReset>,
   ));
 }
 /// Create a copy of Chat
@@ -167,10 +169,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( UniqueId id,  ParticipantsList participantsList,  Message lastMessage)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( UniqueId id,  ParticipantsList participantsList,  Message lastMessage,  KtList<KeyReset> keyResets)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Chat() when $default != null:
-return $default(_that.id,_that.participantsList,_that.lastMessage);case _:
+return $default(_that.id,_that.participantsList,_that.lastMessage,_that.keyResets);case _:
   return orElse();
 
 }
@@ -188,10 +190,10 @@ return $default(_that.id,_that.participantsList,_that.lastMessage);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( UniqueId id,  ParticipantsList participantsList,  Message lastMessage)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( UniqueId id,  ParticipantsList participantsList,  Message lastMessage,  KtList<KeyReset> keyResets)  $default,) {final _that = this;
 switch (_that) {
 case _Chat():
-return $default(_that.id,_that.participantsList,_that.lastMessage);case _:
+return $default(_that.id,_that.participantsList,_that.lastMessage,_that.keyResets);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -208,10 +210,10 @@ return $default(_that.id,_that.participantsList,_that.lastMessage);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( UniqueId id,  ParticipantsList participantsList,  Message lastMessage)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( UniqueId id,  ParticipantsList participantsList,  Message lastMessage,  KtList<KeyReset> keyResets)?  $default,) {final _that = this;
 switch (_that) {
 case _Chat() when $default != null:
-return $default(_that.id,_that.participantsList,_that.lastMessage);case _:
+return $default(_that.id,_that.participantsList,_that.lastMessage,_that.keyResets);case _:
   return null;
 
 }
@@ -223,12 +225,14 @@ return $default(_that.id,_that.participantsList,_that.lastMessage);case _:
 
 
 class _Chat implements Chat {
-  const _Chat({required this.id, required this.participantsList, required this.lastMessage});
+  const _Chat({required this.id, required this.participantsList, required this.lastMessage, this.keyResets = const KtList<KeyReset>.empty()});
   
 
 @override final  UniqueId id;
 @override final  ParticipantsList participantsList;
 @override final  Message lastMessage;
+/// Every time a participant reset their encryption keys, oldest first.
+@override@JsonKey() final  KtList<KeyReset> keyResets;
 
 /// Create a copy of Chat
 /// with the given fields replaced by the non-null parameter values.
@@ -240,18 +244,18 @@ _$ChatCopyWith<_Chat> get copyWith => __$ChatCopyWithImpl<_Chat>(this, _$identit
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Chat&&(identical(other.id, id) || other.id == id)&&(identical(other.participantsList, participantsList) || other.participantsList == participantsList)&&(identical(other.lastMessage, lastMessage) || other.lastMessage == lastMessage));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _Chat&&(identical(other.id, id) || other.id == id)&&(identical(other.participantsList, participantsList) || other.participantsList == participantsList)&&(identical(other.lastMessage, lastMessage) || other.lastMessage == lastMessage)&&(identical(other.keyResets, keyResets) || other.keyResets == keyResets));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,id,participantsList,lastMessage);
+    return Object.hash(runtimeType,id,participantsList,lastMessage,keyResets);
 }
 
 @override
 String toString() {
-    return 'Chat(id: $id, participantsList: $participantsList, lastMessage: $lastMessage)';
+    return 'Chat(id: $id, participantsList: $participantsList, lastMessage: $lastMessage, keyResets: $keyResets)';
 }
 
 
@@ -262,7 +266,7 @@ abstract mixin class _$ChatCopyWith<$Res> implements $ChatCopyWith<$Res> {
   factory _$ChatCopyWith(_Chat value, $Res Function(_Chat) _then) = __$ChatCopyWithImpl;
 @override @useResult
 $Res call({
- UniqueId id, ParticipantsList participantsList, Message lastMessage
+ UniqueId id, ParticipantsList participantsList, Message lastMessage, KtList<KeyReset> keyResets
 });
 
 
@@ -279,12 +283,13 @@ class __$ChatCopyWithImpl<$Res>
 
 /// Create a copy of Chat
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? participantsList = null,Object? lastMessage = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? participantsList = null,Object? lastMessage = null,Object? keyResets = null,}) {
   return _then(_Chat(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as UniqueId,participantsList: null == participantsList ? _self.participantsList : participantsList // ignore: cast_nullable_to_non_nullable
 as ParticipantsList,lastMessage: null == lastMessage ? _self.lastMessage : lastMessage // ignore: cast_nullable_to_non_nullable
-as Message,
+as Message,keyResets: null == keyResets ? _self.keyResets : keyResets // ignore: cast_nullable_to_non_nullable
+as KtList<KeyReset>,
   ));
 }
 

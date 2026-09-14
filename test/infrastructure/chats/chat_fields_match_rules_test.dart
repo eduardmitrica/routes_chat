@@ -25,6 +25,7 @@ final _message = Message(
 );
 
 final _content = EncryptedContent(
+  keyGeneration: 1,
   nonce: Uint8List(12),
   cipherText: Uint8List(5),
   mac: Uint8List(16),
@@ -35,6 +36,12 @@ final _sealed = SealedChatKey(
   nonce: Uint8List(12),
   cipherText: Uint8List(32),
   mac: Uint8List(16),
+  recipientKeyVersion: 1,
+);
+
+final _generation = KeyGeneration(
+  createdBy: 'user-a',
+  sealedKeys: {'user-a': _sealed, 'user-b': _sealed},
 );
 
 Map<String, dynamic> _storedChat() => ChatDataTransferObject.fromDomain(
@@ -49,7 +56,7 @@ Map<String, dynamic> _storedChat() => ChatDataTransferObject.fromDomain(
     lastMessage: _message,
   ),
   lastMessageContent: _content,
-  chatKeys: {'user-a': _sealed, 'user-b': _sealed},
+  firstKeyGeneration: _generation,
 ).toJson();
 
 final _rules = File('firestore.rules').readAsStringSync();
@@ -92,28 +99,52 @@ void main() {
     });
   });
 
+  test('a new chat starts at key generation 1, as the rules require', () {
+    final chat = _storedChat();
+
+    expect(chat['currentKeyGeneration'], 1);
+    expect((chat['keyGenerations'] as Map).keys, ['1']);
+    expect(_rules, contains('request.resource.data.currentKeyGeneration == 1'));
+    expect(
+      _rules,
+      contains("request.resource.data.keyGenerations.keys().hasOnly(['1'])"),
+    );
+  });
+
   test('the rules check the encrypted formats the app writes', () {
     // Sizes are base64 lengths, checked against real output in
     // chat_cipher_test.dart.
     for (final check in [
-      "content.keys().hasOnly(['v', 'nonce', 'cipherText', 'mac'])",
+      "content.keys().hasOnly(['v', 'e', 'nonce', 'cipherText', 'mac'])",
       'content.v == 1',
+      'content.e == generation',
       'content.nonce.size() == 16',
       'content.mac.size() == 24',
       'content.cipherText.size() <= 4000',
+      "'cipherText', 'mac', 'keyVersion']",
       'sealed.ephemeralPublicKey.size() == 44',
       'sealed.nonce.size() == 16',
       'sealed.cipherText.size() == 44',
       'sealed.mac.size() == 24',
+      'sealed.keyVersion is int',
+      "generation.keys().hasOnly(['createdBy', 'sealedKeys'])",
     ]) {
       expect(_rules, contains(check));
     }
-    expect(_content.toJson().keys.toSet(), {'v', 'nonce', 'cipherText', 'mac'});
+    expect(_content.toJson().keys.toSet(), {
+      'v',
+      'e',
+      'nonce',
+      'cipherText',
+      'mac',
+    });
     expect(_sealed.toJson().keys.toSet(), {
       'ephemeralPublicKey',
       'nonce',
       'cipherText',
       'mac',
+      'keyVersion',
     });
+    expect(_generation.toJson().keys.toSet(), {'createdBy', 'sealedKeys'});
   });
 }

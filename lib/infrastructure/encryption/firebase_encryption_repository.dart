@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -21,14 +22,16 @@ import 'user_key_manager.dart';
 /// Keeps the user's key bundle in Firestore and the unlocked master key in the
 /// device's secure storage (Android Keystore, iOS Keychain).
 ///
-/// It also hands the unlocked key pair to [ChatKeyring], which opens chat keys
-/// with it.
+/// It also hands the unlocked keys to [ChatKeyring], which opens chat keys
+/// with them.
 class FirebaseEncryptionRepository
-    implements IEncryptionRepository, UnlockedKeyPairSource {
+    implements IEncryptionRepository, UnlockedKeysSource {
   final FirebaseFirestore _firestore;
   final FlutterSecureStorage _secureStorage;
   final UserKeyManager _keys;
   final ICurrentUserSession _session;
+
+  final _keysChanged = StreamController<void>.broadcast(sync: true);
 
   FirebaseEncryptionRepository(
     this._firestore,
@@ -40,6 +43,9 @@ class FirebaseEncryptionRepository
   /// The secure storage entry holding [userId]'s master key on this device.
   @visibleForTesting
   static String masterKeyEntry(String userId) => 'e2ee.masterKey.$userId';
+
+  @override
+  Stream<void> get keysChanged => _keysChanged.stream;
 
   @override
   Future<Either<EncryptionFailure, EncryptionStatus>> status() =>
@@ -84,12 +90,13 @@ class FirebaseEncryptionRepository
         return true;
       }
       // The rules require the bundle and the published public key to be
-      // written together, and to carry the same public key.
+      // written together, and to carry the same public key and version.
       transaction
         ..set(_firestore.encryptionBundleDocument(userId), keys.bundle.toJson())
-        ..set(_firestore.publicKeyDocument(userId), {
-          'publicKey': base64Encode(keys.bundle.publicKey),
-        });
+        ..set(
+          _firestore.publicKeyDocument(userId),
+          _publishedKeys(keys.bundle),
+        );
       return false;
     });
     if (alreadySetUp) {
@@ -158,7 +165,7 @@ class FirebaseEncryptionRepository
         masterKey,
         newPassphrase.getOrCrash(),
       );
-      // Rules allow an update only when the key pair stays the same.
+      // Rules allow this update only when the key pair stays the same.
       await _firestore
           .encryptionBundleDocument(userId)
           .set(rekeyed.bundle.toJson());
@@ -167,6 +174,59 @@ class FirebaseEncryptionRepository
       await _secureStorage.delete(key: masterKeyEntry(userId));
       return const Left(EncryptionKeysUnavailable());
     }
+  });
+
+  @override
+  Future<Either<EncryptionFailure, String>> resetKeys(
+    Passphrase newPassphrase,
+  ) => _forUser((userId) async {
+    final current = await _loadBundle(userId);
+    if (current == null) {
+      return const Left(EncryptionKeysUnavailable());
+    }
+    // Argon2id takes seconds, so the new keys are made once, before the
+    // transaction, which may retry.
+    final keys = await _keys.create(
+      newPassphrase.getOrCrash(),
+      keyVersion: current.keyVersion + 1,
+    );
+
+    final bool replaced;
+    try {
+      replaced = await _firestore.runTransaction((transaction) async {
+        final stored = (await transaction.get(
+          _firestore.encryptionBundleDocument(userId),
+        )).data();
+        // Reset from another device meanwhile: do not replace those keys.
+        if (stored == null ||
+            KeyBundle.fromJson(stored).keyVersion != current.keyVersion) {
+          return false;
+        }
+        transaction
+          ..set(
+            _firestore.encryptionBundleDocument(userId),
+            keys.bundle.toJson(),
+          )
+          ..set(
+            _firestore.publicKeyDocument(userId),
+            _publishedKeys(keys.bundle),
+          );
+        return true;
+      });
+    } on FirebaseException catch (error) {
+      // The rules allow a reset only shortly after signing in. Everything
+      // else about the write is the app's own doing.
+      if (error.code == 'permission-denied') {
+        return const Left(RecentSignInRequired());
+      }
+      rethrow;
+    }
+    if (!replaced) {
+      return const Left(EncryptionServerError());
+    }
+
+    await _storeMasterKey(userId, keys.masterKey);
+    return Right(keys.recoveryKey.formatted);
   });
 
   @override
@@ -183,18 +243,27 @@ class FirebaseEncryptionRepository
   }
 
   @override
-  Future<SimpleKeyPair> unlockedKeyPair(String userId) async {
+  Future<UnlockedKeys> unlockedKeys(String userId) async {
     final masterKey = await _storedMasterKey(userId);
     final bundle = masterKey == null ? null : await _loadBundle(userId);
     if (masterKey == null || bundle == null) {
       throw const EncryptionKeysLocked();
     }
     try {
-      return await _keys.privateKeyPair(bundle, masterKey);
+      return UnlockedKeys(
+        await _keys.privateKeyPair(bundle, masterKey),
+        bundle.keyVersion,
+      );
     } on WrongSecret {
       throw const EncryptionKeysLocked();
     }
   }
+
+  /// What `userKeys/{uid}` publishes for [bundle].
+  static Map<String, Object> _publishedKeys(KeyBundle bundle) => {
+    'publicKey': base64Encode(bundle.publicKey),
+    'keyVersion': bundle.keyVersion,
+  };
 
   /// Runs [operation] for the signed-in user, turning storage and parsing
   /// errors into [EncryptionServerError].
@@ -234,9 +303,13 @@ class FirebaseEncryptionRepository
     return stored == null ? null : SecretKeyData(base64Decode(stored));
   }
 
-  Future<void> _storeMasterKey(String userId, SecretKeyData masterKey) =>
-      _secureStorage.write(
-        key: masterKeyEntry(userId),
-        value: base64Encode(masterKey.bytes),
-      );
+  /// Stores the master key this device now uses, and tells whoever holds keys
+  /// opened with earlier ones to drop them.
+  Future<void> _storeMasterKey(String userId, SecretKeyData masterKey) async {
+    await _secureStorage.write(
+      key: masterKeyEntry(userId),
+      value: base64Encode(masterKey.bytes),
+    );
+    _keysChanged.add(null);
+  }
 }

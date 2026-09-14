@@ -113,6 +113,7 @@ void main() {
         final other = await _manager().create('another passphrase');
         final tampered = KeyBundle(
           version: keys.bundle.version,
+          keyVersion: keys.bundle.keyVersion,
           kdf: keys.bundle.kdf,
           masterKeyByPassphrase: keys.bundle.masterKeyByPassphrase,
           masterKeyByRecoveryKey: keys.bundle.masterKeyByRecoveryKey,
@@ -124,6 +125,26 @@ void main() {
           manager.privateKeyPair(tampered, keys.masterKey),
           throwsA(isA<KeyBundleMismatch>()),
         );
+      },
+    );
+
+    test(
+      'new keys have the version asked for, which a passphrase change keeps',
+      () async {
+        expect(keys.bundle.keyVersion, 1);
+
+        final replacement = await _manager().create(
+          'another passphrase',
+          keyVersion: 2,
+        );
+        final rekeyed = await _manager().changePassphrase(
+          replacement.bundle,
+          replacement.masterKey,
+          'yet another passphrase',
+        );
+
+        expect(replacement.bundle.keyVersion, 2);
+        expect(rekeyed.bundle.keyVersion, 2);
       },
     );
 

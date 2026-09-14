@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/chat.dart';
+import 'package:routes_chat/domain/chats/key_reset.dart';
 import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/chats/value_objects.dart';
@@ -39,17 +40,27 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
     @MessageDataTransferObjectConverter()
     required MessageDataTransferObject lastMessage,
 
-    /// The chat's key, sealed to each participant, by participant id. Written
-    /// when the chat is created and never changed; see docs/e2ee.md.
-    @SealedChatKeysConverter() required Map<String, SealedChatKey> chatKeys,
+    /// Every generation of the chat's key, by number, each sealed to the
+    /// participants. A chat starts with generation 1; a participant who
+    /// resets their keys adds the next. Generations are never changed or
+    /// removed. See docs/e2ee.md.
+    @KeyGenerationsConverter() required Map<int, KeyGeneration> keyGenerations,
+
+    /// The generation new messages are encrypted under: the highest.
+    required int currentKeyGeneration,
     @ServerTimestampConverter() required FieldValue serverTimeStamp,
   }) = _ChatDataTransferObject;
 
   factory ChatDataTransferObject.fromJson(Map<String, dynamic> json) =>
       _$ChatDataTransferObjectFromJson(json);
 
-  /// The chat, with [lastMessageContent] as its last message's decrypted text.
-  Chat toDomain({required String lastMessageContent}) => Chat(
+  /// The chat, with [lastMessageContent] as its last message's decrypted text,
+  /// or as a placeholder when it could not be decrypted
+  /// ([lastMessageReadable] false).
+  Chat toDomain({
+    required String lastMessageContent,
+    required bool lastMessageReadable,
+  }) => Chat(
     id: UniqueId.fromUniqueString(id!),
     participantsList: ParticipantsList.fromListOfMaps(participants),
     lastMessage: Message(
@@ -67,15 +78,29 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
       isEdited: lastMessage.isEdited,
       repliedMessageId: UniqueId.fromUniqueString(lastMessage.repliedMessageId),
       lastUpdatedAt: lastMessage.timeStamp,
+      isReadable: lastMessageReadable,
+      keyGeneration: lastMessage.content.keyGeneration,
     ),
+    // Every generation after the first was added by a participant who reset
+    // their keys.
+    keyResets:
+        (keyGenerations.entries.where((entry) => entry.key > 1).toList()
+              ..sort((a, b) => a.key.compareTo(b.key)))
+            .map(
+              (entry) => KeyReset(
+                userId: UniqueId.fromUniqueString(entry.value.createdBy),
+                keyGeneration: entry.key,
+              ),
+            )
+            .toImmutableList(),
   );
 
-  /// [chat] as stored, with its last message's text encrypted as
-  /// [lastMessageContent] and the chat key sealed as [chatKeys].
+  /// A new [chat] as stored: its last message's text encrypted as
+  /// [lastMessageContent], under [firstKeyGeneration] of its key.
   factory ChatDataTransferObject.fromDomain(
     Chat chat, {
     required EncryptedContent lastMessageContent,
-    required Map<String, SealedChatKey> chatKeys,
+    required KeyGeneration firstKeyGeneration,
   }) {
     return ChatDataTransferObject(
       id: chat.id.getOrCrash(),
@@ -98,7 +123,8 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
         chat.lastMessage,
         content: lastMessageContent,
       ),
-      chatKeys: chatKeys,
+      keyGenerations: {1: firstKeyGeneration},
+      currentKeyGeneration: 1,
       serverTimeStamp: FieldValue.serverTimestamp(),
     );
   }
@@ -142,15 +168,15 @@ class MessageDataTransferObjectConverter
   }
 }
 
-class SealedChatKeysConverter
-    implements JsonConverter<Map<String, SealedChatKey>, Object?> {
-  const SealedChatKeysConverter();
+class KeyGenerationsConverter
+    implements JsonConverter<Map<int, KeyGeneration>, Object?> {
+  const KeyGenerationsConverter();
 
   @override
-  Map<String, SealedChatKey> fromJson(Object? json) =>
-      SealedChatKey.mapFromJson(json);
+  Map<int, KeyGeneration> fromJson(Object? json) =>
+      KeyGeneration.mapFromJson(json);
 
   @override
-  Object toJson(Map<String, SealedChatKey> sealedKeys) =>
-      SealedChatKey.mapToJson(sealedKeys);
+  Object toJson(Map<int, KeyGeneration> generations) =>
+      KeyGeneration.mapToJson(generations);
 }

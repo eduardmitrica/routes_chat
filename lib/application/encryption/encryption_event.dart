@@ -19,6 +19,15 @@ sealed class EncryptionEvent extends Equatable {
   ) = EncryptionRecoveryKeyEntered;
   const factory EncryptionEvent.newPassphraseChosen(Passphrase passphrase) =
       EncryptionNewPassphraseChosen;
+  const factory EncryptionEvent.resetChosen() = EncryptionResetChosen;
+  const factory EncryptionEvent.resetCancelled() = EncryptionResetCancelled;
+  const factory EncryptionEvent.resetConfirmed() = EncryptionResetConfirmed;
+  const factory EncryptionEvent.resetPassphraseChosen(Passphrase passphrase) =
+      EncryptionResetPassphraseChosen;
+  const factory EncryptionEvent.resetSignInWithPassword(Password password) =
+      EncryptionResetSignInWithPassword;
+  const factory EncryptionEvent.resetSignInWithGoogle() =
+      EncryptionResetSignInWithGoogle;
 
   @override
   List<Object?> get props => const [];
@@ -77,4 +86,43 @@ final class EncryptionNewPassphraseChosen extends EncryptionEvent {
   const EncryptionNewPassphraseChosen(this.passphrase);
   @override
   List<Object?> get props => [passphrase];
+}
+
+/// The user lost the recovery key as well, and wants to know about resetting.
+final class EncryptionResetChosen extends EncryptionEvent {
+  const EncryptionResetChosen();
+}
+
+/// Back out of resetting, to the recovery key.
+final class EncryptionResetCancelled extends EncryptionEvent {
+  const EncryptionResetCancelled();
+}
+
+/// The user understood that a reset makes earlier messages unreadable.
+final class EncryptionResetConfirmed extends EncryptionEvent {
+  const EncryptionResetConfirmed();
+}
+
+/// The passphrase that will protect the new keys.
+final class EncryptionResetPassphraseChosen extends EncryptionEvent {
+  final Passphrase passphrase;
+  const EncryptionResetPassphraseChosen(this.passphrase);
+  @override
+  List<Object?> get props => [passphrase];
+}
+
+/// Confirm the sign-in with the account [password], then reset the keys.
+final class EncryptionResetSignInWithPassword extends EncryptionEvent {
+  final Password password;
+  const EncryptionResetSignInWithPassword(this.password);
+  @override
+  List<Object?> get props => [password];
+
+  @override
+  String toString() => 'EncryptionResetSignInWithPassword(password hidden)';
+}
+
+/// Confirm the sign-in with Google, then reset the keys.
+final class EncryptionResetSignInWithGoogle extends EncryptionEvent {
+  const EncryptionResetSignInWithGoogle();
 }

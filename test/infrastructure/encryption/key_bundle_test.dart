@@ -14,8 +14,9 @@ WrappedKey _wrapped(int seed) => WrappedKey(
   mac: _bytes(16, seed + 2),
 );
 
-KeyBundle _bundle() => KeyBundle(
+KeyBundle _bundle({int keyVersion = 1}) => KeyBundle(
   version: KeyBundle.currentVersion,
+  keyVersion: keyVersion,
   kdf: PassphraseKdf(
     memoryKiB: 65536,
     iterations: 3,
@@ -50,6 +51,7 @@ void main() {
   test('stores exactly the fields the security rules will allow', () {
     expect(_throughFirestore(_bundle()).keys.toSet(), {
       'version',
+      'keyVersion',
       'kdf',
       'masterKeyByPassphrase',
       'masterKeyByRecoveryKey',
@@ -83,6 +85,19 @@ void main() {
     expect(changed.privateKey, bundle.privateKey);
     expect(changed.publicKey, bundle.publicKey);
     expect(changed.kdf, bundle.kdf);
+    expect(changed.keyVersion, bundle.keyVersion);
     expect(changed, isNot(bundle));
+  });
+
+  test('keeps its key version through its stored form', () {
+    final bundle = _bundle(keyVersion: 3);
+
+    expect(KeyBundle.fromJson(_throughFirestore(bundle)).keyVersion, 3);
+  });
+
+  test('reads a bundle stored before key versions existed as version 1', () {
+    final stored = _throughFirestore(_bundle())..remove('keyVersion');
+
+    expect(KeyBundle.fromJson(stored).keyVersion, 1);
   });
 }

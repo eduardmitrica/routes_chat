@@ -165,7 +165,8 @@ void configureDependencies() {
       ),
     )
     ..registerFactory<EncryptionBloc>(
-      () => EncryptionBloc(getIt<IEncryptionRepository>()),
+      () =>
+          EncryptionBloc(getIt<IEncryptionRepository>(), getIt<IAuthFacade>()),
     )
     ..registerFactory<RegisterFormBloc>(
       () => RegisterFormBloc(getIt<IAuthFacade>(), getIt<IUserUtils>()),

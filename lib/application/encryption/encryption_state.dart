@@ -21,6 +21,15 @@ enum EncryptionPhase {
   /// Unlocked with the recovery key: choose a new passphrase.
   needsNewPassphrase,
 
+  /// Lost the recovery key too: explain what resetting the keys means.
+  confirmingReset,
+
+  /// Resetting: choose a passphrase for the new keys.
+  needsResetPassphrase,
+
+  /// Resetting: sign in again, to confirm it is the account holder.
+  needsResetSignIn,
+
   /// This device can read and send encrypted chats.
   ready,
 
@@ -42,12 +51,16 @@ final class EncryptionState extends Equatable {
   /// Which group of the recovery key (0 to 7) the user must type back.
   final int confirmationGroup;
 
+  /// How the user confirms their sign-in before a reset.
+  final SignInMethod resetSignInMethod;
+
   const EncryptionState({
     required this.phase,
     required this.isWorking,
     required this.failureOption,
     required this.recoveryKeyToShow,
     required this.confirmationGroup,
+    required this.resetSignInMethod,
   });
 
   factory EncryptionState.initial() => EncryptionState(
@@ -56,6 +69,7 @@ final class EncryptionState extends Equatable {
     failureOption: none(),
     recoveryKeyToShow: none(),
     confirmationGroup: 0,
+    resetSignInMethod: SignInMethod.emailAndPassword,
   );
 
   EncryptionState copyWith({
@@ -64,12 +78,14 @@ final class EncryptionState extends Equatable {
     Option<EncryptionFailure>? failureOption,
     Option<String>? recoveryKeyToShow,
     int? confirmationGroup,
+    SignInMethod? resetSignInMethod,
   }) => EncryptionState(
     phase: phase ?? this.phase,
     isWorking: isWorking ?? this.isWorking,
     failureOption: failureOption ?? this.failureOption,
     recoveryKeyToShow: recoveryKeyToShow ?? this.recoveryKeyToShow,
     confirmationGroup: confirmationGroup ?? this.confirmationGroup,
+    resetSignInMethod: resetSignInMethod ?? this.resetSignInMethod,
   );
 
   @override
@@ -79,11 +95,13 @@ final class EncryptionState extends Equatable {
     failureOption,
     recoveryKeyToShow,
     confirmationGroup,
+    resetSignInMethod,
   ];
 
   @override
   String toString() =>
       'EncryptionState(phase: ${phase.name}, isWorking: $isWorking, '
       'failure: $failureOption, recoveryKeyShown: '
-      '${recoveryKeyToShow.isSome()}, confirmationGroup: $confirmationGroup)';
+      '${recoveryKeyToShow.isSome()}, confirmationGroup: $confirmationGroup, '
+      'resetSignInMethod: ${resetSignInMethod.name})';
 }

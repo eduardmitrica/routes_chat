@@ -26,7 +26,7 @@ recovery key ──HKDF-SHA256─────────▶ recovery KEK ──
                                                                         └─ wrap ─▶ X25519 private key
 X25519 public key ─────────────────────────────────── published for chat partners
 
-chat key (random, 32 bytes, one per chat) ── sealed to each participant's public key
+chat key (random, 32 bytes, one per chat per key generation) ── sealed to each participant's public key
 message text and last-message preview ──AES-256-GCM(chat key)──▶ ciphertext
 ```
 
@@ -47,13 +47,21 @@ message text and last-message preview ──AES-256-GCM(chat key)──▶ ciphe
      5869's default, spelled out). The info is `routes_chat/v1/chat-key/kek`,
      then the ephemeral public key, then the participant's public key.
   3. AES-256-GCM encrypts the chat key under the sealing key. The associated
-     data is `routes_chat/v1/chat-key`, the chat id and the participant's id.
+     data is `routes_chat/v1/chat-key`, the chat id, the key generation, the
+     participant's id and the version of the participant's keys.
   The sender's own copy is sealed to their unlocked key pair rather than to
   the public key read from Firestore.
-- **Each message** is encrypted with AES-256-GCM under the chat key. The
-  associated data is `routes_chat/v1/message`, the chat id, the message id and
-  the sender id, so ciphertext cannot be moved to another message, chat or
-  sender. The chat's last message is the same ciphertext as the message.
+- **Key generations.** A chat's first key is generation 1. Each user's keys
+  have a version: 1 at setup, one more after each reset. A user whose own
+  sealed key in the current generation is for an older version of their keys
+  has reset them, and cannot open it. Their app then adds the next generation,
+  a new chat key sealed to both participants' current keys. Generations are
+  only ever added, so earlier messages keep the key they were sent under.
+- **Each message** is encrypted with AES-256-GCM under the chat key of the
+  chat's current generation. The associated data is `routes_chat/v1/message`,
+  the chat id, the key generation, the message id and the sender id, so
+  ciphertext cannot be moved to another message, chat, generation or sender.
+  The chat's last message is the same ciphertext as the message.
 - **Associated data** is each of those strings as UTF-8, prefixed with its
   length in bytes as a 32-bit big-endian integer.
 - **Opened chat keys** stay in memory for the session only. A message that does
@@ -64,21 +72,27 @@ message text and last-message preview ──AES-256-GCM(chat key)──▶ ciphe
 
 | Where | Contents | Readable by |
 |---|---|---|
-| `users/{uid}/private/encryption` | KDF params and salt, the master key wrapped twice (by passphrase and by recovery key), the private key wrapped by the master key, the public key | The owner only |
-| `userKeys/{uid}` | The public key | Any signed-in user |
-| `chats/{chatId}` | The chat key sealed for each participant, and the encrypted last message | The chat's participants |
+| `users/{uid}/private/encryption` | KDF params and salt, the master key wrapped twice (by passphrase and by recovery key), the private key wrapped by the master key, the public key, the key version | The owner only |
+| `userKeys/{uid}` | The public key and the key version | Any signed-in user |
+| `chats/{chatId}` | Every generation of the chat key, sealed for each participant; the current generation; the encrypted last message | The chat's participants |
 | `chats/{chatId}/messages/{id}` | The encrypted message | The chat's participants |
 
-Stored formats, every value base64:
-- a message's `content`: `{v: 1, nonce, cipherText, mac}`, a 12-byte nonce and
-  a 16-byte tag;
-- a chat's `chatKeys`: participant id to `{ephemeralPublicKey, nonce,
-  cipherText, mac}`.
+Stored formats (keys, nonces, ciphertext and tags as base64):
+- a message's `content`: `{v: 1, e: <key generation>, nonce, cipherText, mac}`,
+  with a 12-byte nonce and a 16-byte tag;
+- a chat's `keyGenerations`: generation number to `{createdBy, sealedKeys}`,
+  where `sealedKeys` maps each participant's id to `{ephemeralPublicKey,
+  nonce, cipherText, mac, keyVersion}`; and `currentKeyGeneration`.
 
 Security rules reject a message or last message whose content is not in the
 encrypted format, so an outdated or modified client cannot write plaintext.
-They also allow only the fields the app stores, keep `chatKeys` unchanged once
-the chat exists, and require one sealed key per participant.
+They also:
+- allow only the fields the app stores;
+- require one sealed key per participant;
+- allow a chat's key generations only to grow by one, made by the writer;
+- accept messages only under the current generation;
+- allow a key reset only as the next key version, with the bundle and the
+  published key written together, within 5 minutes of signing in.
 
 ## Flows
 
@@ -90,8 +104,20 @@ the chat exists, and require one sealed key per participant.
   passphrase, and receive a new recovery key. The old one stops working.
 - **Change the passphrase:** re-wraps the master key. It needs no re-encryption
   of any message.
-- **Lost both:** reset encryption. This creates new keys; earlier messages stay
-  unreadable, and existing chats need their keys re-shared.
+- **Lost both:** reset encryption, from the recovery key screen.
+  1. The app explains that earlier messages become unreadable for good, on
+     every device.
+  2. The user chooses a new passphrase.
+  3. The user signs in again: the password for email accounts, Google again
+     for Google accounts.
+  4. The app creates keys with the next key version and shows the new
+     recovery key.
+  5. Each chat gets a new key generation as the user's chat list loads. The
+     chat partner sees "… reset their encryption keys" in the chat.
+
+  Partners never re-share old chat keys. Anyone who took over the account
+  could reset the keys too, and would then receive the whole history. The
+  user's earlier messages show as one line saying they cannot be read.
 - **Sign-out:** removes the master key from the device.
 
 ## What this does not protect against

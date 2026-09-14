@@ -4,6 +4,10 @@ import 'dart:math';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:routes_chat/application/encryption/encryption_bloc.dart';
+import 'package:routes_chat/domain/authentication/authentication_facade_interface.dart';
+import 'package:routes_chat/domain/authentication/sign_in_failure.dart';
+import 'package:routes_chat/domain/authentication/sign_in_method.dart';
+import 'package:routes_chat/domain/shared/user/value_objects.dart';
 import 'package:routes_chat/domain/encryption/encryption_failure.dart';
 import 'package:routes_chat/domain/encryption/encryption_repository_interface.dart';
 import 'package:routes_chat/domain/encryption/encryption_status.dart';
@@ -57,17 +61,58 @@ class _FakeEncryption implements IEncryptionRepository {
     Passphrase newPassphrase,
   ) async => changeResult;
 
+  Either<EncryptionFailure, String> resetResult = const Right(_newRecoveryKey);
+
+  /// The passphrase keys were last reset with, or null if they never were.
+  Passphrase? resetWith;
+
+  @override
+  Future<Either<EncryptionFailure, String>> resetKeys(
+    Passphrase newPassphrase,
+  ) async {
+    resetWith = newPassphrase;
+    return resetResult;
+  }
+
   @override
   Future<void> lock() async {}
 }
 
+/// Confirms a sign-in with scripted results.
+class _FakeAuth implements IAuthFacade {
+  SignInMethod? method = SignInMethod.emailAndPassword;
+  String correctPassword = 'account password';
+  SignInFailure? googleFailure;
+
+  @override
+  SignInMethod? currentSignInMethod() => method;
+
+  @override
+  Future<Either<SignInFailure, Unit>> confirmSignInWithPassword(
+    Password password,
+  ) async => password.getOrCrash() == correctPassword
+      ? const Right(unit)
+      : Left(InvalidEmailAndPasswordCombination());
+
+  @override
+  Future<Either<SignInFailure, Unit>> confirmSignInWithGoogle() async {
+    final failure = googleFailure;
+    return failure == null ? const Right(unit) : Left(failure);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   late _FakeEncryption encryption;
+  late _FakeAuth auth;
   late EncryptionBloc bloc;
 
   setUp(() {
     encryption = _FakeEncryption();
-    bloc = EncryptionBloc(encryption, random: Random(1));
+    auth = _FakeAuth();
+    bloc = EncryptionBloc(encryption, auth, random: Random(1));
   });
 
   tearDown(() => bloc.close());
@@ -249,5 +294,125 @@ void main() {
         expect(bloc.state.recoveryKeyToShow, none());
       },
     );
+  });
+
+  group('resetting lost keys', () {
+    setUp(() async {
+      encryption.statusResult = const Right(EncryptionLocked());
+      await send(const EncryptionEvent.statusRequested());
+      await send(const EncryptionEvent.forgotPassphraseChosen());
+      await send(const EncryptionEvent.resetChosen());
+    });
+
+    Future<void> chooseNewPassphrase() async {
+      await send(const EncryptionEvent.resetConfirmed());
+      await send(
+        EncryptionEvent.resetPassphraseChosen(
+          Passphrase('a brand new passphrase'),
+        ),
+      );
+    }
+
+    test('explains the reset first, and can go back', () async {
+      expect(bloc.state.phase, EncryptionPhase.confirmingReset);
+
+      await send(const EncryptionEvent.resetCancelled());
+
+      expect(bloc.state.phase, EncryptionPhase.needsRecoveryKey);
+    });
+
+    test(
+      'asks for a new passphrase, then a sign-in the way the user signs in',
+      () async {
+        auth.method = SignInMethod.google;
+
+        await send(const EncryptionEvent.resetConfirmed());
+        expect(bloc.state.phase, EncryptionPhase.needsResetPassphrase);
+
+        await send(
+          EncryptionEvent.resetPassphraseChosen(
+            Passphrase('a brand new passphrase'),
+          ),
+        );
+        expect(bloc.state.phase, EncryptionPhase.needsResetSignIn);
+        expect(bloc.state.resetSignInMethod, SignInMethod.google);
+        expect(
+          encryption.resetWith,
+          isNull,
+          reason: 'nothing is reset before the sign-in is confirmed',
+        );
+      },
+    );
+
+    test('a wrong account password resets nothing', () async {
+      await chooseNewPassphrase();
+
+      await send(
+        EncryptionEvent.resetSignInWithPassword(Password('not my password')),
+      );
+
+      expect(bloc.state.phase, EncryptionPhase.needsResetSignIn);
+      expect(bloc.state.failureOption, some(const WrongAccountPassword()));
+      expect(bloc.state.isWorking, isFalse);
+      expect(encryption.resetWith, isNull);
+    });
+
+    test('a cancelled Google sign-in resets nothing', () async {
+      auth
+        ..method = SignInMethod.google
+        ..googleFailure = CancelledByUser();
+      await chooseNewPassphrase();
+
+      await send(const EncryptionEvent.resetSignInWithGoogle());
+
+      expect(
+        bloc.state.failureOption,
+        some(const ConfirmationSignInCancelled()),
+      );
+      expect(encryption.resetWith, isNull);
+    });
+
+    test(
+      'once signed in, the keys are replaced and the new recovery key shown',
+      () async {
+        await chooseNewPassphrase();
+
+        await send(
+          EncryptionEvent.resetSignInWithPassword(Password('account password')),
+        );
+
+        expect(encryption.resetWith?.getOrCrash(), 'a brand new passphrase');
+        expect(bloc.state.phase, EncryptionPhase.showRecoveryKey);
+        expect(bloc.state.recoveryKeyToShow, some(_newRecoveryKey));
+
+        await send(EncryptionEvent.recoveryKeyConfirmed(groupAskedFor()));
+        expect(bloc.state.phase, EncryptionPhase.ready);
+      },
+    );
+
+    test(
+      'a reset refused for want of a recent sign-in can be retried',
+      () async {
+        encryption.resetResult = const Left(RecentSignInRequired());
+        await chooseNewPassphrase();
+
+        await send(
+          EncryptionEvent.resetSignInWithPassword(Password('account password')),
+        );
+
+        expect(bloc.state.phase, EncryptionPhase.needsResetSignIn);
+        expect(bloc.state.failureOption, some(const RecentSignInRequired()));
+        expect(bloc.state.isWorking, isFalse);
+      },
+    );
+
+    test('never prints the account password', () {
+      expect(
+        EncryptionEvent.resetSignInWithPassword(
+          Password('account password'),
+        ).toString(),
+        isNot(contains('account password')),
+      );
+    });
   });
 }

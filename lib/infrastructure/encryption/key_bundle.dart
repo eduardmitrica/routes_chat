@@ -109,6 +109,11 @@ final class KeyBundle {
   static const currentVersion = 1;
 
   final int version;
+
+  /// Which keys these are: 1 for a user's first, one more after each reset
+  /// that replaced lost keys. Sealed chat keys record the version they were
+  /// sealed to, so a reset shows as a version they no longer match.
+  final int keyVersion;
   final PassphraseKdf kdf;
   final WrappedKey masterKeyByPassphrase;
   final WrappedKey masterKeyByRecoveryKey;
@@ -117,6 +122,7 @@ final class KeyBundle {
 
   const KeyBundle({
     required this.version,
+    required this.keyVersion,
     required this.kdf,
     required this.masterKeyByPassphrase,
     required this.masterKeyByRecoveryKey,
@@ -130,6 +136,7 @@ final class KeyBundle {
     WrappedKey? masterKeyByRecoveryKey,
   }) => KeyBundle(
     version: version,
+    keyVersion: keyVersion,
     kdf: kdf ?? this.kdf,
     masterKeyByPassphrase: masterKeyByPassphrase ?? this.masterKeyByPassphrase,
     masterKeyByRecoveryKey:
@@ -140,6 +147,7 @@ final class KeyBundle {
 
   Map<String, Object> toJson() => {
     'version': version,
+    'keyVersion': keyVersion,
     'kdf': kdf.toJson(),
     'masterKeyByPassphrase': masterKeyByPassphrase.toJson(),
     'masterKeyByRecoveryKey': masterKeyByRecoveryKey.toJson(),
@@ -154,6 +162,9 @@ final class KeyBundle {
     }
     return KeyBundle(
       version: currentVersion,
+      // Bundles created before key resets existed carry no version: they
+      // hold a user's first keys.
+      keyVersion: json['keyVersion'] as int? ?? 1,
       kdf: PassphraseKdf.fromJson(json['kdf'] as Map<String, dynamic>),
       masterKeyByPassphrase: WrappedKey.fromJson(
         json['masterKeyByPassphrase'] as Map<String, dynamic>,
@@ -172,6 +183,7 @@ final class KeyBundle {
   bool operator ==(Object other) =>
       other is KeyBundle &&
       other.version == version &&
+      other.keyVersion == keyVersion &&
       other.kdf == kdf &&
       other.masterKeyByPassphrase == masterKeyByPassphrase &&
       other.masterKeyByRecoveryKey == masterKeyByRecoveryKey &&
@@ -181,6 +193,7 @@ final class KeyBundle {
   @override
   int get hashCode => Object.hash(
     version,
+    keyVersion,
     kdf,
     masterKeyByPassphrase,
     masterKeyByRecoveryKey,

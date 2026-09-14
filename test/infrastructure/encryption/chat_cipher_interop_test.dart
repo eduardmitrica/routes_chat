@@ -6,30 +6,34 @@ import 'package:routes_chat/infrastructure/encryption/chat_cipher.dart';
 
 /// A chat key sealed and a message encrypted by a separate implementation of
 /// the format in docs/e2ee.md, written with Node's crypto (OpenSSL) rather
-/// than the `cryptography` package. Every key here is a throwaway made for
-/// this test.
+/// than the `cryptography` package. It uses key generation 2 and recipient key
+/// version 3, so both are known to be bound the same way. Every key here is a
+/// throwaway made for this test.
 ///
 /// If ChatCipher stops reading it, the stored format has changed: messages
 /// already in Firestore would stop decrypting.
 const _vector = {
-  'recipientPrivateKey': '+CnSQhAQKfb3v+TnezFFDljrjDYHfhUfBXUwo233lFs=',
-  'recipientPublicKey': 'JN0Zxk9Oqme7NHQCp2jxEb0C9R0eUP58oJ40KVrb+HQ=',
+  'recipientPrivateKey': '+P64+MGQjjOgVFqNiM1b5yHtnIp7/Qxk+unyvqHAbGw=',
+  'recipientPublicKey': 'qubBnh2HkJ3mrYlUJ8fgcLAtMhlSplf5ri8EeECJbW0=',
   'chatId': 'alice_bob',
+  'keyGeneration': 2,
   'recipientId': 'bob',
   'sealedChatKey': {
-    'ephemeralPublicKey': 'nQxfBleFLQ3l3sIbts/H4EKBw27+oCVuMaW6x6HS7QQ=',
-    'nonce': 'HtS9/XhvfD/H9Egj',
-    'cipherText': '93JijEXjwoTEuxpQFNT86UTwlQzPWId3cKwjBtmZ0zk=',
-    'mac': 'htqxa/fCfjYonyX6tI3oTw==',
+    'ephemeralPublicKey': 'RnC5ogLTzQHZUDIpbjX7qVzaSgqRJ+EMjiGral81+XM=',
+    'nonce': '7vpwfq7bOzyNvFmK',
+    'cipherText': 'XETrp07nMPxh0QRFDIQXXhCyf2uy3RzMHyOuJ6khx4k=',
+    'mac': 't72mIuQVMJDQAhXhR4wpCw==',
+    'keyVersion': 3,
   },
-  'chatKey': 'hmKJMZwe37m9CLHLjQHmAZmp8OYBVhhWPEs1KMnBz88=',
+  'chatKey': 'cTUiZG9Zh4ir6OXiHxEot5lm91X1kI5PVqAYKwWsano=',
   'messageId': 'message-1',
   'senderId': 'alice',
   'content': {
     'v': 1,
-    'nonce': '6IOx7tWsggza4Q1Z',
-    'cipherText': 'oDmNnarRkwCHxvdaXXMyVAIvhpQpMEnjDy2KGbc=',
-    'mac': 'tbHX1JJUgIV+F3LUKMr8Bw==',
+    'e': 2,
+    'nonce': 'ylmPG0fI81sQlEQ0',
+    'cipherText': 'P0x6ylKvPCxXug4RiFL5HycwTylb1nMVuCP83AQ=',
+    'mac': 'dCepylDgYJXjfQ246j7scw==',
   },
   'text': 'Salut din Node! 👋 ăîșț',
 };
@@ -50,6 +54,7 @@ void main() {
       SealedChatKey.fromJson(_vector['sealedChatKey']! as Map),
       recipientKeyPair: recipient,
       chatId: _vector['chatId']! as String,
+      keyGeneration: _vector['keyGeneration']! as int,
       recipientId: _vector['recipientId']! as String,
     );
 
@@ -57,8 +62,11 @@ void main() {
   });
 
   test('a message encrypted by the other implementation decrypts', () async {
+    final content = EncryptedContent.fromJson(_vector['content']);
+    expect(content.keyGeneration, 2);
+
     final text = await cipher.decrypt(
-      EncryptedContent.fromJson(_vector['content']),
+      content,
       chatKey: SecretKeyData(base64Decode(_vector['chatKey']! as String)),
       chatId: _vector['chatId']! as String,
       messageId: _vector['messageId']! as String,

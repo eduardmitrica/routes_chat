@@ -19,23 +19,38 @@ void main() {
     bobPublicKey = (await bob.extractPublicKey()).bytes;
   });
 
-  Future<SealedChatKey> sealForBob(SecretKey chatKey) => cipher.seal(
+  Future<SealedChatKey> sealForBob(
+    SecretKey chatKey, {
+    int keyGeneration = 1,
+    int keyVersion = 1,
+  }) => cipher.seal(
     chatKey,
     recipientPublicKey: bobPublicKey,
+    recipientKeyVersion: keyVersion,
     chatId: _chatId,
+    keyGeneration: keyGeneration,
     recipientId: 'bob',
+  );
+
+  Future<SecretKeyData> open(
+    SealedChatKey sealed, {
+    SimpleKeyPair? keyPair,
+    String chatId = _chatId,
+    int keyGeneration = 1,
+    String recipientId = 'bob',
+  }) => cipher.open(
+    sealed,
+    recipientKeyPair: keyPair ?? bob,
+    chatId: chatId,
+    keyGeneration: keyGeneration,
+    recipientId: recipientId,
   );
 
   group('sealing a chat key', () {
     test('the recipient opens it', () async {
       final chatKey = cipher.newChatKey();
 
-      final opened = await cipher.open(
-        await sealForBob(chatKey),
-        recipientKeyPair: bob,
-        chatId: _chatId,
-        recipientId: 'bob',
-      );
+      final opened = await open(await sealForBob(chatKey));
 
       expect(opened.bytes, chatKey.bytes);
     });
@@ -44,37 +59,36 @@ void main() {
       final sealed = await sealForBob(cipher.newChatKey());
 
       await expectLater(
-        cipher.open(
-          sealed,
-          recipientKeyPair: alice,
-          chatId: _chatId,
-          recipientId: 'bob',
-        ),
+        open(sealed, keyPair: alice),
         throwsA(isA<UnreadableCiphertext>()),
       );
     });
 
-    test('it opens only for its chat and its recipient', () async {
+    test('it opens only for its chat, key generation and recipient', () async {
       final sealed = await sealForBob(cipher.newChatKey());
 
-      await expectLater(
-        cipher.open(
-          sealed,
-          recipientKeyPair: bob,
-          chatId: 'bob_carol',
-          recipientId: 'bob',
-        ),
-        throwsA(isA<UnreadableCiphertext>()),
+      for (final wrong in [
+        () => open(sealed, chatId: 'bob_carol'),
+        () => open(sealed, keyGeneration: 2),
+        () => open(sealed, recipientId: 'alice'),
+      ]) {
+        await expectLater(wrong(), throwsA(isA<UnreadableCiphertext>()));
+      }
+    });
+
+    test('the key version it was sealed to cannot be changed', () async {
+      // Lowering it would make the recipient's app think the key belongs to
+      // older keys, and raising it that it is current.
+      final sealed = await sealForBob(cipher.newChatKey(), keyVersion: 2);
+      final relabelled = SealedChatKey(
+        ephemeralPublicKey: sealed.ephemeralPublicKey,
+        nonce: sealed.nonce,
+        cipherText: sealed.cipherText,
+        mac: sealed.mac,
+        recipientKeyVersion: 1,
       );
-      await expectLater(
-        cipher.open(
-          sealed,
-          recipientKeyPair: bob,
-          chatId: _chatId,
-          recipientId: 'alice',
-        ),
-        throwsA(isA<UnreadableCiphertext>()),
-      );
+
+      await expectLater(open(relabelled), throwsA(isA<UnreadableCiphertext>()));
     });
 
     test('each seal uses a new ephemeral key', () async {
@@ -93,7 +107,9 @@ void main() {
           cipher.seal(
             cipher.newChatKey(),
             recipientPublicKey: publicKey,
+            recipientKeyVersion: 1,
             chatId: _chatId,
+            keyGeneration: 1,
             recipientId: 'bob',
           ),
           throwsA(isA<InvalidPublicKey>()),
@@ -108,36 +124,40 @@ void main() {
         nonce: sealed.nonce,
         cipherText: sealed.cipherText,
         mac: sealed.mac,
+        recipientKeyVersion: sealed.recipientKeyVersion,
       );
 
-      await expectLater(
-        cipher.open(
-          forged,
-          recipientKeyPair: bob,
-          chatId: _chatId,
-          recipientId: 'bob',
-        ),
-        throwsA(isA<UnreadableCiphertext>()),
-      );
+      await expectLater(open(forged), throwsA(isA<UnreadableCiphertext>()));
     });
 
-    test('it is stored in the sizes firestore.rules requires', () async {
-      final sealed = await sealForBob(cipher.newChatKey());
+    test('it is stored in the shape firestore.rules requires', () async {
+      final sealed = await sealForBob(cipher.newChatKey(), keyVersion: 3);
       final json = sealed.toJson();
 
       expect(
         json.keys,
-        unorderedEquals(['ephemeralPublicKey', 'nonce', 'cipherText', 'mac']),
+        unorderedEquals([
+          'ephemeralPublicKey',
+          'nonce',
+          'cipherText',
+          'mac',
+          'keyVersion',
+        ]),
       );
       expect(json['ephemeralPublicKey'], hasLength(44));
       expect(json['nonce'], hasLength(16));
       expect(json['cipherText'], hasLength(44));
       expect(json['mac'], hasLength(24));
+      expect(json['keyVersion'], 3);
+
+      final generations = {
+        2: KeyGeneration(createdBy: 'alice', sealedKeys: {'bob': sealed}),
+      };
       expect(
-        SealedChatKey.mapFromJson(
-          jsonDecode(jsonEncode(SealedChatKey.mapToJson({'bob': sealed}))),
+        KeyGeneration.mapFromJson(
+          jsonDecode(jsonEncode(KeyGeneration.mapToJson(generations))),
         ),
-        {'bob': sealed},
+        generations,
       );
     });
   });
@@ -147,13 +167,15 @@ void main() {
 
     setUp(() => chatKey = cipher.newChatKey());
 
-    Future<EncryptedContent> encrypt(String text) => cipher.encrypt(
-      text,
-      chatKey: chatKey,
-      chatId: _chatId,
-      messageId: 'message-1',
-      senderId: 'alice',
-    );
+    Future<EncryptedContent> encrypt(String text, {int keyGeneration = 1}) =>
+        cipher.encrypt(
+          text,
+          chatKey: chatKey,
+          chatId: _chatId,
+          keyGeneration: keyGeneration,
+          messageId: 'message-1',
+          senderId: 'alice',
+        );
 
     Future<String> decrypt(
       EncryptedContent content, {
@@ -179,6 +201,10 @@ void main() {
       expect(await decrypt(await encrypt('')), '');
     });
 
+    test('it records the key generation it is encrypted under', () async {
+      expect((await encrypt('hello', keyGeneration: 4)).keyGeneration, 4);
+    });
+
     test('it decrypts only for its chat, message and sender', () async {
       final content = await encrypt('hello');
 
@@ -192,11 +218,27 @@ void main() {
       }
     });
 
+    test('its key generation cannot be changed', () async {
+      final content = await encrypt('hello');
+      final relabelled = EncryptedContent(
+        keyGeneration: 2,
+        nonce: content.nonce,
+        cipherText: content.cipherText,
+        mac: content.mac,
+      );
+
+      await expectLater(
+        decrypt(relabelled),
+        throwsA(isA<UnreadableCiphertext>()),
+      );
+    });
+
     test('moving a boundary between the ids changes what is bound', () async {
       final content = await cipher.encrypt(
         'hi',
         chatKey: chatKey,
         chatId: 'ab',
+        keyGeneration: 1,
         messageId: 'c',
         senderId: 'x',
       );
@@ -210,6 +252,7 @@ void main() {
     test('altered ciphertext is rejected', () async {
       final content = await encrypt('hello');
       final altered = EncryptedContent(
+        keyGeneration: content.keyGeneration,
         nonce: content.nonce,
         cipherText: Uint8List.fromList(content.cipherText)..[0] ^= 1,
         mac: content.mac,
@@ -222,8 +265,12 @@ void main() {
       final content = await encrypt('hello');
       final json = content.toJson();
 
-      expect(json.keys, unorderedEquals(['v', 'nonce', 'cipherText', 'mac']));
+      expect(
+        json.keys,
+        unorderedEquals(['v', 'e', 'nonce', 'cipherText', 'mac']),
+      );
       expect(json['v'], 1);
+      expect(json['e'], 1);
       expect(json['nonce'], hasLength(16));
       expect(json['mac'], hasLength(24));
       expect(EncryptedContent.fromJson(jsonDecode(jsonEncode(json))), content);
@@ -242,6 +289,7 @@ void main() {
       expect(
         () => EncryptedContent.fromJson({
           'v': 2,
+          'e': 1,
           'nonce': '',
           'cipherText': '',
           'mac': '',

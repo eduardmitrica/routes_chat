@@ -84,13 +84,16 @@ void main() {
       final sealed = await cipher.seal(
         chatKey,
         recipientPublicKey: (await recipient.extractPublicKey()).bytes,
+        recipientKeyVersion: 1,
         chatId: 'a_b',
+        keyGeneration: 1,
         recipientId: 'b',
       );
       final opened = await cipher.open(
         sealed,
         recipientKeyPair: recipient,
         chatId: 'a_b',
+        keyGeneration: 1,
         recipientId: 'b',
       );
 

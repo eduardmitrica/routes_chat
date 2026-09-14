@@ -10,6 +10,8 @@ import '../../injection.dart';
 import 'widgets/passphrase_form.dart';
 import 'widgets/recovery_key_confirmation.dart';
 import 'widgets/recovery_key_form.dart';
+import 'widgets/reset_explanation.dart';
+import 'widgets/reset_sign_in.dart';
 
 /// The step between signing in and the chats: sets up or unlocks end-to-end
 /// encryption on this device. See docs/e2ee.md.
@@ -120,6 +122,8 @@ class EncryptionGatePage extends StatelessWidget {
                       bloc.add(EncryptionEvent.recoveryKeyEntered(recoveryKey)),
                   onBack: () =>
                       bloc.add(const EncryptionEvent.passphraseRemembered()),
+                  onLostRecoveryKey: () =>
+                      bloc.add(const EncryptionEvent.resetChosen()),
                 ),
                 EncryptionPhase.needsNewPassphrase => PassphraseForm(
                   key: const ValueKey('new-passphrase'),
@@ -135,6 +139,41 @@ class EncryptionGatePage extends StatelessWidget {
                       'Protecting your keys. This takes a few seconds.',
                   onSubmitted: (passphrase) =>
                       bloc.add(EncryptionEvent.newPassphraseChosen(passphrase)),
+                ),
+                EncryptionPhase.confirmingReset => ResetExplanation(
+                  onConfirmed: () =>
+                      bloc.add(const EncryptionEvent.resetConfirmed()),
+                  onBack: () =>
+                      bloc.add(const EncryptionEvent.resetCancelled()),
+                ),
+                EncryptionPhase.needsResetPassphrase => PassphraseForm(
+                  key: const ValueKey('reset-passphrase'),
+                  title: 'Choose a passphrase for your new keys',
+                  explanation:
+                      'It protects the keys that replace your lost ones. '
+                      'Choose one you will remember: the new recovery key is '
+                      'the only other way back.',
+                  buttonLabel: 'Continue',
+                  askForConfirmation: true,
+                  isWorking: state.isWorking,
+                  workingMessage: '',
+                  onSubmitted: (passphrase) => bloc.add(
+                    EncryptionEvent.resetPassphraseChosen(passphrase),
+                  ),
+                  secondaryActionLabel: 'Cancel reset',
+                  onSecondaryAction: () =>
+                      bloc.add(const EncryptionEvent.resetCancelled()),
+                ),
+                EncryptionPhase.needsResetSignIn => ResetSignIn(
+                  method: state.resetSignInMethod,
+                  isWorking: state.isWorking,
+                  onPassword: (password) => bloc.add(
+                    EncryptionEvent.resetSignInWithPassword(password),
+                  ),
+                  onGoogle: () =>
+                      bloc.add(const EncryptionEvent.resetSignInWithGoogle()),
+                  onCancel: () =>
+                      bloc.add(const EncryptionEvent.resetCancelled()),
                 ),
                 EncryptionPhase.unavailable => _Unavailable(
                   onRetry: () =>
@@ -160,6 +199,14 @@ class EncryptionGatePage extends StatelessWidget {
       'That does not match. Check the recovery key you saved.',
     EncryptionServerError() =>
       'Could not reach your keys. Check your connection and try again.',
+    RecentSignInRequired() =>
+      'Your sign-in could not be confirmed in time. Confirm it again.',
+    WrongAccountPassword() => 'That is not your account password.',
+    ConfirmationSignInCancelled() =>
+      'Sign-in was cancelled, so your keys were not reset.',
+    ConfirmationSignInFailed() =>
+      'Could not confirm your sign-in. Use the account you are signed in '
+          'with.',
   };
 }
 

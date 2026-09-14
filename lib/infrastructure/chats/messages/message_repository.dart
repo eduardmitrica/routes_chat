@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cryptography/cryptography.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/foundation.dart';
 import 'package:kt_dart/collection.dart';
@@ -39,15 +38,6 @@ class MessageRepository implements IMessageRepository {
     UniqueId chatId,
   ) async* {
     final id = chatId.getOrCrash();
-    final SecretKey chatKey;
-    try {
-      chatKey = await _keyring.storedChatKey(id);
-    } on Exception catch (exception) {
-      yield left(_failureFor(exception));
-      return;
-    }
-    // The session may have ended while the key was being opened, and a
-    // listener started now would miss that and outlive it.
     if (_session.current == null) {
       yield left(InsufficientPermissions());
       return;
@@ -55,7 +45,7 @@ class MessageRepository implements IMessageRepository {
 
     // Every snapshot carries all the messages again. They do not change once
     // sent, so each is decrypted once per listen.
-    final texts = <String, String>{};
+    final decrypted = <String, (String, bool)>{};
     yield* _firestore
         .collection('chats')
         .doc(id)
@@ -64,11 +54,11 @@ class MessageRepository implements IMessageRepository {
         .snapshots()
         .takeUntil(_session.ended)
         .asyncMap(
-          (snapShot) => Future.wait(
+          (snapShot) async => (await Future.wait(
             snapShot.docs.map(
-              (document) => _decryptedMessage(document, id, chatKey, texts),
+              (document) => _decryptedMessage(document, id, decrypted),
             ),
-          ),
+          )).nonNulls,
         )
         .map(
           (messages) => right<MessageFailure, KtList<Message>>(
@@ -80,33 +70,56 @@ class MessageRepository implements IMessageRepository {
         );
   }
 
-  /// [document] as a message, its text decrypted. One that does not decrypt
-  /// reads [ChatCipher.unreadableMessageText], so the rest of the chat still
-  /// shows.
-  Future<Message> _decryptedMessage(
+  /// [document] as a message, its text decrypted. One that does not decrypt,
+  /// such as one sent before the user reset their keys, is marked unreadable
+  /// rather than hiding the rest of the chat.
+  ///
+  /// Null for a document not in the stored format, which is left out rather
+  /// than failing the whole chat. The device's Firestore cache can still hold
+  /// such documents after they are gone from the server.
+  Future<Message?> _decryptedMessage(
     DocumentSnapshot<Map<String, dynamic>> document,
     String chatId,
-    SecretKey chatKey,
-    Map<String, String> texts,
+    Map<String, (String, bool)> decrypted,
   ) async {
-    final message = MessageDataTransferObject.fromFirestore(document);
-    final cacheEntry = '${document.id}:${base64Encode(message.content.mac)}';
-    var text = texts[cacheEntry];
-    if (text == null) {
-      try {
-        text = await _cipher.decrypt(
-          message.content,
-          chatKey: chatKey,
-          chatId: chatId,
-          messageId: document.id,
-          senderId: message.senderId,
-        );
-      } on UnreadableCiphertext {
-        text = ChatCipher.unreadableMessageText;
-      }
-      texts[cacheEntry] = text;
+    final MessageDataTransferObject message;
+    try {
+      message = MessageDataTransferObject.fromFirestore(document);
+    } on FormatException catch (error) {
+      debugPrint(
+        'Message left out, not in the stored format: ${error.message}',
+      );
+      return null;
     }
-    return message.toDomain(content: text);
+    final cacheEntry = '${document.id}:${base64Encode(message.content.mac)}';
+    final (text, readable) = decrypted[cacheEntry] ??= await _decrypt(
+      message,
+      document.id,
+      chatId,
+    );
+    return message.toDomain(content: text, isReadable: readable);
+  }
+
+  Future<(String, bool)> _decrypt(
+    MessageDataTransferObject message,
+    String messageId,
+    String chatId,
+  ) async {
+    try {
+      final text = await _cipher.decrypt(
+        message.content,
+        chatKey: await _keyring.storedChatKey(
+          chatId,
+          message.content.keyGeneration,
+        ),
+        chatId: chatId,
+        messageId: messageId,
+        senderId: message.senderId,
+      );
+      return (text, true);
+    } on UnreadableCiphertext {
+      return (ChatCipher.unreadableMessageText, false);
+    }
   }
 
   @override
@@ -119,19 +132,36 @@ class MessageRepository implements IMessageRepository {
     final chatRef = _firestore.collection('chats').doc(id);
     final messageRef = chatRef.collection('messages').doc(messageId);
     try {
-      final content = await _cipher.encrypt(
-        message.content.getOrCrash(),
-        chatKey: await _keyring.storedChatKey(id),
-        chatId: id,
-        messageId: messageId,
-        senderId: message.senderId.getOrCrash(),
-      );
-      final messageDto = MessageDataTransferObject.fromDomain(
-        message,
-        content: content,
-      );
+      // A user whose keys were reset first adds a generation of the chat key
+      // they can use.
+      await _keyring.addGenerationIfNeeded(id);
 
       await _firestore.runTransaction((transaction) async {
+        // The current generation is read in the transaction, so a generation
+        // added meanwhile makes it retry with that one. The rules accept only
+        // the current generation.
+        final chat = (await transaction.get(chatRef)).data();
+        if (chat == null) {
+          throw const FormatException('The chat does not exist');
+        }
+        final current = chat['currentKeyGeneration'] as int;
+        final content = await _cipher.encrypt(
+          message.content.getOrCrash(),
+          chatKey: await _keyring.chatKey(
+            id,
+            current,
+            KeyGeneration.mapFromJson(chat['keyGenerations']),
+          ),
+          chatId: id,
+          keyGeneration: current,
+          messageId: messageId,
+          senderId: message.senderId.getOrCrash(),
+        );
+        final messageDto = MessageDataTransferObject.fromDomain(
+          message,
+          content: content,
+        );
+
         transaction.set(messageRef, messageDto.toJson());
         transaction.update(chatRef, {'lastMessage': messageDto.toJsonWithId()});
       });
@@ -147,8 +177,12 @@ class MessageRepository implements IMessageRepository {
         exception.code.contains('permission-denied')) {
       return InsufficientPermissions();
     }
-    // The type only: nothing about keys or content belongs in the log.
-    debugPrint('Messages failed: ${exception.runtimeType}');
+    // The type, and a format error's fixed message, which never includes the
+    // data: nothing about keys or content belongs in the log.
+    debugPrint(
+      'Messages failed: ${exception.runtimeType}'
+      '${exception is FormatException ? ' (${exception.message})' : ''}',
+    );
     return Unexpected();
   }
 }

@@ -11,6 +11,8 @@ import 'package:routes_chat/domain/chats/messages/message_failure.dart'
 import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/injection.dart';
 
+import 'chat_timeline.dart';
+
 class ChatPage extends StatelessWidget {
   static const chatPageRoute = '/home/chats/chat';
 
@@ -76,22 +78,12 @@ class ChatPage extends StatelessWidget {
                                   child: CircularProgressIndicator(),
                                 ),
                                 MessagesWatcherLoadSuccess(:final messages) =>
-                                  ListView.builder(
-                                    itemCount: messages.size,
-                                    itemBuilder: (context, index) {
-                                      final message = messages[index];
-                                      return BubbleSpecialThree(
-                                        color: Colors.deepPurpleAccent,
-                                        textStyle: const TextStyle(
-                                          color: Colors.white,
-                                        ),
-                                        tail: false,
-                                        text: message.content.getOrCrash(),
-                                        isSender:
-                                            message.senderId.getOrCrash() !=
-                                            user.id.getOrCrash(),
-                                      );
-                                    },
+                                  _ChatMessages(
+                                    items: chatTimeline(
+                                      messages,
+                                      chat.keyResets,
+                                    ),
+                                    otherUser: user,
                                   ),
                                 MessagesWatcherLoadFailure(:final failure) =>
                                   Center(child: Text(failure.toString())),
@@ -152,6 +144,76 @@ class ChatPage extends StatelessWidget {
           );
         }
       },
+    );
+  }
+}
+
+/// A chat's messages, with a line for each key reset and for each run of
+/// messages this device cannot decrypt.
+class _ChatMessages extends StatelessWidget {
+  final List<ChatTimelineItem> items;
+  final User otherUser;
+
+  const _ChatMessages({required this.items, required this.otherUser});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      itemCount: items.length,
+      itemBuilder: (context, index) => switch (items[index]) {
+        MessageItem(:final message) => BubbleSpecialThree(
+          color: Colors.deepPurpleAccent,
+          textStyle: const TextStyle(color: Colors.white),
+          tail: false,
+          text: message.content.getOrCrash(),
+          isSender: message.senderId.getOrCrash() != otherUser.id.getOrCrash(),
+        ),
+        UnreadableMessagesItem(:final count) => _ChatNotice(
+          icon: Icons.lock_outline,
+          text: count == 1
+              ? '1 earlier message can\'t be read here. It was encrypted with '
+                    'keys that have since been reset.'
+              : '$count earlier messages can\'t be read here. They were '
+                    'encrypted with keys that have since been reset.',
+        ),
+        KeyResetItem(:final reset) => _ChatNotice(
+          icon: Icons.key_outlined,
+          text: reset.userId.getOrCrash() == otherUser.id.getOrCrash()
+              ? '${otherUser.username.getOrCrash()} reset their encryption '
+                    'keys.'
+              : 'You reset your encryption keys.',
+        ),
+      },
+    );
+  }
+}
+
+class _ChatNotice extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _ChatNotice({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final color = theme.colorScheme.outline;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall?.copyWith(color: color),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

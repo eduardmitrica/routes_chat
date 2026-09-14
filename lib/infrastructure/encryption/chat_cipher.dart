@@ -9,8 +9,8 @@ abstract base class ChatEncryptionException implements Exception {
   const ChatEncryptionException();
 }
 
-/// Ciphertext did not open: the wrong key, the wrong chat, message or
-/// recipient, or altered data.
+/// Ciphertext did not open: the wrong key, the wrong chat, generation, message
+/// or recipient, or altered data.
 final class UnreadableCiphertext extends ChatEncryptionException {
   const UnreadableCiphertext();
 
@@ -27,8 +27,7 @@ final class InvalidPublicKey extends ChatEncryptionException {
   String toString() => 'InvalidPublicKey';
 }
 
-/// A chat key sealed to one participant's X25519 public key, stored at
-/// `chats/{chatId}.chatKeys.{uid}`.
+/// A chat key sealed to one participant's X25519 public key.
 @immutable
 final class SealedChatKey {
   final Uint8List ephemeralPublicKey;
@@ -36,18 +35,25 @@ final class SealedChatKey {
   final Uint8List cipherText;
   final Uint8List mac;
 
+  /// The version of the recipient's keys it was sealed to. When the recipient
+  /// resets their keys, a higher version tells their app to start a new key
+  /// generation for the chat.
+  final int recipientKeyVersion;
+
   const SealedChatKey({
     required this.ephemeralPublicKey,
     required this.nonce,
     required this.cipherText,
     required this.mac,
+    required this.recipientKeyVersion,
   });
 
-  Map<String, String> toJson() => {
+  Map<String, Object> toJson() => {
     'ephemeralPublicKey': base64Encode(ephemeralPublicKey),
     'nonce': base64Encode(nonce),
     'cipherText': base64Encode(cipherText),
     'mac': base64Encode(mac),
+    'keyVersion': recipientKeyVersion,
   };
 
   factory SealedChatKey.fromJson(Map<dynamic, dynamic> json) => SealedChatKey(
@@ -55,28 +61,8 @@ final class SealedChatKey {
     nonce: _decodeField(json, 'nonce'),
     cipherText: _decodeField(json, 'cipherText'),
     mac: _decodeField(json, 'mac'),
+    recipientKeyVersion: _intField(json, 'keyVersion'),
   );
-
-  /// A chat's `chatKeys` field: each participant's id to their sealed key.
-  static Map<String, SealedChatKey> mapFromJson(Object? json) {
-    if (json is! Map) {
-      throw const FormatException('The chat has no sealed keys');
-    }
-    return {
-      for (final entry in json.entries)
-        entry.key as String: SealedChatKey.fromJson(
-          entry.value is Map
-              ? entry.value as Map
-              : throw FormatException('No sealed key for ${entry.key}'),
-        ),
-    };
-  }
-
-  static Map<String, Map<String, String>> mapToJson(
-    Map<String, SealedChatKey> sealedKeys,
-  ) => {
-    for (final entry in sealedKeys.entries) entry.key: entry.value.toJson(),
-  };
 
   @override
   bool operator ==(Object other) =>
@@ -84,7 +70,8 @@ final class SealedChatKey {
       listEquals(other.ephemeralPublicKey, ephemeralPublicKey) &&
       listEquals(other.nonce, nonce) &&
       listEquals(other.cipherText, cipherText) &&
-      listEquals(other.mac, mac);
+      listEquals(other.mac, mac) &&
+      other.recipientKeyVersion == recipientKeyVersion;
 
   @override
   int get hashCode => Object.hash(
@@ -92,6 +79,83 @@ final class SealedChatKey {
     Object.hashAll(nonce),
     Object.hashAll(cipherText),
     Object.hashAll(mac),
+    recipientKeyVersion,
+  );
+}
+
+/// One generation of a chat's key: the key sealed to each participant, and
+/// the participant who made it.
+///
+/// A chat starts at generation 1. A participant who resets their keys can no
+/// longer open it, so their app adds the next generation, sealed to both
+/// participants' current keys. Earlier messages stay under earlier
+/// generations.
+@immutable
+final class KeyGeneration {
+  final String createdBy;
+  final Map<String, SealedChatKey> sealedKeys;
+
+  const KeyGeneration({required this.createdBy, required this.sealedKeys});
+
+  Map<String, Object> toJson() => {
+    'createdBy': createdBy,
+    'sealedKeys': {
+      for (final entry in sealedKeys.entries) entry.key: entry.value.toJson(),
+    },
+  };
+
+  factory KeyGeneration.fromJson(Map<dynamic, dynamic> json) {
+    final createdBy = json['createdBy'];
+    final sealedKeys = json['sealedKeys'];
+    if (createdBy is! String || sealedKeys is! Map) {
+      throw const FormatException('Malformed key generation');
+    }
+    return KeyGeneration(
+      createdBy: createdBy,
+      sealedKeys: {
+        for (final entry in sealedKeys.entries)
+          entry.key as String: SealedChatKey.fromJson(
+            entry.value is Map
+                ? entry.value as Map
+                : throw FormatException('No sealed key for ${entry.key}'),
+          ),
+      },
+    );
+  }
+
+  /// A chat's `keyGenerations` field, keyed by generation number.
+  static Map<int, KeyGeneration> mapFromJson(Object? json) {
+    if (json is! Map) {
+      throw const FormatException('The chat has no key generations');
+    }
+    return {
+      for (final entry in json.entries)
+        int.parse(entry.key as String): KeyGeneration.fromJson(
+          entry.value is Map
+              ? entry.value as Map
+              : throw FormatException('Malformed generation ${entry.key}'),
+        ),
+    };
+  }
+
+  /// Firestore map keys are strings, so generation numbers are stored as such.
+  static Map<String, Object> mapToJson(Map<int, KeyGeneration> generations) => {
+    for (final entry in generations.entries)
+      '${entry.key}': entry.value.toJson(),
+  };
+
+  @override
+  bool operator ==(Object other) =>
+      other is KeyGeneration &&
+      other.createdBy == createdBy &&
+      mapEquals(other.sealedKeys, sealedKeys);
+
+  @override
+  int get hashCode => Object.hash(
+    createdBy,
+    Object.hashAllUnordered(
+      sealedKeys.entries.map((entry) => Object.hash(entry.key, entry.value)),
+    ),
   );
 }
 
@@ -100,11 +164,14 @@ final class SealedChatKey {
 final class EncryptedContent {
   static const currentVersion = 1;
 
+  /// Which of the chat's key generations it is encrypted under.
+  final int keyGeneration;
   final Uint8List nonce;
   final Uint8List cipherText;
   final Uint8List mac;
 
   const EncryptedContent({
+    required this.keyGeneration,
     required this.nonce,
     required this.cipherText,
     required this.mac,
@@ -112,6 +179,7 @@ final class EncryptedContent {
 
   Map<String, Object> toJson() => {
     'v': currentVersion,
+    'e': keyGeneration,
     'nonce': base64Encode(nonce),
     'cipherText': base64Encode(cipherText),
     'mac': base64Encode(mac),
@@ -125,6 +193,7 @@ final class EncryptedContent {
       throw FormatException('Unsupported content version: ${json['v']}');
     }
     return EncryptedContent(
+      keyGeneration: _intField(json, 'e'),
       nonce: _decodeField(json, 'nonce'),
       cipherText: _decodeField(json, 'cipherText'),
       mac: _decodeField(json, 'mac'),
@@ -134,12 +203,14 @@ final class EncryptedContent {
   @override
   bool operator ==(Object other) =>
       other is EncryptedContent &&
+      other.keyGeneration == keyGeneration &&
       listEquals(other.nonce, nonce) &&
       listEquals(other.cipherText, cipherText) &&
       listEquals(other.mac, mac);
 
   @override
   int get hashCode => Object.hash(
+    keyGeneration,
     Object.hashAll(nonce),
     Object.hashAll(cipherText),
     Object.hashAll(mac),
@@ -152,6 +223,14 @@ Uint8List _decodeField(Map<dynamic, dynamic> json, String field) {
     throw FormatException('Missing $field');
   }
   return base64Decode(value);
+}
+
+int _intField(Map<dynamic, dynamic> json, String field) {
+  final value = json[field];
+  if (value is! int) {
+    throw FormatException('Missing $field');
+  }
+  return value;
 }
 
 /// Seals chat keys to participants and encrypts message text. See
@@ -179,13 +258,16 @@ class ChatCipher {
   SecretKeyData newChatKey() => SecretKeyData.random(length: chatKeyLength);
 
   /// Seals [chatKey] so only the holder of [recipientPublicKey]'s private key
-  /// can open it, and only for [chatId] and [recipientId].
+  /// can open it, and only as generation [keyGeneration] of [chatId], for
+  /// [recipientId] at [recipientKeyVersion].
   ///
   /// Throws [InvalidPublicKey] if [recipientPublicKey] is unusable.
   Future<SealedChatKey> seal(
     SecretKey chatKey, {
     required List<int> recipientPublicKey,
+    required int recipientKeyVersion,
     required String chatId,
+    required int keyGeneration,
     required String recipientId,
   }) async {
     final ephemeral = await _x25519.newKeyPair();
@@ -202,24 +284,31 @@ class ChatCipher {
     final box = await _aead.encrypt(
       await chatKey.extractBytes(),
       secretKey: sealingKey,
-      aad: _associatedData(_chatKeyPurpose, [chatId, recipientId]),
+      aad: _chatKeyAssociatedData(
+        chatId: chatId,
+        keyGeneration: keyGeneration,
+        recipientId: recipientId,
+        recipientKeyVersion: recipientKeyVersion,
+      ),
     );
     return SealedChatKey(
       ephemeralPublicKey: Uint8List.fromList(ephemeralPublicKey),
       nonce: Uint8List.fromList(box.nonce),
       cipherText: Uint8List.fromList(box.cipherText),
       mac: Uint8List.fromList(box.mac.bytes),
+      recipientKeyVersion: recipientKeyVersion,
     );
   }
 
   /// Opens a chat key sealed to [recipientKeyPair].
   ///
   /// Throws [UnreadableCiphertext] if it was sealed to someone else, for
-  /// another chat, or altered.
+  /// another chat or generation, or altered.
   Future<SecretKeyData> open(
     SealedChatKey sealed, {
     required SimpleKeyPair recipientKeyPair,
     required String chatId,
+    required int keyGeneration,
     required String recipientId,
   }) async {
     final recipientPublicKey =
@@ -237,7 +326,12 @@ class ChatCipher {
       await _decrypt(
         SecretBox(sealed.cipherText, nonce: sealed.nonce, mac: Mac(sealed.mac)),
         sealingKey,
-        _associatedData(_chatKeyPurpose, [chatId, recipientId]),
+        _chatKeyAssociatedData(
+          chatId: chatId,
+          keyGeneration: keyGeneration,
+          recipientId: recipientId,
+          recipientKeyVersion: sealed.recipientKeyVersion,
+        ),
       ),
     );
   }
@@ -246,22 +340,30 @@ class ChatCipher {
     String text, {
     required SecretKey chatKey,
     required String chatId,
+    required int keyGeneration,
     required String messageId,
     required String senderId,
   }) async {
     final box = await _aead.encrypt(
       utf8.encode(text),
       secretKey: chatKey,
-      aad: _associatedData(_messagePurpose, [chatId, messageId, senderId]),
+      aad: _associatedData(_messagePurpose, [
+        chatId,
+        '$keyGeneration',
+        messageId,
+        senderId,
+      ]),
     );
     return EncryptedContent(
+      keyGeneration: keyGeneration,
       nonce: Uint8List.fromList(box.nonce),
       cipherText: Uint8List.fromList(box.cipherText),
       mac: Uint8List.fromList(box.mac.bytes),
     );
   }
 
-  /// The text of [content].
+  /// The text of [content], which [chatKey] must be the key of generation
+  /// [EncryptedContent.keyGeneration] for.
   ///
   /// Throws [UnreadableCiphertext] if [chatKey] is wrong, or [content] belongs
   /// to another chat, message or sender, or was altered.
@@ -279,7 +381,12 @@ class ChatCipher {
         mac: Mac(content.mac),
       ),
       chatKey,
-      _associatedData(_messagePurpose, [chatId, messageId, senderId]),
+      _associatedData(_messagePurpose, [
+        chatId,
+        '${content.keyGeneration}',
+        messageId,
+        senderId,
+      ]),
     );
     try {
       return utf8.decode(bytes);
@@ -336,6 +443,18 @@ class ChatCipher {
       throw const UnreadableCiphertext();
     }
   }
+
+  static Uint8List _chatKeyAssociatedData({
+    required String chatId,
+    required int keyGeneration,
+    required String recipientId,
+    required int recipientKeyVersion,
+  }) => _associatedData(_chatKeyPurpose, [
+    chatId,
+    '$keyGeneration',
+    recipientId,
+    '$recipientKeyVersion',
+  ]);
 
   /// [purpose] followed by [fields], each prefixed with its length in bytes
   /// (32-bit big-endian), so two different lists of fields never encode the

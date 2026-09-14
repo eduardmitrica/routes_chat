@@ -7,11 +7,15 @@ class RecoveryKeyForm extends StatefulWidget {
   final ValueChanged<RecoveryKeyInput> onSubmitted;
   final VoidCallback onBack;
 
+  /// For a user who has neither the passphrase nor the recovery key.
+  final VoidCallback onLostRecoveryKey;
+
   const RecoveryKeyForm({
     super.key,
     required this.isWorking,
     required this.onSubmitted,
     required this.onBack,
+    required this.onLostRecoveryKey,
   });
 
   @override
@@ -82,6 +86,10 @@ class _RecoveryKeyFormState extends State<RecoveryKeyForm> {
           TextButton(
             onPressed: widget.isWorking ? null : widget.onBack,
             child: const Text('Back to passphrase'),
+          ),
+          TextButton(
+            onPressed: widget.isWorking ? null : widget.onLostRecoveryKey,
+            child: const Text('I lost my recovery key too'),
           ),
         ],
       ),

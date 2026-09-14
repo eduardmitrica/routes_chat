@@ -14,21 +14,31 @@ service cloud.firestore {
         .data.uid == request.auth.uid;
     }
 
-    // Profiles carry email addresses, so they are only readable once signed
-    // in. Nothing needs them earlier: registration checks uniqueness against
-    // the `usernames` index below, and the Google flows sign in first and then
-    // read the caller's own profile.
+    // Profiles are readable by any signed-in user, because username search
+    // looks up other users; registration checks uniqueness against the
+    // `usernames` index below, and the Google flows sign in first and read the
+    // caller's own profile. Because anyone signed in can read them, profiles
+    // hold only what everyone may see. Email addresses live in Firebase Auth
+    // alone, and `hasOnly(profileFields())` rejects any other field, so an old
+    // or modified client cannot write one back.
     //
     // A profile may only carry a username whose index entry belongs to the
     // same uid once the write lands, which makes uniqueness enforced here
     // rather than a client-side courtesy.
     match /users/{userId} {
+      // Must match the fields UserDataTransferObject stores; a test checks it.
+      function profileFields() {
+        return ['username', 'imageUrl', 'description'];
+      }
+
       allow read: if signedIn();
       allow create: if signedIn() &&
         request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(profileFields()) &&
         claimsUsername(request.resource.data.username);
       allow update: if signedIn() &&
         request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(profileFields()) &&
         (request.resource.data.username == resource.data.username ||
          claimsUsername(request.resource.data.username));
       allow delete: if signedIn() && request.auth.uid == userId;

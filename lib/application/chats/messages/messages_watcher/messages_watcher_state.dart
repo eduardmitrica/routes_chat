@@ -2,6 +2,29 @@ part of 'messages_watcher_bloc.dart';
 
 enum MessagesStatus { initial, loading, loaded, failure }
 
+/// The outcome of a [MessageRevealRequested]. Each request has its own
+/// number, so asking for the same message twice is told apart.
+final class MessageReveal extends Equatable {
+  final UniqueId messageId;
+
+  /// The message, now loaded; null when the chat does not have it.
+  final Message? message;
+
+  final int request;
+
+  const MessageReveal(
+    this.messageId, {
+    required this.message,
+    required this.request,
+  });
+
+  @override
+  List<Object?> get props => [messageId, message, request];
+
+  @override
+  String toString() => 'MessageReveal(#$request, found: ${message != null})';
+}
+
 final class MessagesWatcherState extends Equatable {
   final MessagesStatus status;
 
@@ -27,6 +50,12 @@ final class MessagesWatcherState extends Equatable {
   /// Whether older pages are still being loaded to search the whole chat.
   final bool searchingOlder;
 
+  /// Whether older pages are being loaded to show a message asked for.
+  final bool revealingMessage;
+
+  /// The latest message asked for, and whether it was found.
+  final MessageReveal? lastReveal;
+
   const MessagesWatcherState({
     required this.status,
     required this.messages,
@@ -36,6 +65,8 @@ final class MessagesWatcherState extends Equatable {
     required this.searchQuery,
     required this.searchResults,
     required this.searchingOlder,
+    this.revealingMessage = false,
+    this.lastReveal,
   });
 
   factory MessagesWatcherState.initial() => MessagesWatcherState(
@@ -60,6 +91,8 @@ final class MessagesWatcherState extends Equatable {
     String? searchQuery,
     KtList<Message>? searchResults,
     bool? searchingOlder,
+    bool? revealingMessage,
+    MessageReveal? lastReveal,
   }) => MessagesWatcherState(
     status: status ?? this.status,
     messages: messages ?? this.messages,
@@ -69,6 +102,8 @@ final class MessagesWatcherState extends Equatable {
     searchQuery: searchQuery ?? this.searchQuery,
     searchResults: searchResults ?? this.searchResults,
     searchingOlder: searchingOlder ?? this.searchingOlder,
+    revealingMessage: revealingMessage ?? this.revealingMessage,
+    lastReveal: lastReveal ?? this.lastReveal,
   );
 
   @override
@@ -81,6 +116,8 @@ final class MessagesWatcherState extends Equatable {
     searchQuery,
     searchResults,
     searchingOlder,
+    revealingMessage,
+    lastReveal,
   ];
 
   /// Counts only: message text and the search query are decrypted content,
@@ -90,5 +127,6 @@ final class MessagesWatcherState extends Equatable {
       'MessagesWatcherState(status: ${status.name}, messages: '
       '${messages.size}, reachedStart: $reachedStart, loadingOlder: '
       '$loadingOlder, failure: $failureOption, searching: $isSearching, '
-      'searchResults: ${searchResults.size}, searchingOlder: $searchingOlder)';
+      'searchResults: ${searchResults.size}, searchingOlder: $searchingOlder, '
+      'revealingMessage: $revealingMessage, lastReveal: $lastReveal)';
 }

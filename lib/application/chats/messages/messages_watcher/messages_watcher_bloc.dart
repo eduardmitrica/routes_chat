@@ -35,6 +35,9 @@ class MessagesWatcherBloc
   /// loading it again.
   Future<bool>? _olderPage;
 
+  /// How many reveals were asked for, which numbers each one.
+  var _reveals = 0;
+
   MessagesWatcherBloc(this._messageRepository)
     : super(MessagesWatcherState.initial()) {
     on<MessagesWatcherEvent>((event, emit) async {
@@ -88,6 +91,28 @@ class MessagesWatcherBloc
           if (state.searchQuery == query && state.searchingOlder) {
             emit(state.copyWith(searchingOlder: false));
           }
+
+        case MessageRevealRequested(:final messageId):
+          final id = messageId.getOrCrash();
+          // Older pages until the message is among those loaded, unless the
+          // start is reached or a page fails first.
+          var loading = true;
+          while (loading &&
+              !_messagesById.containsKey(id) &&
+              !state.reachedStart) {
+            emit(state.copyWith(revealingMessage: true));
+            loading = await _loadOlderPage(emit);
+          }
+          emit(
+            state.copyWith(
+              revealingMessage: false,
+              lastReveal: MessageReveal(
+                messageId,
+                message: _messagesById[id],
+                request: ++_reveals,
+              ),
+            ),
+          );
 
         case MessagesSearchClosed():
           emit(

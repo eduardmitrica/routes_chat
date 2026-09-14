@@ -18,7 +18,8 @@ mixin _$ChatBarState {
  Content get content; bool get isSubmitting; bool get showErrorMessages; Option<Either<ChatFailure, Unit>> get chatCreationFailureOrSuccessOption;/// The outcome of the last message sent to an existing chat. At most one
 /// of this and [chatCreationFailureOrSuccessOption] is set: each send
 /// clears the other, so the page only ever reports the latest attempt.
- Option<Either<message_failure.MessageFailure, Unit>> get messageSendFailureOrSuccessOption;
+ Option<Either<message_failure.MessageFailure, Unit>> get messageSendFailureOrSuccessOption;/// The message the next one sent answers, while the user is replying.
+ MessageQuote? get replyingTo;
 /// Create a copy of ChatBarState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,20 +31,20 @@ $ChatBarStateCopyWith<ChatBarState> get copyWith => _$ChatBarStateCopyWithImpl<C
 @override
 bool operator ==(Object other) {
   final _this = this as ChatBarState;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatBarState&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.isSubmitting, _this.isSubmitting) || other.isSubmitting == _this.isSubmitting)&&(identical(other.showErrorMessages, _this.showErrorMessages) || other.showErrorMessages == _this.showErrorMessages)&&(identical(other.chatCreationFailureOrSuccessOption, _this.chatCreationFailureOrSuccessOption) || other.chatCreationFailureOrSuccessOption == _this.chatCreationFailureOrSuccessOption)&&(identical(other.messageSendFailureOrSuccessOption, _this.messageSendFailureOrSuccessOption) || other.messageSendFailureOrSuccessOption == _this.messageSendFailureOrSuccessOption));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatBarState&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.isSubmitting, _this.isSubmitting) || other.isSubmitting == _this.isSubmitting)&&(identical(other.showErrorMessages, _this.showErrorMessages) || other.showErrorMessages == _this.showErrorMessages)&&(identical(other.chatCreationFailureOrSuccessOption, _this.chatCreationFailureOrSuccessOption) || other.chatCreationFailureOrSuccessOption == _this.chatCreationFailureOrSuccessOption)&&(identical(other.messageSendFailureOrSuccessOption, _this.messageSendFailureOrSuccessOption) || other.messageSendFailureOrSuccessOption == _this.messageSendFailureOrSuccessOption)&&(identical(other.replyingTo, _this.replyingTo) || other.replyingTo == _this.replyingTo));
 }
 
 
 @override
 int get hashCode {
   final _this = this as ChatBarState;
-  return Object.hash(runtimeType,_this.content,_this.isSubmitting,_this.showErrorMessages,_this.chatCreationFailureOrSuccessOption,_this.messageSendFailureOrSuccessOption);
+  return Object.hash(runtimeType,_this.content,_this.isSubmitting,_this.showErrorMessages,_this.chatCreationFailureOrSuccessOption,_this.messageSendFailureOrSuccessOption,_this.replyingTo);
 }
 
 @override
 String toString() {
   final _this = this as ChatBarState;
-  return 'ChatBarState(content: ${_this.content}, isSubmitting: ${_this.isSubmitting}, showErrorMessages: ${_this.showErrorMessages}, chatCreationFailureOrSuccessOption: ${_this.chatCreationFailureOrSuccessOption}, messageSendFailureOrSuccessOption: ${_this.messageSendFailureOrSuccessOption})';
+  return 'ChatBarState(content: ${_this.content}, isSubmitting: ${_this.isSubmitting}, showErrorMessages: ${_this.showErrorMessages}, chatCreationFailureOrSuccessOption: ${_this.chatCreationFailureOrSuccessOption}, messageSendFailureOrSuccessOption: ${_this.messageSendFailureOrSuccessOption}, replyingTo: ${_this.replyingTo})';
 }
 
 
@@ -54,7 +55,7 @@ abstract mixin class $ChatBarStateCopyWith<$Res>  {
   factory $ChatBarStateCopyWith(ChatBarState value, $Res Function(ChatBarState) _then) = _$ChatBarStateCopyWithImpl;
 @useResult
 $Res call({
- Content content, bool isSubmitting, bool showErrorMessages, Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption, Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption
+ Content content, bool isSubmitting, bool showErrorMessages, Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption, Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption, MessageQuote? replyingTo
 });
 
 
@@ -71,14 +72,15 @@ class _$ChatBarStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatBarState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? content = null,Object? isSubmitting = null,Object? showErrorMessages = null,Object? chatCreationFailureOrSuccessOption = null,Object? messageSendFailureOrSuccessOption = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? content = null,Object? isSubmitting = null,Object? showErrorMessages = null,Object? chatCreationFailureOrSuccessOption = null,Object? messageSendFailureOrSuccessOption = null,Object? replyingTo = freezed,}) {
   return _then(ChatBarState(
 content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as Content,isSubmitting: null == isSubmitting ? _self.isSubmitting : isSubmitting // ignore: cast_nullable_to_non_nullable
 as bool,showErrorMessages: null == showErrorMessages ? _self.showErrorMessages : showErrorMessages // ignore: cast_nullable_to_non_nullable
 as bool,chatCreationFailureOrSuccessOption: null == chatCreationFailureOrSuccessOption ? _self.chatCreationFailureOrSuccessOption : chatCreationFailureOrSuccessOption // ignore: cast_nullable_to_non_nullable
 as Option<Either<ChatFailure, Unit>>,messageSendFailureOrSuccessOption: null == messageSendFailureOrSuccessOption ? _self.messageSendFailureOrSuccessOption : messageSendFailureOrSuccessOption // ignore: cast_nullable_to_non_nullable
-as Option<Either<message_failure.MessageFailure, Unit>>,
+as Option<Either<message_failure.MessageFailure, Unit>>,replyingTo: freezed == replyingTo ? _self.replyingTo : replyingTo // ignore: cast_nullable_to_non_nullable
+as MessageQuote?,
   ));
 }
 
@@ -163,10 +165,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( Content content,  bool isSubmitting,  bool showErrorMessages,  Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption,  Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( Content content,  bool isSubmitting,  bool showErrorMessages,  Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption,  Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption,  MessageQuote? replyingTo)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ChatBarState() when $default != null:
-return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.chatCreationFailureOrSuccessOption,_that.messageSendFailureOrSuccessOption);case _:
+return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.chatCreationFailureOrSuccessOption,_that.messageSendFailureOrSuccessOption,_that.replyingTo);case _:
   return orElse();
 
 }
@@ -184,10 +186,10 @@ return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.c
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( Content content,  bool isSubmitting,  bool showErrorMessages,  Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption,  Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( Content content,  bool isSubmitting,  bool showErrorMessages,  Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption,  Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption,  MessageQuote? replyingTo)  $default,) {final _that = this;
 switch (_that) {
 case _ChatBarState():
-return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.chatCreationFailureOrSuccessOption,_that.messageSendFailureOrSuccessOption);case _:
+return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.chatCreationFailureOrSuccessOption,_that.messageSendFailureOrSuccessOption,_that.replyingTo);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -204,10 +206,10 @@ return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.c
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( Content content,  bool isSubmitting,  bool showErrorMessages,  Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption,  Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( Content content,  bool isSubmitting,  bool showErrorMessages,  Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption,  Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption,  MessageQuote? replyingTo)?  $default,) {final _that = this;
 switch (_that) {
 case _ChatBarState() when $default != null:
-return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.chatCreationFailureOrSuccessOption,_that.messageSendFailureOrSuccessOption);case _:
+return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.chatCreationFailureOrSuccessOption,_that.messageSendFailureOrSuccessOption,_that.replyingTo);case _:
   return null;
 
 }
@@ -219,7 +221,7 @@ return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.c
 
 
 class _ChatBarState implements ChatBarState {
-  const _ChatBarState({required this.content, required this.isSubmitting, required this.showErrorMessages, required this.chatCreationFailureOrSuccessOption, required this.messageSendFailureOrSuccessOption});
+  const _ChatBarState({required this.content, required this.isSubmitting, required this.showErrorMessages, required this.chatCreationFailureOrSuccessOption, required this.messageSendFailureOrSuccessOption, this.replyingTo});
   
 
 @override final  Content content;
@@ -230,6 +232,8 @@ class _ChatBarState implements ChatBarState {
 /// of this and [chatCreationFailureOrSuccessOption] is set: each send
 /// clears the other, so the page only ever reports the latest attempt.
 @override final  Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption;
+/// The message the next one sent answers, while the user is replying.
+@override final  MessageQuote? replyingTo;
 
 /// Create a copy of ChatBarState
 /// with the given fields replaced by the non-null parameter values.
@@ -241,18 +245,18 @@ _$ChatBarStateCopyWith<_ChatBarState> get copyWith => __$ChatBarStateCopyWithImp
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatBarState&&(identical(other.content, content) || other.content == content)&&(identical(other.isSubmitting, isSubmitting) || other.isSubmitting == isSubmitting)&&(identical(other.showErrorMessages, showErrorMessages) || other.showErrorMessages == showErrorMessages)&&(identical(other.chatCreationFailureOrSuccessOption, chatCreationFailureOrSuccessOption) || other.chatCreationFailureOrSuccessOption == chatCreationFailureOrSuccessOption)&&(identical(other.messageSendFailureOrSuccessOption, messageSendFailureOrSuccessOption) || other.messageSendFailureOrSuccessOption == messageSendFailureOrSuccessOption));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatBarState&&(identical(other.content, content) || other.content == content)&&(identical(other.isSubmitting, isSubmitting) || other.isSubmitting == isSubmitting)&&(identical(other.showErrorMessages, showErrorMessages) || other.showErrorMessages == showErrorMessages)&&(identical(other.chatCreationFailureOrSuccessOption, chatCreationFailureOrSuccessOption) || other.chatCreationFailureOrSuccessOption == chatCreationFailureOrSuccessOption)&&(identical(other.messageSendFailureOrSuccessOption, messageSendFailureOrSuccessOption) || other.messageSendFailureOrSuccessOption == messageSendFailureOrSuccessOption)&&(identical(other.replyingTo, replyingTo) || other.replyingTo == replyingTo));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,content,isSubmitting,showErrorMessages,chatCreationFailureOrSuccessOption,messageSendFailureOrSuccessOption);
+    return Object.hash(runtimeType,content,isSubmitting,showErrorMessages,chatCreationFailureOrSuccessOption,messageSendFailureOrSuccessOption,replyingTo);
 }
 
 @override
 String toString() {
-    return 'ChatBarState(content: $content, isSubmitting: $isSubmitting, showErrorMessages: $showErrorMessages, chatCreationFailureOrSuccessOption: $chatCreationFailureOrSuccessOption, messageSendFailureOrSuccessOption: $messageSendFailureOrSuccessOption)';
+    return 'ChatBarState(content: $content, isSubmitting: $isSubmitting, showErrorMessages: $showErrorMessages, chatCreationFailureOrSuccessOption: $chatCreationFailureOrSuccessOption, messageSendFailureOrSuccessOption: $messageSendFailureOrSuccessOption, replyingTo: $replyingTo)';
 }
 
 
@@ -263,7 +267,7 @@ abstract mixin class _$ChatBarStateCopyWith<$Res> implements $ChatBarStateCopyWi
   factory _$ChatBarStateCopyWith(_ChatBarState value, $Res Function(_ChatBarState) _then) = __$ChatBarStateCopyWithImpl;
 @override @useResult
 $Res call({
- Content content, bool isSubmitting, bool showErrorMessages, Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption, Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption
+ Content content, bool isSubmitting, bool showErrorMessages, Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption, Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption, MessageQuote? replyingTo
 });
 
 
@@ -280,14 +284,15 @@ class __$ChatBarStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatBarState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? content = null,Object? isSubmitting = null,Object? showErrorMessages = null,Object? chatCreationFailureOrSuccessOption = null,Object? messageSendFailureOrSuccessOption = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? content = null,Object? isSubmitting = null,Object? showErrorMessages = null,Object? chatCreationFailureOrSuccessOption = null,Object? messageSendFailureOrSuccessOption = null,Object? replyingTo = freezed,}) {
   return _then(_ChatBarState(
 content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
 as Content,isSubmitting: null == isSubmitting ? _self.isSubmitting : isSubmitting // ignore: cast_nullable_to_non_nullable
 as bool,showErrorMessages: null == showErrorMessages ? _self.showErrorMessages : showErrorMessages // ignore: cast_nullable_to_non_nullable
 as bool,chatCreationFailureOrSuccessOption: null == chatCreationFailureOrSuccessOption ? _self.chatCreationFailureOrSuccessOption : chatCreationFailureOrSuccessOption // ignore: cast_nullable_to_non_nullable
 as Option<Either<ChatFailure, Unit>>,messageSendFailureOrSuccessOption: null == messageSendFailureOrSuccessOption ? _self.messageSendFailureOrSuccessOption : messageSendFailureOrSuccessOption // ignore: cast_nullable_to_non_nullable
-as Option<Either<message_failure.MessageFailure, Unit>>,
+as Option<Either<message_failure.MessageFailure, Unit>>,replyingTo: freezed == replyingTo ? _self.replyingTo : replyingTo // ignore: cast_nullable_to_non_nullable
+as MessageQuote?,
   ));
 }
 

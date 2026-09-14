@@ -254,23 +254,29 @@ service cloud.firestore {
       }
 
       // Must match what MessageDataTransferObject stores; a test checks it.
-      // A chat's lastMessage also carries the message's id.
+      // A chat's lastMessage also carries the message's id. Older versions of
+      // the app also write repliedMessageId, always "Empty", which stays
+      // allowed so they keep working: a reply's link is now encrypted.
       function messageFields() {
         return ['senderId', 'imageUrls', 'reactions', 'content',
                 'repliedMessageId', 'isEdited', 'serverTimeStamp'];
       }
 
-      // Message text encrypted under generation [generation] of the chat key
+      // A message encrypted under generation [generation] of the chat key
       // (EncryptedContent in the app): base64 of a 12-byte nonce, the
       // ciphertext and a 16-byte tag. A message is at most 1000 UTF-16 code
-      // units, so at most 3000 bytes of UTF-8 and 4000 characters of base64.
+      // units. Version 1, which older versions of the app still write, holds
+      // the text alone: at most 3000 bytes of UTF-8, 4000 characters of
+      // base64. Version 2 holds the text and any quote as JSON, whose escapes
+      // take up to six bytes a code unit: at most 9000 bytes, 12000 characters.
       function isEncryptedContent(content, generation) {
         return content.keys().hasOnly(['v', 'e', 'nonce', 'cipherText', 'mac']) &&
-          content.v == 1 &&
           content.e == generation &&
           content.nonce is string && content.nonce.size() == 16 &&
           content.mac is string && content.mac.size() == 24 &&
-          content.cipherText is string && content.cipherText.size() <= 4000;
+          content.cipherText is string &&
+          ((content.v == 1 && content.cipherText.size() <= 4000) ||
+           (content.v == 2 && content.cipherText.size() <= 12000));
       }
 
       // The chat key sealed to one participant (SealedChatKey in the app):

@@ -16,6 +16,7 @@ import 'package:routes_chat/infrastructure/encryption/chat_keyring.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../domain/chats/messages/message.dart';
+import 'package:routes_chat/infrastructure/chats/messages/message_payloads.dart';
 
 /// Chats, with the last message encrypted on the way in and decrypted on the
 /// way out. See docs/e2ee.md.
@@ -100,7 +101,7 @@ class ChatRepository implements IChatRepository {
     String text;
     var readable = true;
     try {
-      text = await _cipher.decrypt(
+      text = (await _cipher.decrypt(
         lastMessage.content,
         chatKey: await _keyring.chatKey(
           document.id,
@@ -110,7 +111,7 @@ class ChatRepository implements IChatRepository {
         chatId: document.id,
         messageId: lastMessage.id!,
         senderId: lastMessage.senderId,
-      );
+      )).text;
     } on UnreadableCiphertext {
       text = ChatCipher.unreadableMessageText;
       readable = false;
@@ -169,7 +170,7 @@ class ChatRepository implements IChatRepository {
           chatKey = firstGeneration.key;
         }
         final content = await _cipher.encrypt(
-          firstMessage.content.getOrCrash(),
+          payloadOf(firstMessage),
           chatKey: chatKey,
           chatId: chatId,
           keyGeneration: keyGeneration,

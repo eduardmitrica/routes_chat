@@ -11,6 +11,7 @@ import 'package:routes_chat/infrastructure/friend_requests/friend_request_data_t
 import 'package:rxdart/rxdart.dart';
 
 import '../../domain/friend_requests/value_objects.dart';
+import '../../domain/friend_requests/value_validators.dart';
 
 class FriendRequestRepository implements IFriendRequestsRepository {
   final FirebaseFirestore _firestore;
@@ -118,95 +119,36 @@ class FriendRequestRepository implements IFriendRequestsRepository {
 
   @override
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
-  watchPendingFromCurrentUser() async* {
-    final currentUser = _session.current;
-    if (currentUser == null) {
-      yield left(InsufficientPermissions());
-      return;
-    }
-    yield* _firestore
-        .collection('friendRequests')
-        .orderBy('serverTimeStamp', descending: true)
-        .snapshots()
-        .takeUntil(_session.ended)
-        .map(
-          (snapShot) => snapShot.docs.map(
-            (document) => FriendRequestDataTransferObject.fromFirestore(
-              document,
-            ).toDomain(),
-          ),
-        )
-        .map(
-          (friendRequests) =>
-              right<FriendRequestFailure, KtList<FriendRequest>>(
-                friendRequests
-                    .where(
-                      (friendRequest) =>
-                          friendRequest.senderId.getOrCrash() ==
-                              currentUser.id &&
-                          friendRequest.status.getOrCrash().runtimeType ==
-                              Pending().runtimeType,
-                    )
-                    .toImmutableList(),
-              ),
-        )
-        .onErrorReturnWith((exception, stackTrace) {
-          if (exception is FirebaseException &&
-              exception.code.contains('permission-denied')) {
-            return left(InsufficientPermissions());
-          } else {
-            return left(Unexpected());
-          }
-        });
-  }
+  watchPendingFromCurrentUser() => _watchCurrentUsersRequests(
+    status: Pending(),
+    keep: (friendRequest, uid) => friendRequest.senderId.getOrCrash() == uid,
+  );
 
   @override
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
-  watchReceivedForCurrentUser() async* {
-    final currentUser = _session.current;
-    if (currentUser == null) {
-      yield left(InsufficientPermissions());
-      return;
-    }
-    yield* _firestore
-        .collection('friendRequests')
-        .orderBy('serverTimeStamp', descending: true)
-        .snapshots()
-        .takeUntil(_session.ended)
-        .map(
-          (snapShot) => snapShot.docs.map(
-            (document) => FriendRequestDataTransferObject.fromFirestore(
-              document,
-            ).toDomain(),
-          ),
-        )
-        .map(
-          (friendRequests) =>
-              right<FriendRequestFailure, KtList<FriendRequest>>(
-                friendRequests
-                    .where(
-                      (friendRequest) =>
-                          friendRequest.receiverId.getOrCrash() ==
-                              currentUser.id &&
-                          friendRequest.status.getOrCrash().runtimeType ==
-                              Pending().runtimeType,
-                    )
-                    .toImmutableList(),
-              ),
-        )
-        .onErrorReturnWith((exception, stackTrace) {
-          if (exception is FirebaseException &&
-              exception.code.contains('permission-denied')) {
-            return left(InsufficientPermissions());
-          } else {
-            return left(Unexpected());
-          }
-        });
-  }
+  watchReceivedForCurrentUser() => _watchCurrentUsersRequests(
+    status: Pending(),
+    keep: (friendRequest, uid) => friendRequest.receiverId.getOrCrash() == uid,
+  );
 
   @override
   Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
-  watchFriendsForCurrentUser() async* {
+  watchFriendsForCurrentUser() =>
+      _watchCurrentUsersRequests(status: Accepted(), keep: (_, _) => true);
+
+  /// The signed-in user's own requests with [status], newest first, narrowed
+  /// by [keep] to the direction a caller wants.
+  ///
+  /// Scoped on the server with `participantIds arrayContains <uid>`. The rules
+  /// let only the two parties read a request, and Firestore checks a list
+  /// query against everything it could return, so the previous listen on the
+  /// whole collection, filtered here in Dart, would now be denied, and it
+  /// used to download every user's requests.
+  Stream<Either<FriendRequestFailure, KtList<FriendRequest>>>
+  _watchCurrentUsersRequests({
+    required FriendRequestStatus status,
+    required bool Function(FriendRequest friendRequest, String uid) keep,
+  }) async* {
     final currentUser = _session.current;
     if (currentUser == null) {
       yield left(InsufficientPermissions());
@@ -214,31 +156,22 @@ class FriendRequestRepository implements IFriendRequestsRepository {
     }
     yield* _firestore
         .collection('friendRequests')
+        .where('participantIds', arrayContains: currentUser.id)
+        .where('status', isEqualTo: statusName(status))
         .orderBy('serverTimeStamp', descending: true)
         .snapshots()
         .takeUntil(_session.ended)
         .map(
-          (snapShot) => snapShot.docs.map(
-            (document) => FriendRequestDataTransferObject.fromFirestore(
-              document,
-            ).toDomain(),
+          (snapShot) => right<FriendRequestFailure, KtList<FriendRequest>>(
+            snapShot.docs
+                .map(
+                  (document) => FriendRequestDataTransferObject.fromFirestore(
+                    document,
+                  ).toDomain(),
+                )
+                .where((friendRequest) => keep(friendRequest, currentUser.id))
+                .toImmutableList(),
           ),
-        )
-        .map(
-          (friendRequests) =>
-              right<FriendRequestFailure, KtList<FriendRequest>>(
-                friendRequests
-                    .where(
-                      (friendRequest) =>
-                          (friendRequest.senderId.getOrCrash() ==
-                                  currentUser.id ||
-                              friendRequest.receiverId.getOrCrash() ==
-                                  currentUser.id) &&
-                          friendRequest.status.getOrCrash().runtimeType ==
-                              Accepted().runtimeType,
-                    )
-                    .toImmutableList(),
-              ),
         )
         .onErrorReturnWith((exception, stackTrace) {
           if (exception is FirebaseException &&

@@ -18,24 +18,65 @@ part 'user_form_bloc.freezed.dart';
 class UserFormBloc extends Bloc<UserFormEvent, UserFormState> {
   final IUserRepository _userRepository;
   final IUserUtils _userUtils;
+
+  /// The profile as last stored, which edits and saves are compared against.
   var _unalteredUser = User.empty();
+
+  /// Whether a stored profile has been loaded into the form yet.
+  var _initialized = false;
 
   UserFormBloc(this._userRepository, this._userUtils)
     : super(UserFormState.initial()) {
     on<UserFormEvent>((event, emit) async {
       switch (event) {
         case UserFormInitialized():
-          emit(
-            state.copyWith(
-              user: event.userOption.fold(() => User.empty(), (user) {
-                _unalteredUser = user;
-                return user;
-              }),
-              imagePath: event.userOption.fold(
-                () => ImagePath(''),
-                (user) => ImagePath.fromUrl(user.imageUrl.getOrCrash()),
-              ),
-            ),
+          event.userOption.fold(
+            () {
+              _unalteredUser = User.empty();
+              _initialized = false;
+              emit(
+                state.copyWith(user: User.empty(), imagePath: ImagePath('')),
+              );
+            },
+            (stored) {
+              if (!_initialized) {
+                _unalteredUser = stored;
+                _initialized = true;
+                emit(
+                  state.copyWith(
+                    user: stored,
+                    imagePath: ImagePath.fromUrl(stored.imageUrl.getOrCrash()),
+                  ),
+                );
+                return;
+              }
+
+              // A newer stored profile (after a save, or an edit made on
+              // another device) must not wipe what is being typed. A field that
+              // still matches the previous stored profile takes the new value;
+              // a field the user has edited keeps the draft. Replacing the whole
+              // form here used to throw away unsaved edits.
+              final previous = _unalteredUser;
+              final draft = state.user;
+              final imagePicked = !state.imagePath.comesFromUrl();
+              final imageChangedInStore = stored.imageUrl != previous.imageUrl;
+              _unalteredUser = stored;
+              emit(
+                state.copyWith(
+                  user: stored.copyWith(
+                    username: draft.username == previous.username
+                        ? stored.username
+                        : draft.username,
+                    description: draft.description == previous.description
+                        ? stored.description
+                        : draft.description,
+                  ),
+                  imagePath: imagePicked && !imageChangedInStore
+                      ? state.imagePath
+                      : ImagePath.fromUrl(stored.imageUrl.getOrCrash()),
+                ),
+              );
+            },
           );
         case ProfilePictureChanged():
           emit(

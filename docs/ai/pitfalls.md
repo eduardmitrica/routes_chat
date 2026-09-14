@@ -18,6 +18,17 @@ them.
 - **A future helper hangs forever.** `future.whenComplete(() => map.remove(key))`
   returns the awaited future, not the cleanup. Use `singleFlight`
   (`lib/infrastructure/core/single_flight.dart`).
+- **Tapping "retry" does nothing, with no visible error.**
+  `setState(() => _future = load())` passes a callback that returns a
+  Future, which `setState` refuses by throwing. Use a block body:
+  `setState(() { _future = load(); })`.
+- **A retry shows the old failure until the new result arrives.**
+  `FutureBuilder` keeps the previous `data` while the new future is waiting.
+  Check `snapshot.connectionState` before reading `data`.
+- **A list row shows another row's state** (a carousel on the wrong page, a
+  half-finished animation). Lists reuse element state by position when rows
+  have no keys. Give rows a `ValueKey` of their item's id, and reset state in
+  `didUpdateWidget` when the item changes.
 - **A widget test tap does nothing.** The widget's centre is not on the text,
   for example in a full-width row. Tap the text finder.
 - **"A SemanticsHandle was active at the end of the test."** Dispose the

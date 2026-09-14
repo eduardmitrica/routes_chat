@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cryptography/cryptography.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../../domain/encryption/encryption_failure.dart';
@@ -194,6 +195,11 @@ class FirebaseEncryptionRepository implements IEncryptionRepository {
       debugPrint('Encryption key bundle unreadable: ${error.message}');
       return const Left(EncryptionServerError());
     } on KeyBundleMismatch {
+      return const Left(EncryptionServerError());
+    } on PlatformException catch (error) {
+      // The native crypto and secure storage plugins report failures this
+      // way. Left uncaught, the page waits forever on a derivation that died.
+      debugPrint('Encryption failed on this device: ${error.code}');
       return const Left(EncryptionServerError());
     }
   }

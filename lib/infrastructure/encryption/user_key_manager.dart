@@ -188,8 +188,14 @@ class UserKeyManager {
 
   Future<SecretKey> _recoveryKek(RecoveryKey recoveryKey) => _hkdf.deriveKey(
     secretKey: SecretKeyData(recoveryKey.bytes),
+    // RFC 5869's default salt, spelled out. Leaving it empty gives the same
+    // key in pure Dart, but Android's native HMAC rejects an empty key.
+    nonce: _hkdfDefaultSalt,
     info: utf8.encode(_recoveryKeyInfo),
   );
+
+  /// HashLen zero bytes: what HKDF uses when no salt is given (RFC 5869, 2.2).
+  static final _hkdfDefaultSalt = List<int>.filled(32, 0, growable: false);
 
   Future<WrappedKey> _wrap(
     List<int> key,

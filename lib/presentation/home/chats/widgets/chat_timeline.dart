@@ -40,10 +40,15 @@ final class KeyResetItem extends ChatTimelineItem {
 /// The rows of a chat: [messages] in order, with each run of unreadable ones
 /// collapsed into one row, and each of [keyResets] before the first message
 /// sent under its key generation, or at the end if none has been sent yet.
+///
+/// [messages] may be only the latest part of the chat. Unless they
+/// [reachStart], a reset that would come before the first of them is left
+/// out: it may belong anywhere in the part not loaded yet.
 List<ChatTimelineItem> chatTimeline(
   KtList<Message> messages,
-  KtList<KeyReset> keyResets,
-) {
+  KtList<KeyReset> keyResets, {
+  bool reachStart = true,
+}) {
   final pendingResets = keyResets.asList().toList()
     ..sort((a, b) => a.keyGeneration.compareTo(b.keyGeneration));
   final items = <ChatTimelineItem>[];
@@ -56,12 +61,17 @@ List<ChatTimelineItem> chatTimeline(
     }
   }
 
+  var placedMessage = false;
   for (final message in messages.iter) {
     while (pendingResets.isNotEmpty &&
         pendingResets.first.keyGeneration <= message.keyGeneration) {
       addUnreadable();
-      items.add(KeyResetItem(pendingResets.removeAt(0)));
+      final reset = pendingResets.removeAt(0);
+      if (placedMessage || reachStart) {
+        items.add(KeyResetItem(reset));
+      }
     }
+    placedMessage = true;
     if (message.isReadable) {
       addUnreadable();
       items.add(MessageItem(message));
@@ -70,6 +80,8 @@ List<ChatTimelineItem> chatTimeline(
     }
   }
   addUnreadable();
-  items.addAll(pendingResets.map(KeyResetItem.new));
+  if (placedMessage || reachStart) {
+    items.addAll(pendingResets.map(KeyResetItem.new));
+  }
   return items;
 }

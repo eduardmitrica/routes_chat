@@ -3,28 +3,50 @@ part of 'messages_watcher_bloc.dart';
 sealed class MessagesWatcherEvent extends Equatable {
   const MessagesWatcherEvent();
 
-  const factory MessagesWatcherEvent.watchAllStartedForChatWithId(
-    UniqueId chatId,
-  ) = MessagesWatchAllStartedForChatWithId;
-
-  const factory MessagesWatcherEvent.messagesReceived(
-    Either<MessageFailure, KtList<Message>> failureOrMessages,
-  ) = MessagesReceived;
+  const factory MessagesWatcherEvent.watchStarted(UniqueId chatId) =
+      MessagesWatchStarted;
+  const factory MessagesWatcherEvent.latestReceived(
+    Either<MessageFailure, MessagePage> failureOrPage,
+  ) = MessagesLatestReceived;
+  const factory MessagesWatcherEvent.olderRequested() = MessagesOlderRequested;
+  const factory MessagesWatcherEvent.searchChanged(String query) =
+      MessagesSearchChanged;
+  const factory MessagesWatcherEvent.searchClosed() = MessagesSearchClosed;
 
   @override
   List<Object?> get props => const [];
 }
 
-final class MessagesWatchAllStartedForChatWithId extends MessagesWatcherEvent {
+/// Start showing [chatId]'s messages, newest page first.
+final class MessagesWatchStarted extends MessagesWatcherEvent {
   final UniqueId chatId;
-  const MessagesWatchAllStartedForChatWithId(this.chatId);
+  const MessagesWatchStarted(this.chatId);
   @override
   List<Object?> get props => [chatId];
 }
 
-final class MessagesReceived extends MessagesWatcherEvent {
-  final Either<MessageFailure, KtList<Message>> failureOrMessages;
-  const MessagesReceived(this.failureOrMessages);
+/// The newest page changed, or could not be loaded.
+final class MessagesLatestReceived extends MessagesWatcherEvent {
+  final Either<MessageFailure, MessagePage> failureOrPage;
+  const MessagesLatestReceived(this.failureOrPage);
   @override
-  List<Object?> get props => [failureOrMessages];
+  List<Object?> get props => [failureOrPage];
+}
+
+/// The user scrolled near the oldest message loaded.
+final class MessagesOlderRequested extends MessagesWatcherEvent {
+  const MessagesOlderRequested();
+}
+
+/// The user typed [query] in the chat's search.
+final class MessagesSearchChanged extends MessagesWatcherEvent {
+  final String query;
+  const MessagesSearchChanged(this.query);
+  @override
+  List<Object?> get props => [query];
+}
+
+/// The user left the search.
+final class MessagesSearchClosed extends MessagesWatcherEvent {
+  const MessagesSearchClosed();
 }

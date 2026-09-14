@@ -76,7 +76,14 @@ class UserFormBloc extends Bloc<UserFormEvent, UserFormState> {
 
             var isUsernameValid = user.username.isValid();
             var usernameCheckedAgainstDb = user.username;
-            if (isUsernameValid) {
+            // Only a changed username needs the uniqueness check. The current
+            // one is already claimed by this user, so checking it reported
+            // "already exists" and blocked every save that kept the username,
+            // such as a description-only edit.
+            if (isUsernameValid &&
+                (!_unalteredUser.username.isValid() ||
+                    _unalteredUser.username.getOrCrash() !=
+                        user.username.getOrCrash())) {
               usernameCheckedAgainstDb = await Username.checkAgainstDatabase(
                 _userUtils,
                 user.username.getOrCrash(),
@@ -90,6 +97,7 @@ class UserFormBloc extends Bloc<UserFormEvent, UserFormState> {
             }
 
             if (user.username.isValid() &&
+                _unalteredUser.username.isValid() &&
                 _unalteredUser.username.getOrCrash() !=
                     user.username.getOrCrash() &&
                 !isUsernameValid) {

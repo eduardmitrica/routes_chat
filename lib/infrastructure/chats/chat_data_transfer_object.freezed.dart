@@ -23,6 +23,9 @@ mixin _$ChatDataTransferObject {
 /// "the writer must be a participant" is not expressible over it. This
 /// duplicated field exists purely so the rules can enforce it, and is
 /// always derived in [fromDomain] rather than set by callers.
+///
+/// Stored sorted, so the rules can require the chat id to equal
+/// `participantIds.join('_')`, the format compositeId produces.
  List<String> get participantIds;@MessageDataTransferObjectConverter() MessageDataTransferObject get lastMessage;@ServerTimestampConverter() FieldValue get serverTimeStamp;
 /// Create a copy of ChatDataTransferObject
 /// with the given fields replaced by the non-null parameter values.
@@ -253,6 +256,9 @@ class _ChatDataTransferObject extends ChatDataTransferObject {
 /// "the writer must be a participant" is not expressible over it. This
 /// duplicated field exists purely so the rules can enforce it, and is
 /// always derived in [fromDomain] rather than set by callers.
+///
+/// Stored sorted, so the rules can require the chat id to equal
+/// `participantIds.join('_')`, the format compositeId produces.
  final  List<String> _participantIds;
 /// Flat mirror of the participant ids in [participants].
 ///
@@ -261,6 +267,9 @@ class _ChatDataTransferObject extends ChatDataTransferObject {
 /// "the writer must be a participant" is not expressible over it. This
 /// duplicated field exists purely so the rules can enforce it, and is
 /// always derived in [fromDomain] rather than set by callers.
+///
+/// Stored sorted, so the rules can require the chat id to equal
+/// `participantIds.join('_')`, the format compositeId produces.
 @override List<String> get participantIds {
   if (_participantIds is EqualUnmodifiableListView) return _participantIds;
   // ignore: implicit_dynamic_type

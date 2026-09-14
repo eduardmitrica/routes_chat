@@ -8,6 +8,7 @@ import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/shared/user/user_failure.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 
+import 'package:routes_chat/infrastructure/core/chunked.dart';
 import 'package:routes_chat/infrastructure/core/firestore_helpers.dart';
 import 'package:routes_chat/infrastructure/shared/user/user_data_transfer_object.dart';
 import 'package:rxdart/rxdart.dart';
@@ -155,24 +156,41 @@ class UserFacade implements IUserRepository {
   Stream<Either<UserFailure, KtList<User>>> watchUsersWithIds(
     KtList<UniqueId> ids,
   ) async* {
-    final idsValues = ids.map((id) => id.getOrCrash());
-    yield* _firestore
-        .collection('users')
-        .snapshots()
-        .takeUntil(_session.ended)
-        .map(
-          (snapShot) => snapShot.docs.map(
-            (document) =>
-                UserDataTransferObject.fromFirestore(document).toDomain(),
+    final uniqueIds = ids.map((id) => id.getOrCrash()).asList().toSet().toList();
+    if (uniqueIds.isEmpty) {
+      yield right<UserFailure, KtList<User>>(const KtList<User>.empty());
+      return;
+    }
+
+    // Listen to exactly these profiles rather than the whole collection,
+    // which downloaded every user's profile to every signed-in user. Firestore
+    // accepts at most 30 values per `in` filter, hence the groups.
+    final groups = chunked(uniqueIds, _maximumInFilterValues).map(
+      (group) => _firestore
+          .collection('users')
+          .where(FieldPath.documentId, whereIn: group)
+          .snapshots()
+          .takeUntil(_session.ended)
+          .map(
+            (snapShot) => snapShot.docs
+                .map(
+                  (document) =>
+                      UserDataTransferObject.fromFirestore(document).toDomain(),
+                )
+                .toList(),
           ),
-        )
-        .map(
-          (users) => right<UserFailure, KtList<User>>(
-            users
-                .where((user) => idsValues.contains(user.id.getOrCrash()))
-                .toImmutableList(),
-          ),
-        )
+    );
+
+    yield* CombineLatestStream.list<List<User>>(groups)
+        .map((groupsOfUsers) {
+          // Ordered by document id, as the whole-collection listen returned.
+          final users = groupsOfUsers.expand((group) => group).toList()
+            ..sort(
+              (first, second) =>
+                  first.id.getOrCrash().compareTo(second.id.getOrCrash()),
+            );
+          return right<UserFailure, KtList<User>>(users.toImmutableList());
+        })
         .onErrorReturnWith((exception, stackTrace) {
           if (exception is FirebaseException &&
               exception.code.contains('permission-denied')) {
@@ -182,4 +200,7 @@ class UserFacade implements IUserRepository {
           }
         });
   }
+
+  /// Firestore's limit on values in a single `in` filter.
+  static const _maximumInFilterValues = 30;
 }

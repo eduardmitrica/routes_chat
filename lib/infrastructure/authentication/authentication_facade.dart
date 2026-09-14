@@ -13,11 +13,11 @@ import 'package:routes_chat/domain/authentication/registration_failure.dart'
 import 'package:routes_chat/domain/authentication/sign_in_failure.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/user.dart' as domain_user;
+import 'package:routes_chat/infrastructure/authentication/generated_username.dart';
 import 'package:routes_chat/infrastructure/authentication/profile_write_failure.dart';
 import 'package:routes_chat/infrastructure/core/firestore_helpers.dart';
 import 'package:routes_chat/infrastructure/shared/user/firebase_user_mapper.dart';
 import 'package:routes_chat/infrastructure/shared/user/user_data_transfer_object.dart';
-import 'package:uuid/uuid.dart';
 
 import '../../domain/shared/user/value_objects.dart';
 
@@ -154,13 +154,10 @@ class AuthFacade implements IAuthFacade {
       }
 
       final emailAddressString = googleUser.email;
-      final generatedUsername = const Uuid().v1();
       final user = domain_user.User(
         id: UniqueId.fromUniqueString(uid),
         imageUrl: ImageUrl(imagePath.getOrCrash()),
-        username: Username(
-          generatedUsername.substring(generatedUsername.length - 12),
-        ),
+        username: Username(generateUsername()),
         description: Description(''),
       );
 

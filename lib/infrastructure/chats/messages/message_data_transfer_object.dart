@@ -8,6 +8,7 @@ import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/value_objects.dart';
 import 'package:routes_chat/infrastructure/encryption/chat_cipher.dart';
+import 'package:routes_chat/domain/chats/messages/message_quote.dart';
 
 part 'message_data_transfer_object.freezed.dart';
 
@@ -26,7 +27,7 @@ abstract class MessageDataTransferObject with _$MessageDataTransferObject {
     /// The message text, encrypted with the chat's key. The repositories,
     /// which hold the key, turn it into text; see docs/e2ee.md.
     @EncryptedContentConverter() required EncryptedContent content,
-    required String repliedMessageId,
+
     required bool isEdited,
     @JsonKey(includeToJson: false, includeFromJson: false) DateTime? timeStamp,
     @ServerTimestampConverter() required FieldValue serverTimeStamp,
@@ -38,24 +39,28 @@ abstract class MessageDataTransferObject with _$MessageDataTransferObject {
   Map<String, dynamic> toJsonWithId() => toJson()..putIfAbsent('id', () => id);
 
   /// The message, with [content] as its decrypted text, or as a placeholder
-  /// when it could not be decrypted ([isReadable] false).
-  Message toDomain({required String content, bool isReadable = true}) =>
-      Message(
-        id: UniqueId.fromUniqueString(id!),
-        senderId: UniqueId.fromUniqueString(senderId),
-        imageUrls: imageUrls
-            .map((imageUrl) => ImageUrl(imageUrl))
-            .toImmutableList(),
-        reactions: reactions
-            .map((reaction) => UniqueId.fromUniqueString(reaction))
-            .toImmutableList(),
-        content: Content(content),
-        repliedMessageId: UniqueId.fromUniqueString(repliedMessageId),
-        lastUpdatedAt: timeStamp!,
-        isEdited: isEdited,
-        isReadable: isReadable,
-        keyGeneration: this.content.keyGeneration,
-      );
+  /// when it could not be decrypted ([isReadable] false), and [replyTo] as
+  /// the quote its ciphertext carries.
+  Message toDomain({
+    required String content,
+    MessageQuote? replyTo,
+    bool isReadable = true,
+  }) => Message(
+    id: UniqueId.fromUniqueString(id!),
+    senderId: UniqueId.fromUniqueString(senderId),
+    imageUrls: imageUrls
+        .map((imageUrl) => ImageUrl(imageUrl))
+        .toImmutableList(),
+    reactions: reactions
+        .map((reaction) => UniqueId.fromUniqueString(reaction))
+        .toImmutableList(),
+    content: Content(content),
+    replyTo: replyTo,
+    lastUpdatedAt: timeStamp!,
+    isEdited: isEdited,
+    isReadable: isReadable,
+    keyGeneration: this.content.keyGeneration,
+  );
 
   /// [message] as stored, with [content] as its encrypted text.
   factory MessageDataTransferObject.fromDomain(
@@ -72,7 +77,7 @@ abstract class MessageDataTransferObject with _$MessageDataTransferObject {
           .map((reactionId) => reactionId.getOrCrash())
           .asList(),
       content: content,
-      repliedMessageId: message.repliedMessageId.getOrCrash(),
+
       isEdited: message.isEdited,
       serverTimeStamp: FieldValue.serverTimestamp(),
     );

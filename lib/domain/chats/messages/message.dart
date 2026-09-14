@@ -4,6 +4,7 @@ import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/value_objects.dart';
 
 import '../../core/value_objects.dart';
+import 'package:routes_chat/domain/chats/messages/message_quote.dart';
 
 part 'message.freezed.dart';
 
@@ -15,7 +16,9 @@ abstract class Message with _$Message {
     required KtList<ImageUrl> imageUrls,
     required KtList<UniqueId> reactions,
     required Content content,
-    required UniqueId repliedMessageId,
+
+    /// For a reply, the message it answers.
+    MessageQuote? replyTo,
     required DateTime? lastUpdatedAt,
     required bool isEdited,
 

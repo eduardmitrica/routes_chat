@@ -53,13 +53,13 @@ dependencies:
   google_fonts: ^8.2.1
   rxdart: ^0.28.0
   kt_dart: ^1.1.0
-  chat_bubbles: ^1.10.1
   async: ^2.13.1
   equatable: ^2.1.0
   cryptography: ^2.9.0
   cryptography_flutter: ^2.3.4
   flutter_secure_storage: ^11.1.1
   super_sliver_list: ^0.4.1
+  characters: ^1.4.1
 
 dev_dependencies:
   flutter_test:

@@ -24,7 +24,9 @@ class RegisterWithGooglePage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'You (${emailAddress.getOrCrash()}) have been successfully registered. We\'ve added a place-holder image and and an auto-generated username for you. Don\' stress you can change them later from your user profile page',
+              'You\'re registered as ${emailAddress.getOrCrash()}. We\'ve '
+              'given you a placeholder photo and a username. You can change '
+              'both on your profile.',
             ),
             const SizedBox(height: 24),
             FilledButton(

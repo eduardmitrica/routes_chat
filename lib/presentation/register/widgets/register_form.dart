@@ -6,11 +6,12 @@ import 'package:image_picker/image_picker.dart';
 import 'package:routes_chat/application/authentication/authentication_bloc.dart';
 import 'package:routes_chat/application/authentication/register_form/register_form_bloc.dart';
 import 'package:routes_chat/application/shared/picture_placeholder_fetcher/placeholder_fetcher_bloc.dart';
-import 'package:routes_chat/domain/authentication/registration_failure.dart';
 import 'package:routes_chat/domain/core/failures.dart';
 import 'package:routes_chat/presentation/encryption/encryption_gate_page.dart';
 import 'package:routes_chat/presentation/register/register_with_google_page.dart';
 import 'package:routes_chat/presentation/sign_in/sign_in_page.dart';
+
+import 'registration_failure_message.dart';
 
 class RegisterForm extends StatelessWidget {
   const RegisterForm({super.key});
@@ -88,21 +89,27 @@ class RegisterForm extends StatelessWidget {
             () {},
             (either) => either.fold(
               (failure) {
-                final message = switch (failure) {
-                  EmailAlreadyInUse() => 'Email already in use',
-                  UsernameTaken() =>
-                    'That username was just taken, please choose another',
-                  ServerError() => 'Server Error',
-                  CancelledByUser() => 'Cancelled',
-                  UserAlreadyRegistered() =>
-                    'This google account is already registered, please sign in',
-                  SignInWithGoogleFailed() =>
-                    'Authenticating into google failed',
-                  GoogleError() => 'Google error',
-                };
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(message)));
+                final message = registrationFailureMessage(failure);
+                if (message == null) return;
+                final signInInstead = alreadyHasAccount(failure);
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(message),
+                      // Long enough to read and act on.
+                      duration: Duration(seconds: signInInstead ? 10 : 6),
+                      action: signInInstead
+                          ? SnackBarAction(
+                              label: 'Sign in',
+                              onPressed: () =>
+                                  Navigator.of(context).pushReplacementNamed(
+                                    SignInPage.signInPageRoute,
+                                  ),
+                            )
+                          : null,
+                    ),
+                  );
               },
               (successEither) {
                 BlocProvider.of<AuthenticationBloc>(

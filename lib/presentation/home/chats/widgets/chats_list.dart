@@ -17,11 +17,19 @@ class ChatsList extends StatelessWidget {
   /// out.
   final Set<String> unreadChatIds;
 
+  /// The ids of the chats with someone the user blocked.
+  final Set<String> blockedChatIds;
+
+  /// The ids of the chats whose last message stays hidden.
+  final Set<String> hiddenPreviewChatIds;
+
   const ChatsList(
     this.chats,
     this.onRefresh, {
     super.key,
     this.unreadChatIds = const {},
+    this.blockedChatIds = const {},
+    this.hiddenPreviewChatIds = const {},
   });
 
   @override
@@ -97,7 +105,13 @@ class ChatsList extends StatelessWidget {
                           ? Text(chatParticipants.first().username.getOrCrash())
                           : Text('Chat with ${chatParticipants.size}'),
                       subtitle: Text(
-                        chat.lastMessage.content.getOrCrash(),
+                        blockedChatIds.contains(chat.id.getOrCrash())
+                            ? 'Blocked'
+                            : hiddenPreviewChatIds.contains(
+                                chat.id.getOrCrash(),
+                              )
+                            ? 'Message hidden'
+                            : chat.lastMessage.content.getOrCrash(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

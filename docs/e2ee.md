@@ -193,6 +193,8 @@ They also:
 - Taking back what the other person already has. Deleting a message removes it
   from the server, but it may have been seen, copied, or kept in a phone's
   offline cache until that phone next connects.
+- Reports. A report can share the last 5 messages of a chat in readable form, but only when its author ticks that, with a warning; they are stored in `reports`, which no app can read, for the project owner to review. The server cannot check them against the ciphertext, so they are the reporter's word.
+- Who someone blocked, from the server. A block (`users/{uid}/blocks/{uid}`) is private to the blocker and hidden from the blocked person, but the server sees it. What a blocked person sends is still stored, encrypted, and the blocker's app keeps it out of sight.
 - A malicious chat partner, who can read everything sent to them.
 - Replacing a user's public key through the server. A future improvement is
   showing a safety number that two people can compare.

@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../domain/chats/chat_reads.dart';
+import '../../../domain/safety/blocks.dart';
 import '../../../domain/chats/messages/message.dart';
 import '../../../domain/core/value_objects.dart';
 import '../../../domain/presence/presence.dart';
@@ -114,6 +115,10 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
   final IPresenceRepository _presence;
   final IPrivacySettingsReader _privacy;
   final IChatReads? _reads;
+
+  /// With someone the user blocked, nothing is shown or told either way.
+  final IBlockList? _blocks;
+  StreamSubscription<Blocks>? _blocksWatch;
   final DateTime Function() _now;
   final Duration _typingShownFor;
   final Duration _typingIgnoredAfter;
@@ -140,11 +145,13 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
     this._presence,
     this._privacy, {
     IChatReads? reads,
+    IBlockList? blocks,
     DateTime Function()? now,
     Duration typingShownFor = defaultTypingShownFor,
     Duration typingIgnoredAfter = defaultTypingIgnoredAfter,
     Duration onlineWithin = defaultOnlineWithin,
   }) : _reads = reads,
+       _blocks = blocks,
        _now = now ?? DateTime.now,
        _typingShownFor = typingShownFor,
        _typingIgnoredAfter = typingIgnoredAfter,
@@ -159,6 +166,9 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
           _privacyWatch = _privacy.privacyChanges.listen(
             (settings) => add(_PrivacyChanged(settings)),
           );
+          _blocksWatch ??= _blocks?.blocksChanges.listen((_) {
+            if (!isClosed) add(const _Tick());
+          });
           _follow(_privacy.privacy);
           emit(_current());
 
@@ -216,6 +226,7 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
         sentAt == null) {
       return;
     }
+    if (_withBlocked) return;
     final reported = _reportedUpTo;
     if (reported != null && !sentAt.isAfter(reported)) return;
     _reportedUpTo = sentAt;
@@ -268,7 +279,15 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
     }
   }
 
+  /// Whether the other person is someone the user blocked.
+  bool get _withBlocked {
+    final otherUserId = _otherUserId;
+    return otherUserId != null &&
+        (_blocks?.blocks.isBlocked(otherUserId) ?? false);
+  }
+
   ChatActivityState _current() {
+    if (_withBlocked) return const ChatActivityState();
     final now = _now();
     final settings = _privacy.privacy;
     final typingUntil = _typingUntil;
@@ -295,6 +314,7 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
     await _typing?.cancel();
     await _presenceWatch?.cancel();
     await _readWatch?.cancel();
+    await _blocksWatch?.cancel();
     await _privacyWatch?.cancel();
     return super.close();
   }

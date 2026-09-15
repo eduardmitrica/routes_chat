@@ -26,24 +26,32 @@ class ChatsPageBody extends StatelessWidget {
         ChatsWatcherLoadInProgress() => const Center(
           child: CircularProgressIndicator(),
         ),
-        ChatsWatcherLoadSuccess(:final chats, :final unreadChatIds) => Padding(
-          padding: const EdgeInsets.all(10.0),
-          child: Column(
-            children: [
-              const FriendsSearchBar(),
-              const SizedBox(height: 20),
-              Expanded(
-                child: ChatsList(
-                  chats,
-                  BlocProvider.of<ChatsWatcherBloc>(
-                    context,
-                  ).refreshSubscription,
-                  unreadChatIds: unreadChatIds,
+        ChatsWatcherLoadSuccess(
+          :final chats,
+          :final unreadChatIds,
+          :final blockedChatIds,
+          :final hiddenPreviewChatIds,
+        ) =>
+          Padding(
+            padding: const EdgeInsets.all(10.0),
+            child: Column(
+              children: [
+                const FriendsSearchBar(),
+                const SizedBox(height: 20),
+                Expanded(
+                  child: ChatsList(
+                    chats,
+                    BlocProvider.of<ChatsWatcherBloc>(
+                      context,
+                    ).refreshSubscription,
+                    unreadChatIds: unreadChatIds,
+                    blockedChatIds: blockedChatIds,
+                    hiddenPreviewChatIds: hiddenPreviewChatIds,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         ChatsWatcherLoadFailure(:final failure) => Center(
           child: Text(failure.toString()),
         ),

@@ -10,14 +10,15 @@ _MessageDataTransferObject _$MessageDataTransferObjectFromJson(
   Map<String, dynamic> json,
 ) => _MessageDataTransferObject(
   senderId: json['senderId'] as String,
-  imageUrls: (json['imageUrls'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  reactions: (json['reactions'] as List<dynamic>)
-      .map((e) => e as String)
-      .toList(),
-  content: const EncryptedContentConverter().fromJson(json['content']),
-  isEdited: json['isEdited'] as bool,
+  imageUrls:
+      (json['imageUrls'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      const <String>[],
+  reactions:
+      (json['reactions'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      const <String>[],
+  content: const OptionalEncryptedContentConverter().fromJson(json['content']),
+  isEdited: json['isEdited'] as bool? ?? false,
+  deleted: json['deleted'] as bool?,
   serverTimeStamp: const ServerTimestampConverter().fromJson(
     json['serverTimeStamp'],
   ),
@@ -29,8 +30,11 @@ Map<String, dynamic> _$MessageDataTransferObjectToJson(
   'senderId': instance.senderId,
   'imageUrls': instance.imageUrls,
   'reactions': instance.reactions,
-  'content': const EncryptedContentConverter().toJson(instance.content),
+  'content': ?const OptionalEncryptedContentConverter().toJson(
+    instance.content,
+  ),
   'isEdited': instance.isEdited,
+  'deleted': ?instance.deleted,
   'serverTimeStamp': const ServerTimestampConverter().toJson(
     instance.serverTimeStamp,
   ),

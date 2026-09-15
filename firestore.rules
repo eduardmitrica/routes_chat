@@ -331,6 +331,23 @@ service cloud.firestore {
           request.resource.data.lastMessage == resource.data.lastMessage;
       }
 
+      // The update changes only the last message, as the same write changes
+      // the message itself when its sender edits or deletes it: the two stay
+      // the same apart from the id the chat's copy carries. Checked last, so
+      // sending a message does not pay for the extra read.
+      function followsLastMessage() {
+        let before = resource.data.lastMessage;
+        let after = request.resource.data.lastMessage;
+        let message = getAfter(
+          /databases/$(database)/documents/chats/$(chatId)/messages/$(before.id)
+        ).data;
+        return request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['lastMessage']) &&
+          before.senderId == request.auth.uid &&
+          after.id == before.id &&
+          after.diff(message).affectedKeys().hasOnly(['id']);
+      }
+
       // A direct read is checked against the chat id, which the create rule
       // below ties to the participants. That lets it work for a chat that does
       // not exist yet: ChatRepository.create reads the chat in its transaction
@@ -364,9 +381,10 @@ service cloud.firestore {
                               messageFields().concat(['id']), 1);
       // The writer must already be a participant, and the participants never
       // change, which also keeps the id consistent with them. An update either
-      // adds the next key generation, or sets a new last message under the
-      // current one. Existing generations never change: replacing one could
-      // lock a participant out.
+      // adds the next key generation, sets a new last message under the
+      // current one, or edits or deletes the last message along with the
+      // message. Existing generations never change: replacing one could lock
+      // a participant out.
       allow update: if signedIn() &&
         request.auth.uid in resource.data.participantIds &&
         request.resource.data.participantIds == resource.data.participantIds &&
@@ -378,7 +396,8 @@ service cloud.firestore {
             resource.data.currentKeyGeneration &&
           isOwnEncryptedMessage(request.resource.data.lastMessage,
                                 messageFields().concat(['id']),
-                                resource.data.currentKeyGeneration)));
+                                resource.data.currentKeyGeneration)) ||
+         followsLastMessage());
 
       match /messages/{messageId} {
         // The parent chat as it will be once this write lands.
@@ -397,10 +416,55 @@ service cloud.firestore {
         // A message must use the chat's current key generation, so one sent
         // from an out-of-date device cannot be unreadable to a participant who
         // just reset their keys.
+        // A message is dated by the server as it is written, as every version
+        // of the app does. The edit window below counts from that date, so a
+        // client cannot date a message ahead to keep it editable.
         allow create: if signedIn() &&
           request.auth.uid in chatAfter().participantIds &&
+          request.resource.data.serverTimeStamp == request.time &&
           isOwnEncryptedMessage(request.resource.data, messageFields(),
                                 chatAfter().currentKeyGeneration);
+
+        // Must match MessageDataTransferObject.deletedFields; a test checks
+        // it.
+        function deletedFields() {
+          return ['senderId', 'serverTimeStamp', 'deleted'];
+        }
+
+        // An edit replaces the encrypted content, under the key generation
+        // the message was sent with, and marks the message edited. The app
+        // offers editing for 15 minutes after sending; the rest of the 20 is
+        // time to finish an edit started near the end, or for a phone whose
+        // clock runs behind (messageEditSaveWindow in the app).
+        function isEdit() {
+          return request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['content', 'isEdited']) &&
+            request.resource.data.isEdited == true &&
+            request.time <
+              resource.data.serverTimeStamp + duration.value(20, 'm') &&
+            request.resource.data.content.v == 2 &&
+            isEncryptedContent(request.resource.data.content,
+                               resource.data.content.e);
+        }
+
+        // Deleting a message erases its encrypted content, and with it the
+        // keys of its photos. Who sent it and when stay, so a reply to it
+        // still has something to point at.
+        function isDeletion() {
+          return request.resource.data.keys().hasOnly(deletedFields()) &&
+            request.resource.data.deleted == true &&
+            request.resource.data.senderId == resource.data.senderId &&
+            request.resource.data.serverTimeStamp ==
+              resource.data.serverTimeStamp;
+        }
+
+        // Only the sender changes a message, by editing or deleting it, and a
+        // deleted message stays deleted.
+        allow update: if signedIn() &&
+          request.auth.uid in chatId.split('_') &&
+          resource.data.senderId == request.auth.uid &&
+          resource.data.get('deleted', false) == false &&
+          (isEdit() || isDeletion());
       }
 
       // Who is typing in the chat: one document per participant, holding the
@@ -416,6 +480,76 @@ service cloud.firestore {
           request.resource.data.keys().hasOnly(['typingAt']) &&
           request.resource.data.typingAt == request.time;
         allow delete: if signedIn() && request.auth.uid == userId;
+      }
+
+      // How far each participant has read the chat, for read receipts: the
+      // newest message they read, when it was sent, and the server time they
+      // said so. Never what it says. Only the chat's participants read it, and
+      // each writes only their own, about a message of this chat; the app
+      // stops writing it, and deletes it, when the user stops sharing read
+      // receipts. The read decides from the ids, so it also works before
+      // anyone read.
+      match /reads/{userId} {
+        allow read: if signedIn() && request.auth.uid in chatId.split('_');
+        allow create, update: if signedIn() &&
+          request.auth.uid == userId &&
+          userId in chatId.split('_') &&
+          request.resource.data.keys().hasOnly(['messageId', 'messageSentAt',
+                                                'readAt']) &&
+          request.resource.data.readAt == request.time &&
+          request.resource.data.messageId is string &&
+          request.resource.data.messageSentAt == get(
+            /databases/$(database)/documents/chats/$(chatId)/messages/$(request.resource.data.messageId)
+          ).data.serverTimeStamp;
+        allow delete: if signedIn() && request.auth.uid == userId;
+      }
+
+      // Reactions to the chat's messages, one document per person per
+      // message, with the id "<message id>_<user id>" (neither contains "_").
+      // The emoji is encrypted under the chat's current key generation
+      // (docs/e2ee.md) and always the same length, so the server learns that
+      // someone reacted, not with what. messageSentAt is when the message was
+      // sent, which lets a chat watch the reactions to the messages it has
+      // loaded. Only the chat's participants read them. Each writes only
+      // their own, to a message that is not deleted; the message's sender
+      // also removes the others' when deleting it.
+      match /reactions/{reactionId} {
+        function messageWithId(id) {
+          return get(
+            /databases/$(database)/documents/chats/$(chatId)/messages/$(id)
+          ).data;
+        }
+
+        // Base64 of a 12-byte nonce, 128 bytes of ciphertext
+        // (ChatCipher.reactionPayloadBytes) and a 16-byte tag.
+        function isEncryptedReaction(content) {
+          return content.keys().hasOnly(['v', 'e', 'nonce', 'cipherText', 'mac']) &&
+            content.v == 1 &&
+            content.e == get(/databases/$(database)/documents/chats/$(chatId))
+              .data.currentKeyGeneration &&
+            content.nonce is string && content.nonce.size() == 16 &&
+            content.mac is string && content.mac.size() == 24 &&
+            content.cipherText is string && content.cipherText.size() == 172;
+        }
+
+        allow read: if signedIn() && request.auth.uid in chatId.split('_');
+        allow create, update: if signedIn() &&
+          request.auth.uid in chatId.split('_') &&
+          request.resource.data.keys().hasOnly(['messageId', 'userId',
+                                                'messageSentAt', 'content']) &&
+          request.resource.data.userId == request.auth.uid &&
+          reactionId ==
+            request.resource.data.messageId + '_' + request.auth.uid &&
+          isEncryptedReaction(request.resource.data.content) &&
+          messageWithId(request.resource.data.messageId)
+            .get('deleted', false) == false &&
+          request.resource.data.messageSentAt ==
+            messageWithId(request.resource.data.messageId).serverTimeStamp;
+        allow delete: if signedIn() &&
+          request.auth.uid in chatId.split('_') &&
+          (reactionId.split('_')[1] == request.auth.uid ||
+           messageWithId(reactionId.split('_')[0]).senderId ==
+             request.auth.uid);
       }
     }
 

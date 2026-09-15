@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:routes_chat/domain/chats/messages/message.dart';
+import 'package:routes_chat/domain/chats/messages/message_changes.dart';
 import 'package:routes_chat/presentation/core/theme/app_colors.dart';
 
 import 'attachment_gallery.dart';
@@ -38,6 +39,9 @@ class MessageBubble extends StatelessWidget {
   /// Saves one of its photos from the full-screen view.
   final AttachmentSaver? saveAttachment;
 
+  /// Shown tucked under the bubble, such as the reactions to the message.
+  final Widget? reactions;
+
   const MessageBubble({
     super.key,
     required this.message,
@@ -49,6 +53,7 @@ class MessageBubble extends StatelessWidget {
     this.onOpenLink,
     this.loadAttachment,
     this.saveAttachment,
+    this.reactions,
   });
 
   @override
@@ -72,9 +77,19 @@ class MessageBubble extends StatelessWidget {
             author: quoteAuthor ?? '',
             text: quote.text,
             thumbnail: quote.thumbnail,
+            originalDeleted: quote.originalDeleted,
             color: foreground,
             onTap: onQuoteTap,
           );
+    final muted = foreground.withValues(alpha: 0.7);
+    final editedLabel = message.isEdited && !message.isDeleted
+        ? Text(
+            'edited',
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: muted),
+          )
+        : null;
     final caption = text.isEmpty
         ? null
         : LinkifiedText(
@@ -91,7 +106,27 @@ class MessageBubble extends StatelessWidget {
           );
 
     final Widget content;
-    if (attachments.isNotEmpty && loader != null) {
+    if (message.isDeleted) {
+      content = Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.block_rounded, size: 16, color: muted),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                deletedMessageText,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: muted,
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (attachments.isNotEmpty && loader != null) {
       // A carousel has no intrinsic width, so a bubble with photos takes the
       // widest a bubble gets.
       content = SizedBox(
@@ -122,6 +157,14 @@ class MessageBubble extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
                 child: caption,
               ),
+            if (editedLabel != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+                child: Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: editedLabel,
+                ),
+              ),
           ],
         ),
       );
@@ -135,33 +178,59 @@ class MessageBubble extends StatelessWidget {
             children: [
               if (quoteView != null) ...[quoteView, const SizedBox(height: 6)],
               ?caption,
+              if (editedLabel != null)
+                Align(
+                  alignment: AlignmentDirectional.centerEnd,
+                  child: editedLabel,
+                ),
             ],
           ),
         ),
       );
     }
 
+    final bubble = ConstrainedBox(
+      constraints: BoxConstraints(maxWidth: maxWidth),
+      child: Material(
+        color: sent ? colors.sentBubble : colors.receivedBubble,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(
+            topLeft: round,
+            topRight: round,
+            bottomLeft: sent ? round : tucked,
+            bottomRight: sent ? tucked : round,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(onLongPress: onLongPress, child: content),
+      ),
+    );
+    final reactions = this.reactions;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       color: highlighted ? colors.messageHighlight : Colors.transparent,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       alignment: sent ? Alignment.centerRight : Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Material(
-          color: sent ? colors.sentBubble : colors.receivedBubble,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.only(
-              topLeft: round,
-              topRight: round,
-              bottomLeft: sent ? round : tucked,
-              bottomRight: sent ? tucked : round,
+      child: reactions == null
+          ? bubble
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: sent
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
+              children: [
+                bubble,
+                // Over the bubble's lower edge, as in most messaging apps.
+                Transform.translate(
+                  offset: const Offset(0, -6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: reactions,
+                  ),
+                ),
+              ],
             ),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(onLongPress: onLongPress, child: content),
-        ),
-      ),
     );
   }
 }
@@ -172,6 +241,7 @@ class _Quote extends StatelessWidget {
   final String author;
   final String text;
   final Uint8List? thumbnail;
+  final bool originalDeleted;
   final Color color;
   final VoidCallback? onTap;
 
@@ -179,6 +249,7 @@ class _Quote extends StatelessWidget {
     required this.author,
     required this.text,
     required this.thumbnail,
+    required this.originalDeleted,
     required this.color,
     required this.onTap,
   });
@@ -221,11 +292,14 @@ class _Quote extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          text,
+                          originalDeleted ? deletedMessageText : text,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                           style: textTheme.bodySmall?.copyWith(
                             color: color.withValues(alpha: 0.85),
+                            fontStyle: originalDeleted
+                                ? FontStyle.italic
+                                : null,
                           ),
                         ),
                       ],

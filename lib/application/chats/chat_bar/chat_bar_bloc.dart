@@ -12,6 +12,10 @@ import 'package:routes_chat/domain/chats/messages/media_failure.dart';
 import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import 'package:routes_chat/domain/chats/messages/emoji_usage.dart';
+import 'package:routes_chat/domain/chats/messages/message_changes.dart';
+import 'package:routes_chat/domain/chats/messages/message_failure.dart';
+import 'package:routes_chat/domain/chats/messages/message_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message_quote.dart';
 import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
@@ -52,8 +56,13 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
   final IPrivacySettingsReader? _privacy;
   final Duration _typingRefresh;
   final Duration _typingPause;
+  final IMessageRepository? _messages;
+  final IEmojiPreferences? _emojis;
 
   UniqueId? _otherUserId;
+
+  /// What the user was writing when they started editing a message.
+  ChatDraft? _beforeEdit;
   Timer? _draftTimer;
   StreamSubscription<KtList<OutgoingMessage>>? _outgoing;
   DateTime? _typingSentAt;
@@ -69,7 +78,11 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
     IPrivacySettingsReader? privacy,
     Duration typingRefresh = defaultTypingRefresh,
     Duration typingPause = defaultTypingPause,
+    IMessageRepository? messages,
+    IEmojiPreferences? emojis,
   }) : _draftDelay = draftDelay,
+       _messages = messages,
+       _emojis = emojis,
        _presence = presence,
        _privacy = privacy,
        _typingRefresh = typingRefresh,
@@ -112,10 +125,49 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
 
         case MessageContentChanged(:final contentString):
           emit(state.copyWith(text: contentString));
+          // An edit is not a draft, and the other person hears of it once
+          // it is saved.
+          if (state.editing != null) return;
           _saveDraftSoon();
           _typed(contentString);
 
+        case EditStarted(:final message):
+          final userId = _session.current?.id;
+          if (userId == null ||
+              _messages == null ||
+              state.savingEdit ||
+              !message.canBeEditedBy(userId, DateTime.now())) {
+            return;
+          }
+          if (state.editing == null) {
+            await _saveDraft();
+            _beforeEdit = ChatDraft(
+              text: state.text,
+              replyTo: state.replyingTo,
+              media: state.media,
+            );
+          }
+          _stopTyping();
+          emit(
+            state.copyWith(
+              editing: message,
+              text: message.content.getOrCrash(),
+              textRevision: state.textRevision + 1,
+              replyingTo: null,
+              media: const KtList.empty(),
+              mediaFailureOption: none(),
+            ),
+          );
+
+        case EditCancelled():
+          if (state.editing == null || state.savingEdit) return;
+          _endEdit(emit);
+
         case ReplyStarted(:final message):
+          if (state.editing != null) {
+            if (state.savingEdit) return;
+            _endEdit(emit);
+          }
           emit(state.copyWith(replyingTo: MessageQuote.of(message)));
           await _saveDraft();
 
@@ -155,6 +207,41 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
             ),
           );
           await _saveDraft();
+
+        case MessageSent(:final text) when state.editing != null:
+          final message = state.editing!;
+          final messages = _messages;
+          final chatId = state.chatId;
+          if (messages == null || chatId == null || state.savingEdit) return;
+          if (text == message.content.getOrCrash()) {
+            _endEdit(emit);
+            return;
+          }
+          // A message keeps some text unless it has photos to show.
+          if (!Content(text).isValid() ||
+              (text.trim().isEmpty && message.attachments.isEmpty())) {
+            emit(
+              state.copyWith(text: text, textRevision: state.textRevision + 1),
+            );
+            return;
+          }
+          emit(state.copyWith(text: text, savingEdit: true));
+          (await messages.editMessage(chatId, message, text)).fold(
+            (failure) => emit(
+              state.copyWith(
+                savingEdit: false,
+                // The field cleared itself when sent; the text comes back to
+                // try again.
+                textRevision: state.textRevision + 1,
+                lastEditFailure: failure,
+                editFailures: state.editFailures + 1,
+              ),
+            ),
+            (edited) {
+              _endEdit(emit);
+              emit(state.copyWith(lastEdited: edited));
+            },
+          );
 
         case MessageSent(:final text, :final chatExists):
           final userId = _session.current?.id;
@@ -204,6 +291,10 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
           // on the phone the whole time.
           await _outbox.enqueue(outgoing);
           await _saveDraft();
+          // The emojis the user sends are offered first when reacting.
+          if (_emojis case final emojis?) {
+            unawaited(emojis.recordUse(emojisIn(text)));
+          }
 
         case OutgoingChanged(:final messages):
           emit(state.copyWith(outgoing: messages));
@@ -217,6 +308,22 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
           }
       }
     });
+  }
+
+  /// Stops editing, and brings back what the user was writing before.
+  void _endEdit(Emitter<ChatBarState> emit) {
+    final draft = _beforeEdit;
+    _beforeEdit = null;
+    emit(
+      state.copyWith(
+        editing: null,
+        savingEdit: false,
+        text: draft?.text ?? '',
+        textRevision: state.textRevision + 1,
+        replyingTo: draft?.replyTo,
+        media: draft?.media ?? const KtList.empty(),
+      ),
+    );
   }
 
   /// Tells the other person the user is typing, while the user shares it:
@@ -261,7 +368,8 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
   Future<void> _saveDraft() async {
     _draftTimer?.cancel();
     final chatId = state.chatId;
-    if (chatId == null) return;
+    // While editing, the saved draft is what the user wrote before.
+    if (chatId == null || state.editing != null) return;
     try {
       await _drafts.saveDraft(
         chatId,

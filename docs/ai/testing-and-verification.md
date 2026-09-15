@@ -39,7 +39,7 @@ These tests encode rules that would otherwise only fail in production.
 | `architecture/no_hardcoded_client_config_test.dart` | no Firebase or OAuth config literals in `lib/` |
 | `architecture/run_configurations_pass_env_test.dart` | shared IDE run configurations pass `--dart-define-from-file=.env` |
 | `architecture/presentation_styles_come_from_theme_test.dart` | no named colors in screens, no `ElevatedButton` |
-| `infrastructure/chats/chat_fields_match_rules_test.dart` | chat and message JSON keys equal the rules' field lists; encrypted-format checks in the rules |
+| `infrastructure/chats/chat_fields_match_rules_test.dart` | chat and message JSON keys equal the rules' field lists; encrypted-format checks in the rules; a deleted message's fields, the edit window and the reaction format agree with the app |
 | `infrastructure/shared/user/profile_fields_test.dart` | profile JSON keys equal the rules' list |
 | `infrastructure/encryption/bundle_fields_match_rules_test.dart` | key bundle fields equal the rules' list |
 | `infrastructure/core/environment_test.dart` | `.env.example` keys equal `Environment` |

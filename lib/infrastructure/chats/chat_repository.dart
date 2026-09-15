@@ -16,6 +16,7 @@ import 'package:routes_chat/infrastructure/encryption/chat_keyring.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../domain/chats/messages/message.dart';
+import 'package:routes_chat/domain/chats/messages/message_changes.dart';
 import 'package:routes_chat/infrastructure/chats/messages/message_payloads.dart';
 
 /// Chats, with the last message encrypted on the way in and decrypted on the
@@ -100,21 +101,32 @@ class ChatRepository implements IChatRepository {
 
     String text;
     var readable = true;
-    try {
-      text = (await _cipher.decrypt(
-        lastMessage.content,
-        chatKey: await _keyring.chatKey(
-          document.id,
-          lastMessage.content.keyGeneration,
-          chat.keyGenerations,
-        ),
-        chatId: document.id,
-        messageId: lastMessage.id!,
-        senderId: lastMessage.senderId,
-      )).summary;
-    } on UnreadableCiphertext {
-      text = ChatCipher.unreadableMessageText;
-      readable = false;
+    if (lastMessage.isDeleted) {
+      text = deletedMessageText;
+    } else {
+      try {
+        final content = lastMessage.encryptedContent;
+        text = (await _cipher.decrypt(
+          content,
+          chatKey: await _keyring.chatKey(
+            document.id,
+            content.keyGeneration,
+            chat.keyGenerations,
+          ),
+          chatId: document.id,
+          messageId: lastMessage.id!,
+          senderId: lastMessage.senderId,
+        )).summary;
+      } on Exception catch (exception) {
+        // Without content, the last message is not in the stored format;
+        // the chat still shows.
+        if (exception is! UnreadableCiphertext &&
+            exception is! FormatException) {
+          rethrow;
+        }
+        text = ChatCipher.unreadableMessageText;
+        readable = false;
+      }
     }
     return chat.toDomain(
       lastMessageContent: text,

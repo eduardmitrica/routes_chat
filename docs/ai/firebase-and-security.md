@@ -34,11 +34,13 @@ The project has no `(default)` database.
 | `users/{uid}/fcmTokens/{token}` | `platform`, `updatedAt` | The owner |
 | `presence/{uid}` | `state` (`online`/`offline`), `lastSeenAt` (server time) | The owner and their friends (accepted friend request); never listed |
 | `chats/{pairId}/typing/{uid}` | `typingAt` (server time) | The two people; each writes only their own |
+| `chats/{pairId}/reads/{uid}` | `messageId`, `messageSentAt` (that message's send time, which the rules check), `readAt` (server time). Only while the user shares read receipts | The two people; each writes and deletes only their own |
 | `userKeys/{uid}` | Public key, key version | Any signed-in user |
 | `usernames/{name}` | `uid`: the uniqueness index | Anyone can get one; no listing |
 | `friendRequests/{pairId}` | Sender, receiver, sorted `participantIds`, status | The two people |
 | `chats/{pairId}` | Participants, sorted `participantIds`, key generations, current generation, encrypted last message | The two people |
-| `chats/{pairId}/messages/{id}` | Sender, encrypted `content`, timestamps | The two people |
+| `chats/{pairId}/messages/{id}` | Sender, encrypted `content`, timestamps, `isEdited`. A deleted one keeps only `senderId`, `serverTimeStamp` and `deleted: true` | The two people; only the sender edits or deletes |
+| `chats/{pairId}/reactions/{messageId}_{uid}` | `messageId`, `userId`, `messageSentAt` (the message's send time), encrypted `content` of a fixed length | The two people; each writes their own, and the message's sender also deletes them with the message |
 | Storage `placeholders/…` | Shared placeholder avatar (public read, no client writes) | Anyone |
 | Storage `user_images/{uid}.jpg` | Profile photo | Signed-in users; only the owner writes |
 | Storage `chat_media/{chatId}/{fileId}` | A photo or GIF of a chat, encrypted (never readable by the server), never replaced; its `uploader` metadata lets only them delete it | The two people |
@@ -76,6 +78,16 @@ The project has no `(default)` database.
 8. **Indexes.** Queries that need a composite index are tied to
    `firestore.indexes.json` by `firestore_indexes_match_queries_test.dart`. A
    missing index only fails at runtime.
+9. **Only the sender changes a message, in two ways.** An edit replaces
+   `content`, under the key generation the message was sent with, within 20
+   minutes of sending (the app offers 15; `messageEditSaveWindow`), counted
+   from `serverTimeStamp`, which the create rule requires to be the time of the
+   write, so a client cannot date a message ahead. A deletion
+   leaves exactly `deletedFields()` and is final. The chat's `lastMessage`
+   changes with it through `followsLastMessage()`, a `getAfter` of the
+   message; it is the last branch of the chat update rule, so an ordinary send
+   does not pay for that read. `chat_fields_match_rules_test.dart` ties the
+   window, the kept fields and the reaction format to the app.
 
 After deploying rules, wait about two minutes before probing them. When probing
 over REST, use `:runQuery`; a plain list `GET` can be denied where the SDK's
@@ -103,9 +115,12 @@ The full design is [docs/e2ee.md](../e2ee.md). What every change must keep:
 - **Plaintext stays on the device.** The server never receives message text, a
   reply quote, a search query or keys.
 - **Message metadata goes inside the payload.** A message's ciphertext holds a
-  JSON payload (format version 2): `{text, replyTo?, attachments?}`. New data such as
-  reactions or attachments goes there, as a new field (readers pass over fields
-  they do not know) or in a new version, never as a plaintext Firestore field.
+  JSON payload (format version 2): `{text, replyTo?, attachments?}`. New data
+  from the sender goes there, as a new field (readers pass over fields they do
+  not know) or in a new version. Data someone else adds, such as a reaction,
+  goes in a document of its own, encrypted the same way under its own
+  associated-data label (`routes_chat/v1/reaction`). Never a plaintext
+  Firestore field.
 - **One format for all messages.** Every new message uses the same format
   version, so the version does not reveal what kind of message it is.
 - **Versions are bound.** Each format version has its own associated-data

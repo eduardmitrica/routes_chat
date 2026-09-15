@@ -8,6 +8,7 @@ import 'package:routes_chat/application/chats/messages/messages_watcher/messages
 import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/message_failure.dart';
 import 'package:routes_chat/domain/chats/messages/message_page.dart';
+import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
 import 'package:routes_chat/domain/chats/messages/message_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
@@ -81,6 +82,23 @@ class _FakeMessages implements IMessageRepository {
         reachesStart: end - start < limit,
       ),
     );
+  }
+
+  final reactions =
+      StreamController<
+        Either<MessageFailure, KtList<MessageReaction>>
+      >.broadcast();
+
+  /// The time reactions were watched from, each time the watch started.
+  final reactionsWatchedSince = <DateTime>[];
+
+  @override
+  Stream<Either<MessageFailure, KtList<MessageReaction>>> watchReactions(
+    UniqueId chatId, {
+    required DateTime since,
+  }) {
+    reactionsWatchedSince.add(since);
+    return reactions.stream;
   }
 
   @override

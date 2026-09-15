@@ -1,41 +1,14 @@
-import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/application/chats/chat_bar/chat_bar_bloc.dart';
-import 'package:routes_chat/domain/chats/chat_repository_interface.dart';
+import 'package:routes_chat/application/chats/outbox/message_outbox.dart';
 import 'package:routes_chat/domain/chats/messages/message.dart';
-import 'package:routes_chat/domain/chats/messages/message_failure.dart';
 import 'package:routes_chat/domain/chats/messages/message_quote.dart';
-import 'package:routes_chat/domain/chats/messages/message_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
-import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
-import 'package:routes_chat/infrastructure/shared/user/current_user_session.dart';
-import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+
+import '../../helpers/outbox_fakes.dart';
 import '../../helpers/unused_media_repository.dart';
-
-class _UnusedChatRepository implements IChatRepository {
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-/// Keeps every message the bloc sends.
-class _SentMessages implements IMessageRepository {
-  final sent = <Message>[];
-
-  @override
-  Future<Either<MessageFailure, Unit>> addMessageToChatWithId(
-    Message message,
-    UniqueId chatId, {
-    KtList<MediaDraft> media = const KtList.empty(),
-  }) async {
-    sent.add(message);
-    return const Right(unit);
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
 
 Message _fromBob(String id, String text) => Message(
   id: UniqueId.fromUniqueString(id),
@@ -47,22 +20,24 @@ Message _fromBob(String id, String text) => Message(
   isEdited: false,
 );
 
-final _chatId = UniqueId.fromUniqueString('uid-alice_uid-bob');
-
 void main() {
-  late _SentMessages messages;
+  late FakeMessageSender messages;
   late ChatBarBloc bloc;
 
-  setUp(() {
-    messages = _SentMessages();
+  setUp(() async {
+    messages = FakeMessageSender();
+    final store = MemoryChatStore();
+    final session = signedInAlice();
+    addTearDown(session.end);
     bloc = ChatBarBloc(
-      _UnusedChatRepository(),
-      messages,
-      CurrentUserSession()
-        ..start(const CurrentUserInformationPersistent('uid-alice', 'alice')),
+      session,
       UnusedMediaRepository(),
+      store,
+      MessageOutbox(messages, FakeChatStarter(), store, session),
     );
     addTearDown(bloc.close);
+    bloc.add(ChatBarEvent.started(UniqueId.fromUniqueString('uid-bob')));
+    await pumpEventQueue();
   });
 
   Future<void> send(ChatBarEvent event) async {
@@ -70,12 +45,14 @@ void main() {
     await pumpEventQueue();
   }
 
+  ChatBarEvent sent(String text) => ChatBarEvent.sent(text, chatExists: true);
+
   test('a message sent while replying carries the quote', () async {
     final original = _fromBob('message-1', 'Ne vedem mâine?');
 
     await send(ChatBarEvent.replyStarted(original));
     expect(bloc.state.replyingTo, MessageQuote.of(original));
-    await send(ChatBarEvent.newMessageAddedToChatWithId('Da!', _chatId));
+    await send(sent('Da!'));
 
     expect(messages.sent.single.replyTo, MessageQuote.of(original));
     expect(bloc.state.replyingTo, isNull);
@@ -83,8 +60,8 @@ void main() {
 
   test('only the next message is a reply', () async {
     await send(ChatBarEvent.replyStarted(_fromBob('message-1', 'Salut')));
-    await send(ChatBarEvent.newMessageAddedToChatWithId('Da!', _chatId));
-    await send(ChatBarEvent.newMessageAddedToChatWithId('Și tu?', _chatId));
+    await send(sent('Da!'));
+    await send(sent('Și tu?'));
 
     expect(messages.sent.last.replyTo, isNull);
   });
@@ -92,7 +69,7 @@ void main() {
   test('a cancelled reply sends the message on its own', () async {
     await send(ChatBarEvent.replyStarted(_fromBob('message-1', 'Salut')));
     await send(const ChatBarEvent.replyCancelled());
-    await send(ChatBarEvent.newMessageAddedToChatWithId('Da!', _chatId));
+    await send(sent('Da!'));
 
     expect(messages.sent.single.replyTo, isNull);
   });
@@ -102,7 +79,7 @@ void main() {
 
     await send(ChatBarEvent.replyStarted(_fromBob('message-1', 'Mâine?')));
     await send(ChatBarEvent.replyStarted(second));
-    await send(ChatBarEvent.newMessageAddedToChatWithId('Poimâine', _chatId));
+    await send(sent('Poimâine'));
 
     expect(messages.sent.single.replyTo, MessageQuote.of(second));
   });

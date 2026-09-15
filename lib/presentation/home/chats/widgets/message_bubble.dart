@@ -7,6 +7,7 @@ import 'package:routes_chat/presentation/core/theme/app_colors.dart';
 import 'attachment_gallery.dart';
 import 'encrypted_image.dart';
 import 'linkified_text.dart';
+import 'media_viewer_page.dart';
 
 /// A message in the chat, on the side of whoever sent it. A reply shows the
 /// message it answers above its own text, photos and GIFs show above their
@@ -34,6 +35,9 @@ class MessageBubble extends StatelessWidget {
   /// Loads the message's photos and GIFs. Without it they are not shown.
   final AttachmentLoader? loadAttachment;
 
+  /// Saves one of its photos from the full-screen view.
+  final AttachmentSaver? saveAttachment;
+
   const MessageBubble({
     super.key,
     required this.message,
@@ -44,6 +48,7 @@ class MessageBubble extends StatelessWidget {
     this.onLongPress,
     this.onOpenLink,
     this.loadAttachment,
+    this.saveAttachment,
   });
 
   @override
@@ -108,6 +113,7 @@ class MessageBubble extends StatelessWidget {
                   attachments: attachments,
                   loader: loader,
                   width: maxWidth - 8,
+                  onSave: saveAttachment,
                 ),
               ),
             ),

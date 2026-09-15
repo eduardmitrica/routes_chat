@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
-/// Choosing, sending or showing a photo or GIF failed. See the subclasses.
+/// Choosing, sending, showing or saving a photo or GIF failed. See the
+/// subclasses.
 sealed class MediaFailure extends Equatable {
   const MediaFailure();
 
@@ -41,4 +42,14 @@ final class MediaUnavailable extends MediaFailure {
 /// The file downloaded but did not decrypt.
 final class MediaUnreadable extends MediaFailure {
   const MediaUnreadable();
+}
+
+/// The app may not add photos to the phone's photos.
+final class PhotoAccessDenied extends MediaFailure {
+  const PhotoAccessDenied();
+}
+
+/// The photo could not be added to the phone's photos.
+final class MediaNotSaved extends MediaFailure {
+  const MediaNotSaved();
 }

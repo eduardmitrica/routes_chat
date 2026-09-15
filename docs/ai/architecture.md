@@ -5,6 +5,9 @@
 - Flutter, pinned in CI (`.github/workflows/tests.yml`) to the version the
   project is developed with. Bump both together.
 - State: `flutter_bloc` (plus `hydrated_bloc` for state kept between launches).
+- Kept on the phone: unsent drafts and messages on their way, encrypted by
+  `LocalVault` and deleted on sign-out (`LocalChatStore`). `MessageOutbox`, an
+  application service, sends them.
 - Functional types: `dartz` (`Either`, `Option`, `Unit`) and `kt_dart`
   immutable collections (`KtList`).
 - Data classes: `freezed` + `json_serializable`. Unions (events, most states)

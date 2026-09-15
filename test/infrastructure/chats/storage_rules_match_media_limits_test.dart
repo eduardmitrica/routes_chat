@@ -25,16 +25,33 @@ void main() {
     expect(block, contains("request.auth.uid in chatId.split('_')"));
     expect(
       RegExp(r"request\.auth\.uid in chatId\.split\('_'\)").allMatches(block),
-      hasLength(2),
+      hasLength(3),
     );
   });
 
-  test('a stored file can never be replaced or deleted', () {
+  test('a stored file is never replaced, and only its uploader deletes it', () {
     final block = chatMedia!.group(1)!;
 
     expect(block, isNot(contains('write')));
     expect(block, isNot(contains('update')));
-    expect(block, isNot(contains('delete')));
+    expect(
+      block,
+      contains('request.resource.metadata.uploader == request.auth.uid'),
+    );
+    expect(
+      RegExp(
+        r'allow delete: if [^;]*resource\.metadata\.uploader == request\.auth\.uid',
+      ).hasMatch(block),
+      isTrue,
+    );
+  });
+
+  test('the app names the uploader the rules check', () {
+    final store = File(
+      'lib/infrastructure/chats/messages/attachment_store.dart',
+    ).readAsStringSync();
+
+    expect(store, contains("customMetadata: {'uploader': uploader}"));
   });
 
   test('the size limit is the largest file the app sends, encrypted', () {

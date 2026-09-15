@@ -10,15 +10,18 @@ import 'package:routes_chat/infrastructure/encryption/chat_cipher.dart';
 
 import 'attachment_store.dart';
 import 'image_tools.dart';
+import 'photo_library.dart';
 
-/// Photos and GIFs: prepared on the phone before sending, and decrypted to
-/// show. Decrypted files are kept in memory while the app runs, never on disk.
+/// Photos and GIFs: prepared on the phone before sending, decrypted to show,
+/// and saved to the phone's photos when the user asks. Decrypted files are
+/// kept in memory while the app runs, never on disk.
 class MediaRepository implements IMediaRepository {
   /// How much decrypted media is kept, the least recently shown dropped first.
   static const cacheBytes = 64 * 1024 * 1024;
 
   final AttachmentStore _store;
   final ImageTools _images;
+  final PhotoLibrary _photos;
   final Future<Uint8List> Function(String path) _readFile;
 
   /// Decrypted files by chat and id, the most recently shown last.
@@ -30,7 +33,8 @@ class MediaRepository implements IMediaRepository {
 
   MediaRepository(
     this._store,
-    this._images, {
+    this._images,
+    this._photos, {
     Future<Uint8List> Function(String path)? readFile,
   }) : _readFile = readFile ?? ((path) => File(path).readAsBytes());
 
@@ -132,6 +136,12 @@ class MediaRepository implements IMediaRepository {
     }();
   }
 
+  @override
+  void remember(UniqueId chatId, UniqueId attachmentId, Uint8List file) {
+    final key = '${chatId.getOrCrash()}/${attachmentId.getOrCrash()}';
+    if (!_cache.containsKey(key)) _remember(key, file);
+  }
+
   void _remember(String key, Uint8List file) {
     _cache[key] = file;
     _cachedBytes += file.length;
@@ -139,5 +149,31 @@ class MediaRepository implements IMediaRepository {
       final oldest = _cache.keys.first;
       _cachedBytes -= _cache.remove(oldest)!.length;
     }
+  }
+
+  @override
+  Future<Either<MediaFailure, Unit>> saveToPhotos(
+    UniqueId chatId,
+    MessageAttachment attachment,
+  ) async {
+    final loaded = await load(chatId, attachment);
+    return loaded.fold((failure) async => left(failure), (image) async {
+      try {
+        if (!await _photos.hasAccess() && !await _photos.requestAccess()) {
+          return left(const PhotoAccessDenied());
+        }
+        await _photos.save(
+          image,
+          name: 'routes_chat_${attachment.id.getOrCrash()}',
+          gif: attachment.kind == AttachmentKind.gif,
+        );
+        return right(unit);
+      } on PhotoAccessException {
+        return left(const PhotoAccessDenied());
+      } on Exception catch (exception) {
+        debugPrint('Media not saved: ${exception.runtimeType}');
+        return left(const MediaNotSaved());
+      }
+    });
   }
 }

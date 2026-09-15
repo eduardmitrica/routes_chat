@@ -29,6 +29,9 @@ them.
   half-finished animation). Lists reuse element state by position when rows
   have no keys. Give rows a `ValueKey` of their item's id, and reset state in
   `didUpdateWidget` when the item changes.
+- **`expect(list, isEmpty)` on a `KtList` fails with a cast error.** The
+  matcher reads an `isEmpty` getter, and `KtList.isEmpty` is a method. Use
+  `expect(list.isEmpty(), isTrue)`, or `.asList()` first.
 - **A widget test tap does nothing.** The widget's centre is not on the text,
   for example in a full-width row. Tap the text finder.
 - **"A SemanticsHandle was active at the end of the test."** Dispose the
@@ -89,6 +92,9 @@ them.
   doubt.
 - **Formatting the whole tree reflowed unrelated files.** Format only the files
   you changed, or revert the rest.
+- **A long heredoc fails with "unexpected EOF while looking for matching
+  `''"**, and none of the command runs. Write the script to a file and run
+  the file instead.
 
 ## Android emulator
 

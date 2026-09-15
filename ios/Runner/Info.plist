@@ -57,8 +57,10 @@
 		</dict>
 	</array>
 	<key>NSCameraUsageDescription</key>
-	<string>Routes Chat needs access to your camera so you can take a profile photo.</string>
+	<string>Routes Chat needs access to your camera so you can take a profile photo or a photo to send.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Routes Chat adds the photos you save from a chat to your photos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>Routes Chat needs access to your photos so you can choose a profile photo.</string>
+	<string>Routes Chat needs access to your photos so you can choose a profile photo or photos to send.</string>
 </dict>
 </plist>

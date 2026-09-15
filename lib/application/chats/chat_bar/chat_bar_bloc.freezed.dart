@@ -13,13 +13,21 @@ part of 'chat_bar_bloc.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
-mixin _$ChatBarState {
+mixin _$ChatBarState implements DiagnosticableTreeMixin {
 
- Content get content; bool get isSubmitting; bool get showErrorMessages; Option<Either<ChatFailure, Unit>> get chatCreationFailureOrSuccessOption;/// The outcome of the last message sent to an existing chat. At most one
-/// of this and [chatCreationFailureOrSuccessOption] is set: each send
-/// clears the other, so the page only ever reports the latest attempt.
- Option<Either<message_failure.MessageFailure, Unit>> get messageSendFailureOrSuccessOption;/// The message the next one sent answers, while the user is replying.
- MessageQuote? get replyingTo;
+/// The chat being written in, known once the bloc has started.
+ UniqueId? get chatId;/// What the user has typed.
+ String get text;/// Counts the times [text] was set from outside the field, such as from a
+/// restored draft, so the field shows the new text rather than keeping its
+/// own.
+ int get textRevision;/// The message the next one sent answers, while the user is replying.
+ MessageQuote? get replyingTo;/// Photos and GIFs chosen for the next message, ready to send.
+ KtList<MediaDraft> get media;/// Whether chosen photos are still being made ready.
+ bool get preparingMedia;/// Why the last photos chosen could not all be added.
+ Option<MediaFailure> get mediaFailureOption;/// The messages of this chat on their way, in the order they were sent.
+ KtList<OutgoingMessage> get outgoing;/// Counts the messages the user asked to delete while they were being
+/// sent, which were not deleted, so the page can say so each time.
+ int get discardsRefused;
 /// Create a copy of ChatBarState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -27,24 +35,31 @@ mixin _$ChatBarState {
 $ChatBarStateCopyWith<ChatBarState> get copyWith => _$ChatBarStateCopyWithImpl<ChatBarState>(this as ChatBarState, _$identity);
 
 
+@override
+void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+  final _this = this as ChatBarState;
+  properties
+    ..add(DiagnosticsProperty('type', 'ChatBarState'))
+    ..add(DiagnosticsProperty('chatId', _this.chatId))..add(DiagnosticsProperty('text', _this.text))..add(DiagnosticsProperty('textRevision', _this.textRevision))..add(DiagnosticsProperty('replyingTo', _this.replyingTo))..add(DiagnosticsProperty('media', _this.media))..add(DiagnosticsProperty('preparingMedia', _this.preparingMedia))..add(DiagnosticsProperty('mediaFailureOption', _this.mediaFailureOption))..add(DiagnosticsProperty('outgoing', _this.outgoing))..add(DiagnosticsProperty('discardsRefused', _this.discardsRefused));
+}
 
 @override
 bool operator ==(Object other) {
   final _this = this as ChatBarState;
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatBarState&&(identical(other.content, _this.content) || other.content == _this.content)&&(identical(other.isSubmitting, _this.isSubmitting) || other.isSubmitting == _this.isSubmitting)&&(identical(other.showErrorMessages, _this.showErrorMessages) || other.showErrorMessages == _this.showErrorMessages)&&(identical(other.chatCreationFailureOrSuccessOption, _this.chatCreationFailureOrSuccessOption) || other.chatCreationFailureOrSuccessOption == _this.chatCreationFailureOrSuccessOption)&&(identical(other.messageSendFailureOrSuccessOption, _this.messageSendFailureOrSuccessOption) || other.messageSendFailureOrSuccessOption == _this.messageSendFailureOrSuccessOption)&&(identical(other.replyingTo, _this.replyingTo) || other.replyingTo == _this.replyingTo));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatBarState&&(identical(other.chatId, _this.chatId) || other.chatId == _this.chatId)&&(identical(other.text, _this.text) || other.text == _this.text)&&(identical(other.textRevision, _this.textRevision) || other.textRevision == _this.textRevision)&&(identical(other.replyingTo, _this.replyingTo) || other.replyingTo == _this.replyingTo)&&(identical(other.media, _this.media) || other.media == _this.media)&&(identical(other.preparingMedia, _this.preparingMedia) || other.preparingMedia == _this.preparingMedia)&&(identical(other.mediaFailureOption, _this.mediaFailureOption) || other.mediaFailureOption == _this.mediaFailureOption)&&(identical(other.outgoing, _this.outgoing) || other.outgoing == _this.outgoing)&&(identical(other.discardsRefused, _this.discardsRefused) || other.discardsRefused == _this.discardsRefused));
 }
 
 
 @override
 int get hashCode {
   final _this = this as ChatBarState;
-  return Object.hash(runtimeType,_this.content,_this.isSubmitting,_this.showErrorMessages,_this.chatCreationFailureOrSuccessOption,_this.messageSendFailureOrSuccessOption,_this.replyingTo);
+  return Object.hash(runtimeType,_this.chatId,_this.text,_this.textRevision,_this.replyingTo,_this.media,_this.preparingMedia,_this.mediaFailureOption,_this.outgoing,_this.discardsRefused);
 }
 
 @override
-String toString() {
+String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
   final _this = this as ChatBarState;
-  return 'ChatBarState(content: ${_this.content}, isSubmitting: ${_this.isSubmitting}, showErrorMessages: ${_this.showErrorMessages}, chatCreationFailureOrSuccessOption: ${_this.chatCreationFailureOrSuccessOption}, messageSendFailureOrSuccessOption: ${_this.messageSendFailureOrSuccessOption}, replyingTo: ${_this.replyingTo})';
+  return 'ChatBarState(chatId: ${_this.chatId}, text: ${_this.text}, textRevision: ${_this.textRevision}, replyingTo: ${_this.replyingTo}, media: ${_this.media}, preparingMedia: ${_this.preparingMedia}, mediaFailureOption: ${_this.mediaFailureOption}, outgoing: ${_this.outgoing}, discardsRefused: ${_this.discardsRefused})';
 }
 
 
@@ -55,7 +70,7 @@ abstract mixin class $ChatBarStateCopyWith<$Res>  {
   factory $ChatBarStateCopyWith(ChatBarState value, $Res Function(ChatBarState) _then) = _$ChatBarStateCopyWithImpl;
 @useResult
 $Res call({
- Content content, bool isSubmitting, bool showErrorMessages, Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption, Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption, MessageQuote? replyingTo
+ UniqueId? chatId, String text, int textRevision, MessageQuote? replyingTo, KtList<MediaDraft> media, bool preparingMedia, Option<MediaFailure> mediaFailureOption, KtList<OutgoingMessage> outgoing, int discardsRefused
 });
 
 
@@ -72,15 +87,18 @@ class _$ChatBarStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatBarState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? content = null,Object? isSubmitting = null,Object? showErrorMessages = null,Object? chatCreationFailureOrSuccessOption = null,Object? messageSendFailureOrSuccessOption = null,Object? replyingTo = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? chatId = freezed,Object? text = null,Object? textRevision = null,Object? replyingTo = freezed,Object? media = null,Object? preparingMedia = null,Object? mediaFailureOption = null,Object? outgoing = null,Object? discardsRefused = null,}) {
   return _then(ChatBarState(
-content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
-as Content,isSubmitting: null == isSubmitting ? _self.isSubmitting : isSubmitting // ignore: cast_nullable_to_non_nullable
-as bool,showErrorMessages: null == showErrorMessages ? _self.showErrorMessages : showErrorMessages // ignore: cast_nullable_to_non_nullable
-as bool,chatCreationFailureOrSuccessOption: null == chatCreationFailureOrSuccessOption ? _self.chatCreationFailureOrSuccessOption : chatCreationFailureOrSuccessOption // ignore: cast_nullable_to_non_nullable
-as Option<Either<ChatFailure, Unit>>,messageSendFailureOrSuccessOption: null == messageSendFailureOrSuccessOption ? _self.messageSendFailureOrSuccessOption : messageSendFailureOrSuccessOption // ignore: cast_nullable_to_non_nullable
-as Option<Either<message_failure.MessageFailure, Unit>>,replyingTo: freezed == replyingTo ? _self.replyingTo : replyingTo // ignore: cast_nullable_to_non_nullable
-as MessageQuote?,
+chatId: freezed == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
+as UniqueId?,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
+as String,textRevision: null == textRevision ? _self.textRevision : textRevision // ignore: cast_nullable_to_non_nullable
+as int,replyingTo: freezed == replyingTo ? _self.replyingTo : replyingTo // ignore: cast_nullable_to_non_nullable
+as MessageQuote?,media: null == media ? _self.media : media // ignore: cast_nullable_to_non_nullable
+as KtList<MediaDraft>,preparingMedia: null == preparingMedia ? _self.preparingMedia : preparingMedia // ignore: cast_nullable_to_non_nullable
+as bool,mediaFailureOption: null == mediaFailureOption ? _self.mediaFailureOption : mediaFailureOption // ignore: cast_nullable_to_non_nullable
+as Option<MediaFailure>,outgoing: null == outgoing ? _self.outgoing : outgoing // ignore: cast_nullable_to_non_nullable
+as KtList<OutgoingMessage>,discardsRefused: null == discardsRefused ? _self.discardsRefused : discardsRefused // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 
@@ -165,10 +183,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( Content content,  bool isSubmitting,  bool showErrorMessages,  Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption,  Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption,  MessageQuote? replyingTo)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( UniqueId? chatId,  String text,  int textRevision,  MessageQuote? replyingTo,  KtList<MediaDraft> media,  bool preparingMedia,  Option<MediaFailure> mediaFailureOption,  KtList<OutgoingMessage> outgoing,  int discardsRefused)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ChatBarState() when $default != null:
-return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.chatCreationFailureOrSuccessOption,_that.messageSendFailureOrSuccessOption,_that.replyingTo);case _:
+return $default(_that.chatId,_that.text,_that.textRevision,_that.replyingTo,_that.media,_that.preparingMedia,_that.mediaFailureOption,_that.outgoing,_that.discardsRefused);case _:
   return orElse();
 
 }
@@ -186,10 +204,10 @@ return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.c
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( Content content,  bool isSubmitting,  bool showErrorMessages,  Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption,  Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption,  MessageQuote? replyingTo)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( UniqueId? chatId,  String text,  int textRevision,  MessageQuote? replyingTo,  KtList<MediaDraft> media,  bool preparingMedia,  Option<MediaFailure> mediaFailureOption,  KtList<OutgoingMessage> outgoing,  int discardsRefused)  $default,) {final _that = this;
 switch (_that) {
 case _ChatBarState():
-return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.chatCreationFailureOrSuccessOption,_that.messageSendFailureOrSuccessOption,_that.replyingTo);case _:
+return $default(_that.chatId,_that.text,_that.textRevision,_that.replyingTo,_that.media,_that.preparingMedia,_that.mediaFailureOption,_that.outgoing,_that.discardsRefused);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -206,10 +224,10 @@ return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.c
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( Content content,  bool isSubmitting,  bool showErrorMessages,  Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption,  Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption,  MessageQuote? replyingTo)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( UniqueId? chatId,  String text,  int textRevision,  MessageQuote? replyingTo,  KtList<MediaDraft> media,  bool preparingMedia,  Option<MediaFailure> mediaFailureOption,  KtList<OutgoingMessage> outgoing,  int discardsRefused)?  $default,) {final _that = this;
 switch (_that) {
 case _ChatBarState() when $default != null:
-return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.chatCreationFailureOrSuccessOption,_that.messageSendFailureOrSuccessOption,_that.replyingTo);case _:
+return $default(_that.chatId,_that.text,_that.textRevision,_that.replyingTo,_that.media,_that.preparingMedia,_that.mediaFailureOption,_that.outgoing,_that.discardsRefused);case _:
   return null;
 
 }
@@ -220,20 +238,31 @@ return $default(_that.content,_that.isSubmitting,_that.showErrorMessages,_that.c
 /// @nodoc
 
 
-class _ChatBarState implements ChatBarState {
-  const _ChatBarState({required this.content, required this.isSubmitting, required this.showErrorMessages, required this.chatCreationFailureOrSuccessOption, required this.messageSendFailureOrSuccessOption, this.replyingTo});
+class _ChatBarState with DiagnosticableTreeMixin implements ChatBarState {
+  const _ChatBarState({this.chatId, this.text = '', this.textRevision = 0, this.replyingTo, this.media = const KtList<MediaDraft>.empty(), this.preparingMedia = false, required this.mediaFailureOption, this.outgoing = const KtList<OutgoingMessage>.empty(), this.discardsRefused = 0});
   
 
-@override final  Content content;
-@override final  bool isSubmitting;
-@override final  bool showErrorMessages;
-@override final  Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption;
-/// The outcome of the last message sent to an existing chat. At most one
-/// of this and [chatCreationFailureOrSuccessOption] is set: each send
-/// clears the other, so the page only ever reports the latest attempt.
-@override final  Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption;
+/// The chat being written in, known once the bloc has started.
+@override final  UniqueId? chatId;
+/// What the user has typed.
+@override@JsonKey() final  String text;
+/// Counts the times [text] was set from outside the field, such as from a
+/// restored draft, so the field shows the new text rather than keeping its
+/// own.
+@override@JsonKey() final  int textRevision;
 /// The message the next one sent answers, while the user is replying.
 @override final  MessageQuote? replyingTo;
+/// Photos and GIFs chosen for the next message, ready to send.
+@override@JsonKey() final  KtList<MediaDraft> media;
+/// Whether chosen photos are still being made ready.
+@override@JsonKey() final  bool preparingMedia;
+/// Why the last photos chosen could not all be added.
+@override final  Option<MediaFailure> mediaFailureOption;
+/// The messages of this chat on their way, in the order they were sent.
+@override@JsonKey() final  KtList<OutgoingMessage> outgoing;
+/// Counts the messages the user asked to delete while they were being
+/// sent, which were not deleted, so the page can say so each time.
+@override@JsonKey() final  int discardsRefused;
 
 /// Create a copy of ChatBarState
 /// with the given fields replaced by the non-null parameter values.
@@ -242,21 +271,27 @@ class _ChatBarState implements ChatBarState {
 _$ChatBarStateCopyWith<_ChatBarState> get copyWith => __$ChatBarStateCopyWithImpl<_ChatBarState>(this, _$identity);
 
 
+@override
+void debugFillProperties(DiagnosticPropertiesBuilder properties) {
+    properties
+    ..add(DiagnosticsProperty('type', 'ChatBarState'))
+    ..add(DiagnosticsProperty('chatId', chatId))..add(DiagnosticsProperty('text', text))..add(DiagnosticsProperty('textRevision', textRevision))..add(DiagnosticsProperty('replyingTo', replyingTo))..add(DiagnosticsProperty('media', media))..add(DiagnosticsProperty('preparingMedia', preparingMedia))..add(DiagnosticsProperty('mediaFailureOption', mediaFailureOption))..add(DiagnosticsProperty('outgoing', outgoing))..add(DiagnosticsProperty('discardsRefused', discardsRefused));
+}
 
 @override
 bool operator ==(Object other) {
-    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatBarState&&(identical(other.content, content) || other.content == content)&&(identical(other.isSubmitting, isSubmitting) || other.isSubmitting == isSubmitting)&&(identical(other.showErrorMessages, showErrorMessages) || other.showErrorMessages == showErrorMessages)&&(identical(other.chatCreationFailureOrSuccessOption, chatCreationFailureOrSuccessOption) || other.chatCreationFailureOrSuccessOption == chatCreationFailureOrSuccessOption)&&(identical(other.messageSendFailureOrSuccessOption, messageSendFailureOrSuccessOption) || other.messageSendFailureOrSuccessOption == messageSendFailureOrSuccessOption)&&(identical(other.replyingTo, replyingTo) || other.replyingTo == replyingTo));
+    return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatBarState&&(identical(other.chatId, chatId) || other.chatId == chatId)&&(identical(other.text, text) || other.text == text)&&(identical(other.textRevision, textRevision) || other.textRevision == textRevision)&&(identical(other.replyingTo, replyingTo) || other.replyingTo == replyingTo)&&(identical(other.media, media) || other.media == media)&&(identical(other.preparingMedia, preparingMedia) || other.preparingMedia == preparingMedia)&&(identical(other.mediaFailureOption, mediaFailureOption) || other.mediaFailureOption == mediaFailureOption)&&(identical(other.outgoing, outgoing) || other.outgoing == outgoing)&&(identical(other.discardsRefused, discardsRefused) || other.discardsRefused == discardsRefused));
 }
 
 
 @override
 int get hashCode {
-    return Object.hash(runtimeType,content,isSubmitting,showErrorMessages,chatCreationFailureOrSuccessOption,messageSendFailureOrSuccessOption,replyingTo);
+    return Object.hash(runtimeType,chatId,text,textRevision,replyingTo,media,preparingMedia,mediaFailureOption,outgoing,discardsRefused);
 }
 
 @override
-String toString() {
-    return 'ChatBarState(content: $content, isSubmitting: $isSubmitting, showErrorMessages: $showErrorMessages, chatCreationFailureOrSuccessOption: $chatCreationFailureOrSuccessOption, messageSendFailureOrSuccessOption: $messageSendFailureOrSuccessOption, replyingTo: $replyingTo)';
+String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+    return 'ChatBarState(chatId: $chatId, text: $text, textRevision: $textRevision, replyingTo: $replyingTo, media: $media, preparingMedia: $preparingMedia, mediaFailureOption: $mediaFailureOption, outgoing: $outgoing, discardsRefused: $discardsRefused)';
 }
 
 
@@ -267,7 +302,7 @@ abstract mixin class _$ChatBarStateCopyWith<$Res> implements $ChatBarStateCopyWi
   factory _$ChatBarStateCopyWith(_ChatBarState value, $Res Function(_ChatBarState) _then) = __$ChatBarStateCopyWithImpl;
 @override @useResult
 $Res call({
- Content content, bool isSubmitting, bool showErrorMessages, Option<Either<ChatFailure, Unit>> chatCreationFailureOrSuccessOption, Option<Either<message_failure.MessageFailure, Unit>> messageSendFailureOrSuccessOption, MessageQuote? replyingTo
+ UniqueId? chatId, String text, int textRevision, MessageQuote? replyingTo, KtList<MediaDraft> media, bool preparingMedia, Option<MediaFailure> mediaFailureOption, KtList<OutgoingMessage> outgoing, int discardsRefused
 });
 
 
@@ -284,15 +319,18 @@ class __$ChatBarStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatBarState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? content = null,Object? isSubmitting = null,Object? showErrorMessages = null,Object? chatCreationFailureOrSuccessOption = null,Object? messageSendFailureOrSuccessOption = null,Object? replyingTo = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? chatId = freezed,Object? text = null,Object? textRevision = null,Object? replyingTo = freezed,Object? media = null,Object? preparingMedia = null,Object? mediaFailureOption = null,Object? outgoing = null,Object? discardsRefused = null,}) {
   return _then(_ChatBarState(
-content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
-as Content,isSubmitting: null == isSubmitting ? _self.isSubmitting : isSubmitting // ignore: cast_nullable_to_non_nullable
-as bool,showErrorMessages: null == showErrorMessages ? _self.showErrorMessages : showErrorMessages // ignore: cast_nullable_to_non_nullable
-as bool,chatCreationFailureOrSuccessOption: null == chatCreationFailureOrSuccessOption ? _self.chatCreationFailureOrSuccessOption : chatCreationFailureOrSuccessOption // ignore: cast_nullable_to_non_nullable
-as Option<Either<ChatFailure, Unit>>,messageSendFailureOrSuccessOption: null == messageSendFailureOrSuccessOption ? _self.messageSendFailureOrSuccessOption : messageSendFailureOrSuccessOption // ignore: cast_nullable_to_non_nullable
-as Option<Either<message_failure.MessageFailure, Unit>>,replyingTo: freezed == replyingTo ? _self.replyingTo : replyingTo // ignore: cast_nullable_to_non_nullable
-as MessageQuote?,
+chatId: freezed == chatId ? _self.chatId : chatId // ignore: cast_nullable_to_non_nullable
+as UniqueId?,text: null == text ? _self.text : text // ignore: cast_nullable_to_non_nullable
+as String,textRevision: null == textRevision ? _self.textRevision : textRevision // ignore: cast_nullable_to_non_nullable
+as int,replyingTo: freezed == replyingTo ? _self.replyingTo : replyingTo // ignore: cast_nullable_to_non_nullable
+as MessageQuote?,media: null == media ? _self.media : media // ignore: cast_nullable_to_non_nullable
+as KtList<MediaDraft>,preparingMedia: null == preparingMedia ? _self.preparingMedia : preparingMedia // ignore: cast_nullable_to_non_nullable
+as bool,mediaFailureOption: null == mediaFailureOption ? _self.mediaFailureOption : mediaFailureOption // ignore: cast_nullable_to_non_nullable
+as Option<MediaFailure>,outgoing: null == outgoing ? _self.outgoing : outgoing // ignore: cast_nullable_to_non_nullable
+as KtList<OutgoingMessage>,discardsRefused: null == discardsRefused ? _self.discardsRefused : discardsRefused // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 

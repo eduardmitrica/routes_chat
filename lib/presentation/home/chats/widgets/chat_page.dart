@@ -1,31 +1,36 @@
 import 'dart:async';
 
+import 'package:dartz/dartz.dart' show Either, left, right;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/application/chats/chat_bar/chat_bar_bloc.dart';
 import 'package:routes_chat/application/chats/chats_watcher/chats_watcher_bloc.dart';
 import 'package:routes_chat/application/chats/messages/messages_watcher/messages_watcher_bloc.dart';
 import 'package:routes_chat/domain/chats/chat.dart';
-import 'package:routes_chat/domain/chats/chat_failure.dart' as chat_failure;
+import 'package:routes_chat/domain/chats/messages/media_failure.dart';
+import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message.dart';
-import 'package:routes_chat/domain/chats/messages/message_failure.dart'
-    as message_failure;
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import 'package:routes_chat/domain/chats/messages/message_links.dart';
+import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/injection.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'chat_timeline.dart';
+import 'media_failure_message.dart';
 import 'message_bubble.dart';
 import 'message_composer.dart';
 import 'messages_skeleton.dart';
-import 'swipe_to_reply.dart';
-import 'package:routes_chat/domain/chats/messages/message_links.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'open_link_dialog.dart';
+import 'outgoing_message_bubble.dart';
+import 'swipe_to_reply.dart';
 
 class ChatPage extends StatelessWidget {
   static const chatPageRoute = '/home/chats/chat';
@@ -62,7 +67,8 @@ class ChatPage extends StatelessWidget {
 }
 
 /// The chat with [otherUser]: its messages, a page at a time, a search over
-/// them, and replies to them. [chat] is null until the first message is sent.
+/// them, and replies to them, with the user's messages on their way below.
+/// [chat] is null until the first message arrives.
 class _ChatView extends StatefulWidget {
   final Chat? chat;
   final User otherUser;
@@ -82,8 +88,10 @@ class _ChatViewState extends State<_ChatView> {
   final _searchField = TextEditingController();
   final _composerFocus = FocusNode();
 
-  /// Here rather than with the composer: replies start from the messages.
+  /// Here rather than with the composer: replies start from the messages,
+  /// and the messages on their way show among them.
   final _chatBar = getIt<ChatBarBloc>();
+  final _media = getIt<IMediaRepository>();
 
   Timer? _searchDebounce;
   Timer? _highlightTimer;
@@ -94,6 +102,8 @@ class _ChatViewState extends State<_ChatView> {
   void initState() {
     super.initState();
     _scrollController.addListener(_loadOlderIfNearTop);
+    // Brings back what the user wrote here and did not send.
+    _chatBar.add(ChatBarEvent.started(widget.otherUser.id));
   }
 
   @override
@@ -161,6 +171,7 @@ class _ChatViewState extends State<_ChatView> {
 
   Future<void> _showMessageActions(Message message) async {
     final text = message.content.getOrCrash();
+    final attachments = message.attachments;
     // A few at most: the sheet is for this message, not a list of links.
     final links = {
       for (final part in splitLinks(text))
@@ -180,13 +191,21 @@ class _ChatViewState extends State<_ChatView> {
               onTap: () =>
                   Navigator.of(context).pop(() => _startReply(message)),
             ),
-            ListTile(
-              leading: const Icon(Icons.copy_rounded),
-              title: const Text('Copy text'),
-              onTap: () => Navigator.of(
-                context,
-              ).pop(() => _copy(text, 'Message copied')),
-            ),
+            if (text.trim().isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('Copy text'),
+                onTap: () => Navigator.of(
+                  context,
+                ).pop(() => _copy(text, 'Message copied')),
+              ),
+            if (attachments.isNotEmpty())
+              ListTile(
+                leading: const Icon(Icons.download_rounded),
+                title: Text(_saveLabel(attachments)),
+                onTap: () =>
+                    Navigator.of(context).pop(() => _saveAll(attachments)),
+              ),
             for (final link in links)
               ListTile(
                 leading: const Icon(Icons.link_rounded),
@@ -206,12 +225,107 @@ class _ChatViewState extends State<_ChatView> {
     if (mounted) action?.call();
   }
 
+  static String _saveLabel(KtList<MessageAttachment> attachments) =>
+      attachments.size > 1
+      ? 'Save all ${attachments.size}'
+      : attachments.first().kind == AttachmentKind.gif
+      ? 'Save GIF'
+      : 'Save photo';
+
+  /// Adds [attachments] to the phone's photos, one after another, and says
+  /// how it went.
+  Future<void> _saveAll(KtList<MessageAttachment> attachments) async {
+    final chat = widget.chat;
+    if (chat == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    MediaFailure? failure;
+    var saved = 0;
+    for (final attachment in attachments.iter) {
+      (await _media.saveToPhotos(
+        chat.id,
+        attachment,
+      )).fold<void>((problem) => failure ??= problem, (_) => saved++);
+      // Without permission, the rest would fail the same way.
+      if (failure is PhotoAccessDenied) break;
+    }
+    final problem = failure;
+    final kinds = attachments.iter.map((attachment) => attachment.kind);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            problem == null
+                ? '${describeAttachments(kinds)} saved to your photos'
+                : saved == 0
+                ? mediaFailureMessage(problem)
+                : '$saved of ${attachments.size} saved. '
+                      '${mediaFailureMessage(problem)}',
+          ),
+        ),
+      );
+  }
+
   Future<void> _copy(String text, String confirmation) async {
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(SnackBar(content: Text(confirmation)));
+  }
+
+  /// What can be done with a message on its way: try again now, copy its
+  /// text, or give up sending it.
+  Future<void> _showOutgoingActions(OutgoingMessage entry) async {
+    final text = entry.message.content.getOrCrash();
+    final action = await showModalBottomSheet<VoidCallback>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (entry.status != OutgoingStatus.sending)
+              ListTile(
+                leading: const Icon(Icons.refresh_rounded),
+                title: const Text('Try again now'),
+                onTap: () => Navigator.of(context).pop(
+                  () => _chatBar.add(ChatBarEvent.retryRequested(entry.id)),
+                ),
+              ),
+            if (text.trim().isNotEmpty)
+              ListTile(
+                leading: const Icon(Icons.copy_rounded),
+                title: const Text('Copy text'),
+                onTap: () => Navigator.of(
+                  context,
+                ).pop(() => _copy(text, 'Message copied')),
+              ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded),
+              title: const Text('Delete message'),
+              subtitle: const Text('It won\'t be sent'),
+              onTap: () => Navigator.of(context).pop(
+                () => _chatBar.add(ChatBarEvent.discardRequested(entry.id)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (mounted) action?.call();
+  }
+
+  /// A photo of a message on its way, from the phone.
+  Future<Either<MediaFailure, Uint8List>> _loadOutgoing(
+    OutgoingMessage entry,
+    MessageAttachment attachment,
+  ) async {
+    final draft = entry.media.firstOrNull((draft) => draft.id == attachment.id);
+    if (draft == null) return left(const MediaUnavailable());
+    // Once the message arrives, its photo shows without downloading it.
+    _media.remember(entry.chatId, draft.id, draft.bytes);
+    return right(draft.bytes);
   }
 
   /// Asks first, then opens [link]: a web page in a browser tab over the
@@ -291,8 +405,13 @@ class _ChatViewState extends State<_ChatView> {
           item is MessageItem && item.message.id.getOrCrash() == messageId,
     );
     if (itemIndex < 0) return;
+    // The messages on their way are below the rest.
+    final outgoing = _stillOutgoing(
+      _chatBar.state.outgoing,
+      messages.state.messages,
+    );
     _listController.jumpToItem(
-      index: items.length - 1 - itemIndex,
+      index: outgoing.length + items.length - 1 - itemIndex,
       scrollController: _scrollController,
       alignment: 0.5,
     );
@@ -306,6 +425,21 @@ class _ChatViewState extends State<_ChatView> {
     chat.keyResets,
     reachStart: state.reachedStart,
   );
+
+  /// The messages on their way that are not among [messages] yet, so one
+  /// that just arrived shows once.
+  static List<OutgoingMessage> _stillOutgoing(
+    KtList<OutgoingMessage> outgoing,
+    KtList<Message> messages,
+  ) {
+    final arrived = {
+      for (final message in messages.iter) message.id.getOrCrash(),
+    };
+    return [
+      for (final entry in outgoing.iter)
+        if (!arrived.contains(entry.id.getOrCrash())) entry,
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -326,9 +460,7 @@ class _ChatViewState extends State<_ChatView> {
             children: [
               Expanded(
                 child: chat == null
-                    ? const Center(
-                        child: Text('You have no messages with this user'),
-                      )
+                    ? _firstMessages()
                     // The messages stay underneath the search, so closing it
                     // returns to where the chat was scrolled.
                     : IndexedStack(
@@ -403,6 +535,24 @@ class _ChatViewState extends State<_ChatView> {
     ),
   );
 
+  /// A chat not started yet: nothing, or the first messages on their way.
+  Widget _firstMessages() => BlocBuilder<ChatBarBloc, ChatBarState>(
+    bloc: _chatBar,
+    buildWhen: (previous, current) => previous.outgoing != current.outgoing,
+    builder: (context, state) {
+      if (state.outgoing.isEmpty()) {
+        return const Center(child: Text('You have no messages with this user'));
+      }
+      final outgoing = state.outgoing.asList();
+      return ListView.builder(
+        reverse: true,
+        itemCount: outgoing.length,
+        itemBuilder: (context, index) =>
+            _outgoingRow(outgoing[outgoing.length - 1 - index]),
+      );
+    },
+  );
+
   Widget _messageList(Chat chat) {
     return BlocListener<MessagesWatcherBloc, MessagesWatcherState>(
       listenWhen: (previous, current) =>
@@ -447,32 +597,48 @@ class _ChatViewState extends State<_ChatView> {
     );
   }
 
-  Widget _messagesView(Chat chat, MessagesWatcherState state) {
-    final items = _timeline(chat, state);
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        SuperListView.builder(
-          controller: _scrollController,
-          listController: _listController,
-          // Newest at the bottom. An older page is added at the far end, so
-          // the messages in view do not move when it arrives.
-          reverse: true,
-          itemCount: items.length + (state.loadingOlder ? 1 : 0),
-          itemBuilder: (context, index) => index < items.length
-              ? _row(items[items.length - 1 - index])
-              : const MessagesSkeleton.older(),
-        ),
-        // Older pages load above, out of sight, while finding the message a
-        // reply quotes.
-        if (state.revealingMessage)
-          const Align(
-            alignment: Alignment.topCenter,
-            child: LinearProgressIndicator(),
-          ),
-      ],
-    );
-  }
+  Widget _messagesView(Chat chat, MessagesWatcherState state) =>
+      BlocBuilder<ChatBarBloc, ChatBarState>(
+        bloc: _chatBar,
+        buildWhen: (previous, current) => previous.outgoing != current.outgoing,
+        builder: (context, chatBar) {
+          final items = _timeline(chat, state);
+          final outgoing = _stillOutgoing(chatBar.outgoing, state.messages);
+          return Stack(
+            fit: StackFit.expand,
+            children: [
+              SuperListView.builder(
+                controller: _scrollController,
+                listController: _listController,
+                // Newest at the bottom, the messages on their way below the
+                // rest. An older page is added at the far end, so the
+                // messages in view do not move when it arrives.
+                reverse: true,
+                itemCount:
+                    outgoing.length +
+                    items.length +
+                    (state.loadingOlder ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index < outgoing.length) {
+                    return _outgoingRow(outgoing[outgoing.length - 1 - index]);
+                  }
+                  final itemIndex = index - outgoing.length;
+                  return itemIndex < items.length
+                      ? _row(items[items.length - 1 - itemIndex])
+                      : const MessagesSkeleton.older();
+                },
+              ),
+              // Older pages load above, out of sight, while finding the
+              // message a reply quotes.
+              if (state.revealingMessage)
+                const Align(
+                  alignment: Alignment.topCenter,
+                  child: LinearProgressIndicator(),
+                ),
+            ],
+          );
+        },
+      );
 
   Widget _row(ChatTimelineItem item) {
     final otherUser = widget.otherUser;
@@ -496,6 +662,14 @@ class _ChatViewState extends State<_ChatView> {
     };
   }
 
+  String? _quoteAuthor(Message message) {
+    final quote = message.replyTo;
+    if (quote == null) return null;
+    return _isFromOtherUser(quote.senderId)
+        ? widget.otherUser.username.getOrCrash()
+        : 'You';
+  }
+
   Widget _messageRow(Message message) {
     final quote = message.replyTo;
     return Semantics(
@@ -504,25 +678,35 @@ class _ChatViewState extends State<_ChatView> {
         const CustomSemanticsAction(label: 'Reply'): () => _startReply(message),
       },
       child: SwipeToReply(
+        // Its own state per message, such as which photo a carousel shows.
+        key: ValueKey(message.id.getOrCrash()),
         onReply: () => _startReply(message),
         child: MessageBubble(
           message: message,
           sent: !_isFromOtherUser(message.senderId),
           highlighted: message.id.getOrCrash() == _highlightedMessageId,
-          quoteAuthor: quote == null
-              ? null
-              : _isFromOtherUser(quote.senderId)
-              ? widget.otherUser.username.getOrCrash()
-              : 'You',
+          quoteAuthor: _quoteAuthor(message),
           onQuoteTap: quote == null
               ? null
               : () => _revealMessage(quote.messageId),
           onLongPress: () => _showMessageActions(message),
           onOpenLink: _openLink,
+          loadAttachment: (attachment) =>
+              _media.load(widget.chat!.id, attachment),
+          saveAttachment: (attachment) =>
+              _media.saveToPhotos(widget.chat!.id, attachment),
         ),
       ),
     );
   }
+
+  Widget _outgoingRow(OutgoingMessage entry) => OutgoingMessageBubble(
+    key: ValueKey('outgoing ${entry.id.getOrCrash()}'),
+    entry: entry,
+    quoteAuthor: _quoteAuthor(entry.message),
+    loadAttachment: (attachment) => _loadOutgoing(entry, attachment),
+    onOptions: () => _showOutgoingActions(entry),
+  );
 }
 
 /// The messages that match the search, newest first. The search looks
@@ -576,7 +760,10 @@ class _SearchResults extends StatelessWidget {
                 fromOtherUser ? otherUser.username.getOrCrash() : 'You',
               ),
               subtitle: Text(
-                message.content.getOrCrash(),
+                summaryOf(
+                  message.content.getOrCrash(),
+                  message.attachments.iter.map((file) => file.kind),
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -605,7 +792,8 @@ class _SearchResults extends StatelessWidget {
   }
 }
 
-/// Where the user writes. It starts the chat when [chat] is null.
+/// Where the user writes. The first message sent starts the chat when [chat]
+/// is null.
 class _ChatBar extends StatelessWidget {
   final Chat? chat;
   final User otherUser;
@@ -617,52 +805,65 @@ class _ChatBar extends StatelessWidget {
     required this.focusNode,
   });
 
+  static void _tell(BuildContext context, String text) =>
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(text)));
+
   @override
   Widget build(BuildContext context) {
-    return BlocConsumer<ChatBarBloc, ChatBarState>(
-      listenWhen: (previousState, currentState) =>
-          previousState.chatCreationFailureOrSuccessOption !=
-              currentState.chatCreationFailureOrSuccessOption ||
-          previousState.messageSendFailureOrSuccessOption !=
-              currentState.messageSendFailureOrSuccessOption,
-      listener: (context, state) {
-        final failureMessage = _sendFailureMessage(state);
-        if (failureMessage != null) {
-          ScaffoldMessenger.of(
+    return MultiBlocListener(
+      listeners: [
+        BlocListener<ChatBarBloc, ChatBarState>(
+          listenWhen: (previous, current) =>
+              previous.mediaFailureOption != current.mediaFailureOption,
+          listener: (context, state) => state.mediaFailureOption.fold<void>(
+            () {},
+            (failure) => _tell(context, mediaFailureMessage(failure)),
+          ),
+        ),
+        BlocListener<ChatBarBloc, ChatBarState>(
+          listenWhen: (previous, current) =>
+              previous.discardsRefused != current.discardsRefused,
+          listener: (context, _) => _tell(
             context,
-          ).showSnackBar(SnackBar(content: Text(failureMessage)));
-        }
-      },
-      buildWhen: (previousState, currentState) =>
-          previousState.replyingTo != currentState.replyingTo,
-      builder: (context, state) {
-        final chat = this.chat;
-        final chatBar = BlocProvider.of<ChatBarBloc>(context);
-        final replyingTo = state.replyingTo;
-        return MessageComposer(
-          focusNode: focusNode,
-          replyingTo: replyingTo,
-          replyingToName:
-              replyingTo != null &&
-                  replyingTo.senderId.getOrCrash() == otherUser.id.getOrCrash()
-              ? otherUser.username.getOrCrash()
-              : 'yourself',
-          onCancelReply: () => chatBar.add(const ChatBarEvent.replyCancelled()),
-          onChanged: (value) =>
-              chatBar.add(ChatBarEvent.messageContentChanged(value)),
-          onSend: (value) {
-            if (chat == null) {
-              chatBar.add(
-                ChatBarEvent.newChatCreated([otherUser.id].toImmutableList()),
-              );
-            } else {
-              chatBar.add(
-                ChatBarEvent.newMessageAddedToChatWithId(value, chat.id),
-              );
-            }
-          },
-        );
-      },
+            'That message is being sent right now. Try again in a moment.',
+          ),
+        ),
+      ],
+      child: BlocBuilder<ChatBarBloc, ChatBarState>(
+        buildWhen: (previous, current) =>
+            previous.replyingTo != current.replyingTo ||
+            previous.media != current.media ||
+            previous.preparingMedia != current.preparingMedia ||
+            previous.textRevision != current.textRevision,
+        builder: (context, state) {
+          final chatBar = BlocProvider.of<ChatBarBloc>(context);
+          final replyingTo = state.replyingTo;
+          return MessageComposer(
+            focusNode: focusNode,
+            text: state.text,
+            textRevision: state.textRevision,
+            replyingTo: replyingTo,
+            media: state.media.asList(),
+            preparingMedia: state.preparingMedia,
+            onAddMedia: () => _pickMedia(context, chatBar),
+            onRemoveMedia: (id) => chatBar.add(ChatBarEvent.mediaRemoved(id)),
+            replyingToName:
+                replyingTo != null &&
+                    replyingTo.senderId.getOrCrash() ==
+                        otherUser.id.getOrCrash()
+                ? otherUser.username.getOrCrash()
+                : 'yourself',
+            onCancelReply: () =>
+                chatBar.add(const ChatBarEvent.replyCancelled()),
+            onChanged: (value) =>
+                chatBar.add(ChatBarEvent.messageContentChanged(value)),
+            onSend: (value) =>
+                chatBar.add(ChatBarEvent.sent(value, chatExists: chat != null)),
+          );
+        },
+      ),
     );
   }
 }
@@ -697,36 +898,71 @@ class _ChatNotice extends StatelessWidget {
   }
 }
 
-/// The snackbar text for the chat bar's latest failed send, or null when the
-/// latest send succeeded or nothing has been sent since the last keystroke.
-///
-/// The composer clears its text as soon as Send is tapped, so this is the
-/// only sign a message did not go through.
-String? _sendFailureMessage(ChatBarState state) {
-  final chat_failure.ChatFailure? chatFailure = state
-      .chatCreationFailureOrSuccessOption
-      .fold(
-        () => null,
-        (either) => either.fold((failure) => failure, (_) => null),
+/// Asks where the photos come from, then hands the chosen files to [chatBar].
+Future<void> _pickMedia(BuildContext context, ChatBarBloc chatBar) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final room = MediaLimits.maxPerMessage - chatBar.state.media.size;
+  if (room <= 0) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'A message can hold up to ${MediaLimits.maxPerMessage} photos and '
+            'GIFs.',
+          ),
+        ),
       );
-  if (chatFailure != null) {
-    return switch (chatFailure) {
-      chat_failure.InsufficientPermissions() =>
-        'You are not allowed to start this chat',
-      chat_failure.Unexpected() => 'The chat could not be started, try again',
-    };
+    return;
   }
-
-  final message_failure.MessageFailure? messageFailure = state
-      .messageSendFailureOrSuccessOption
-      .fold(
-        () => null,
-        (either) => either.fold((failure) => failure, (_) => null),
+  final source = await showModalBottomSheet<ImageSource>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined),
+            title: const Text('Photos and GIFs'),
+            onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_camera_outlined),
+            title: const Text('Take a photo'),
+            onTap: () => Navigator.of(context).pop(ImageSource.camera),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (source == null) return;
+  final picker = ImagePicker();
+  try {
+    // The files are re-encoded before sending, so their metadata is not
+    // needed, and asking for it needs more permissions on iOS.
+    final files = source == ImageSource.camera
+        ? [
+            ?await picker.pickImage(
+              source: ImageSource.camera,
+              requestFullMetadata: false,
+            ),
+          ]
+        : await picker.pickMultiImage(limit: room, requestFullMetadata: false);
+    if (files.isNotEmpty) {
+      chatBar.add(
+        ChatBarEvent.mediaPicked([for (final file in files) file.path]),
       );
-  return switch (messageFailure) {
-    null => null,
-    message_failure.InsufficientPermissions() =>
-      'You are not allowed to send messages in this chat',
-    message_failure.Unexpected() => 'The message could not be sent, try again',
-  };
+    }
+  } on PlatformException {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Photos could not be opened. Check the app\'s permissions.',
+          ),
+        ),
+      );
+  }
 }

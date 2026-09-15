@@ -1,57 +1,35 @@
-import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/application/chats/chat_bar/chat_bar_bloc.dart';
+import 'package:routes_chat/application/chats/outbox/message_outbox.dart';
 import 'package:routes_chat/domain/chats/chat.dart';
-import 'package:routes_chat/domain/chats/chat_failure.dart';
-import 'package:routes_chat/domain/chats/chat_repository_interface.dart';
-import 'package:routes_chat/domain/chats/messages/message.dart';
-import 'package:routes_chat/domain/chats/messages/message_repository_interface.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
 import 'package:routes_chat/infrastructure/shared/user/current_user_session.dart';
 
-/// Records every chat the bloc asks to create.
-class _FakeChatRepository implements IChatRepository {
-  final created = <Chat>[];
+import '../../helpers/outbox_fakes.dart';
+import '../../helpers/unused_media_repository.dart';
 
-  @override
-  Future<Either<ChatFailure, Unit>> create(Chat chat, Message message) async {
-    created.add(chat);
-    return const Right(unit);
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _FakeMessageRepository implements IMessageRepository {
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-CurrentUserSession _signedInAs(String uid) =>
-    CurrentUserSession()..start(CurrentUserInformationPersistent(uid, uid));
-
-Future<Chat> _createWithChatBar(String currentUid, String otherUid) async {
-  final chats = _FakeChatRepository();
+Future<Chat> _startedFrom(String currentUid, String otherUid) async {
+  final store = MemoryChatStore();
+  final chats = FakeChatStarter();
+  final session = CurrentUserSession()
+    ..start(CurrentUserInformationPersistent(currentUid, currentUid));
+  addTearDown(session.end);
   final bloc = ChatBarBloc(
-    chats,
-    _FakeMessageRepository(),
-    _signedInAs(currentUid),
+    session,
+    UnusedMediaRepository(),
+    store,
+    MessageOutbox(FakeMessageSender(), chats, store, session),
   );
   addTearDown(bloc.close);
 
-  bloc
-    ..add(const ChatBarEvent.messageContentChanged('hello'))
-    ..add(
-      ChatBarEvent.newChatCreated(
-        KtList.of(UniqueId.fromUniqueString(otherUid)),
-      ),
-    );
+  bloc.add(ChatBarEvent.started(UniqueId.fromUniqueString(otherUid)));
+  await pumpEventQueue();
+  bloc.add(const ChatBarEvent.sent('hello', chatExists: false));
   await pumpEventQueue();
 
   expect(chats.created, hasLength(1));
+  expect(bloc.state.chatId, chats.created.single.id);
   return chats.created.single;
 }
 
@@ -62,8 +40,8 @@ void main() {
   // from the participants, so both sides always target one document.
 
   test('ChatBarBloc gives a chat the same id from either side', () async {
-    final fromAlice = await _createWithChatBar('uid-alice', 'uid-bob');
-    final fromBob = await _createWithChatBar('uid-bob', 'uid-alice');
+    final fromAlice = await _startedFrom('uid-alice', 'uid-bob');
+    final fromBob = await _startedFrom('uid-bob', 'uid-alice');
 
     expect(fromAlice.id.getOrCrash(), fromBob.id.getOrCrash());
     expect(fromAlice.id.getOrCrash(), 'uid-alice_uid-bob');

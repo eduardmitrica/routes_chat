@@ -1,5 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Saving a chat photo to the phone's photos. Android 10 and older need
+         this; newer versions need no permission to add a photo. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
     <application
+        android:requestLegacyExternalStorage="true"
         android:label="routes_chat"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

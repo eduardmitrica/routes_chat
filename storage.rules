@@ -12,6 +12,26 @@ service firebase.storage {
       allow write: if false;
     }
 
+    // Photos and GIFs sent in chats, each encrypted on the phone with a key
+    // only the chat's participants have (docs/e2ee.md): the server stores
+    // bytes it cannot read. Only the two participants, whose ids make up the
+    // chat id, can read or add them, and a file never changes once stored.
+    // The size limit is MediaLimits.maxStoredBytes; a test checks it.
+    match /chat_media/{chatId}/{fileName} {
+      allow read: if request.auth != null &&
+        request.auth.uid in chatId.split('_');
+      allow create: if request.auth != null &&
+        request.auth.uid in chatId.split('_') &&
+        request.resource.size <= 15728668 &&
+        request.resource.contentType == 'application/octet-stream' &&
+        request.resource.metadata.uploader == request.auth.uid;
+      // Only whoever uploaded a file can delete it, such as a file of a
+      // message they gave up sending.
+      allow delete: if request.auth != null &&
+        request.auth.uid in chatId.split('_') &&
+        resource.metadata.uploader == request.auth.uid;
+    }
+
     // Each user's profile photo: anyone signed in can view it (shown in
     // chats/friends lists), only the owner can upload/replace it.
     match /user_images/{fileName} {

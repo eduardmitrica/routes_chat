@@ -409,7 +409,7 @@ void main() {
 
         expect(
           json['cipherText'],
-          hasLength(lessThanOrEqualTo(12000)),
+          hasLength(lessThanOrEqualTo(48000)),
           reason: 'U+${character.codeUnitAt(0).toRadixString(16)}',
         );
       }

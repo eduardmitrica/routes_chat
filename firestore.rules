@@ -267,8 +267,10 @@ service cloud.firestore {
       // ciphertext and a 16-byte tag. A message is at most 1000 UTF-16 code
       // units. Version 1, which older versions of the app still write, holds
       // the text alone: at most 3000 bytes of UTF-8, 4000 characters of
-      // base64. Version 2 holds the text and any quote as JSON, whose escapes
-      // take up to six bytes a code unit: at most 9000 bytes, 12000 characters.
+      // base64. Version 2 holds, as JSON, the text, any quote and the list of
+      // attached photos and GIFs with their keys and small previews. Escapes
+      // take up to six bytes a code unit, and ten attachments with previews
+      // about 22000 bytes: at most 36000 bytes, 48000 characters.
       function isEncryptedContent(content, generation) {
         return content.keys().hasOnly(['v', 'e', 'nonce', 'cipherText', 'mac']) &&
           content.e == generation &&
@@ -276,7 +278,7 @@ service cloud.firestore {
           content.mac is string && content.mac.size() == 24 &&
           content.cipherText is string &&
           ((content.v == 1 && content.cipherText.size() <= 4000) ||
-           (content.v == 2 && content.cipherText.size() <= 12000));
+           (content.v == 2 && content.cipherText.size() <= 48000));
       }
 
       // The chat key sealed to one participant (SealedChatKey in the app):

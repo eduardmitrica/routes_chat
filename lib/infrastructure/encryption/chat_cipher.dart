@@ -230,19 +230,22 @@ final class EncryptedContent {
   );
 }
 
-/// What a message's ciphertext holds: its text and, for a reply, the message
-/// it answers. Encrypted together, so the server cannot tell a reply from any
-/// other message.
+/// What a message's ciphertext holds: its text, for a reply the message it
+/// answers, and the photos and GIFs it carries. Encrypted together, so the
+/// server cannot tell what kind of message it is.
 @immutable
 final class MessagePayload {
   final String text;
   final QuotedMessage? replyTo;
+  final List<AttachedFile> attachments;
 
-  const MessagePayload(this.text, {this.replyTo});
+  const MessagePayload(this.text, {this.replyTo, this.attachments = const []});
 
   Map<String, Object> toJson() => {
     'text': text,
     if (replyTo case final replyTo?) 'replyTo': replyTo.toJson(),
+    if (attachments.isNotEmpty)
+      'attachments': [for (final file in attachments) file.toJson()],
   };
 
   /// Throws [FormatException] for anything [toJson] could not have made.
@@ -254,47 +257,160 @@ final class MessagePayload {
     }
     final text = json['text'];
     final replyTo = json['replyTo'];
-    if (text is! String) {
+    final attachments = json['attachments'];
+    if (text is! String || (attachments != null && attachments is! List)) {
       throw const FormatException('Malformed message payload');
     }
     return MessagePayload(
       text,
       replyTo: replyTo == null ? null : QuotedMessage.fromJson(replyTo),
+      attachments: [
+        for (final file in (attachments as List?) ?? const [])
+          AttachedFile.fromJson(file),
+      ],
     );
   }
 
   @override
   bool operator ==(Object other) =>
-      other is MessagePayload && other.text == text && other.replyTo == replyTo;
+      other is MessagePayload &&
+      other.text == text &&
+      other.replyTo == replyTo &&
+      listEquals(other.attachments, attachments);
 
   @override
-  int get hashCode => Object.hash(text, replyTo);
+  int get hashCode => Object.hash(text, replyTo, Object.hashAll(attachments));
 
   /// Lengths only: the text is decrypted content, which does not belong in
   /// logs.
   @override
   String toString() =>
-      'MessagePayload(${text.length} code units, reply: ${replyTo != null})';
+      'MessagePayload(${text.length} code units, reply: ${replyTo != null}, '
+      'attachments: ${attachments.length})';
 }
 
-/// The message a reply answers, as the reply carries it: its id, its sender
-/// and the start of its text.
+/// A photo or GIF a message carries: its id, which is also where it is
+/// stored, the key it is encrypted with, its size and a small preview.
+@immutable
+final class AttachedFile {
+  static const kinds = {'photo', 'gif'};
+
+  final String id;
+
+  /// `photo` or `gif`.
+  final String kind;
+  final int width;
+  final int height;
+
+  /// Bytes of the photo or GIF itself, before encryption.
+  final int size;
+  final Uint8List key;
+  final Uint8List? thumbnail;
+
+  const AttachedFile({
+    required this.id,
+    required this.kind,
+    required this.width,
+    required this.height,
+    required this.size,
+    required this.key,
+    this.thumbnail,
+  });
+
+  Map<String, Object> toJson() => {
+    'id': id,
+    'kind': kind,
+    'width': width,
+    'height': height,
+    'size': size,
+    'key': base64Encode(key),
+    if (thumbnail case final thumbnail?) 'thumb': base64Encode(thumbnail),
+  };
+
+  factory AttachedFile.fromJson(Object? json) {
+    if (json is! Map) {
+      throw const FormatException('Malformed attachment');
+    }
+    final id = json['id'];
+    final kind = json['kind'];
+    final width = json['width'];
+    final height = json['height'];
+    final size = json['size'];
+    final key = json['key'];
+    final thumbnail = json['thumb'];
+    if (id is! String ||
+        kind is! String ||
+        !kinds.contains(kind) ||
+        width is! int ||
+        height is! int ||
+        size is! int ||
+        key is! String ||
+        (thumbnail != null && thumbnail is! String)) {
+      throw const FormatException('Malformed attachment');
+    }
+    final keyBytes = base64Decode(key);
+    if (keyBytes.length != ChatCipher.chatKeyLength) {
+      throw const FormatException('Malformed attachment key');
+    }
+    return AttachedFile(
+      id: id,
+      kind: kind,
+      width: width,
+      height: height,
+      size: size,
+      key: keyBytes,
+      thumbnail: thumbnail == null ? null : base64Decode(thumbnail as String),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is AttachedFile &&
+      other.id == id &&
+      other.kind == kind &&
+      other.width == width &&
+      other.height == height &&
+      other.size == size &&
+      listEquals(other.key, key) &&
+      listEquals(other.thumbnail, thumbnail);
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    kind,
+    width,
+    height,
+    size,
+    Object.hashAll(key),
+    thumbnail == null ? null : Object.hashAll(thumbnail!),
+  );
+
+  /// The id only: the key and the preview are secrets of the chat.
+  @override
+  String toString() => 'AttachedFile($id, $kind)';
+}
+
+/// The message a reply answers, as the reply carries it: its id, its sender,
+/// the start of its text and, when it has photos, a preview of the first.
 @immutable
 final class QuotedMessage {
   final String messageId;
   final String senderId;
   final String text;
+  final Uint8List? thumbnail;
 
   const QuotedMessage({
     required this.messageId,
     required this.senderId,
     required this.text,
+    this.thumbnail,
   });
 
   Map<String, Object> toJson() => {
     'id': messageId,
     'senderId': senderId,
     'text': text,
+    if (thumbnail case final thumbnail?) 'thumb': base64Encode(thumbnail),
   };
 
   factory QuotedMessage.fromJson(Object? json) {
@@ -304,10 +420,19 @@ final class QuotedMessage {
     final messageId = json['id'];
     final senderId = json['senderId'];
     final text = json['text'];
-    if (messageId is! String || senderId is! String || text is! String) {
+    final thumbnail = json['thumb'];
+    if (messageId is! String ||
+        senderId is! String ||
+        text is! String ||
+        (thumbnail != null && thumbnail is! String)) {
       throw const FormatException('Malformed quote');
     }
-    return QuotedMessage(messageId: messageId, senderId: senderId, text: text);
+    return QuotedMessage(
+      messageId: messageId,
+      senderId: senderId,
+      text: text,
+      thumbnail: thumbnail == null ? null : base64Decode(thumbnail as String),
+    );
   }
 
   @override
@@ -315,14 +440,35 @@ final class QuotedMessage {
       other is QuotedMessage &&
       other.messageId == messageId &&
       other.senderId == senderId &&
-      other.text == text;
+      other.text == text &&
+      listEquals(other.thumbnail, thumbnail);
 
   @override
-  int get hashCode => Object.hash(messageId, senderId, text);
+  int get hashCode => Object.hash(
+    messageId,
+    senderId,
+    text,
+    thumbnail == null ? null : Object.hashAll(thumbnail!),
+  );
 
   /// The id only, for the same reason as [MessagePayload.toString].
   @override
   String toString() => 'QuotedMessage($messageId)';
+}
+
+/// A photo or GIF encrypted with a key of its own: the key, which travels
+/// inside the message, and the bytes to store.
+@immutable
+final class EncryptedFile {
+  final Uint8List key;
+
+  /// The 12-byte nonce, the ciphertext and the 16-byte tag.
+  final Uint8List stored;
+
+  const EncryptedFile({required this.key, required this.stored});
+
+  @override
+  String toString() => 'EncryptedFile(${stored.length} bytes)';
 }
 
 Uint8List _decodeField(Map<dynamic, dynamic> json, String field) {
@@ -506,6 +652,72 @@ class ChatCipher {
     } on FormatException {
       throw const UnreadableCiphertext();
     }
+  }
+
+  /// Bytes an encrypted file adds: a 12-byte nonce before the content and a
+  /// 16-byte tag after it.
+  static const fileOverheadBytes = 28;
+
+  static const _filePurpose = 'routes_chat/v2/file';
+
+  /// Encrypts [content], a photo or GIF, with a new key of its own, bound to
+  /// the file [fileId] of [chatId].
+  ///
+  /// The key is [key] when given, made earlier with [newFileKey], so a file
+  /// whose upload is repeated is encrypted under the key its message already
+  /// records.
+  Future<EncryptedFile> encryptFile(
+    List<int> content, {
+    required String chatId,
+    required String fileId,
+    List<int>? key,
+  }) async {
+    if (key != null && key.length != chatKeyLength) {
+      throw ArgumentError.value(key.length, 'key', 'not $chatKeyLength bytes');
+    }
+    final secretKey = SecretKeyData(key ?? newFileKey());
+    final box = await _aead.encrypt(
+      content,
+      secretKey: secretKey,
+      aad: _associatedData(_filePurpose, [chatId, fileId]),
+    );
+    return EncryptedFile(
+      key: Uint8List.fromList(secretKey.bytes),
+      stored: Uint8List.fromList(box.concatenation()),
+    );
+  }
+
+  /// A new random key for one file.
+  Uint8List newFileKey() =>
+      Uint8List.fromList(SecretKeyData.random(length: chatKeyLength).bytes);
+
+  /// The photo or GIF in [stored], encrypted with [key] as the file [fileId]
+  /// of [chatId].
+  ///
+  /// Throws [UnreadableCiphertext] if the key is wrong, or the file belongs to
+  /// another chat or file, or was altered or cut short.
+  Future<Uint8List> decryptFile(
+    List<int> stored, {
+    required List<int> key,
+    required String chatId,
+    required String fileId,
+  }) async {
+    if (stored.length < fileOverheadBytes || key.length != chatKeyLength) {
+      throw const UnreadableCiphertext();
+    }
+    final box = SecretBox.fromConcatenation(
+      stored,
+      nonceLength: 12,
+      macLength: 16,
+      copy: false,
+    );
+    return Uint8List.fromList(
+      await _decrypt(
+        box,
+        SecretKeyData(key),
+        _associatedData(_filePurpose, [chatId, fileId]),
+      ),
+    );
   }
 
   /// A message's associated data. Each format version has its own purpose, so

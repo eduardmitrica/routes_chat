@@ -111,7 +111,7 @@ class ChatRepository implements IChatRepository {
         chatId: document.id,
         messageId: lastMessage.id!,
         senderId: lastMessage.senderId,
-      )).text;
+      )).summary;
     } on UnreadableCiphertext {
       text = ChatCipher.unreadableMessageText;
       readable = false;
@@ -155,6 +155,11 @@ class ChatRepository implements IChatRepository {
         // inside the transaction, was invisible to it, so both could create a
         // chat.
         final existingChat = await transaction.get(chatRef);
+        // Sent already, by an attempt whose answer was lost. Asked only once
+        // the chat exists: the rules read a message through its chat.
+        if (existingChat.exists && (await transaction.get(messageRef)).exists) {
+          return false;
+        }
         final int keyGeneration;
         final SecretKey chatKey;
         if (existingChat.exists) {

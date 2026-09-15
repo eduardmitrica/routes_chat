@@ -68,6 +68,26 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
   generation, the message id and the sender id, so ciphertext cannot be moved
   to another message, chat, generation or sender. The chat's last message is
   the same ciphertext as the message.
+- **Photos and GIFs** are encrypted on the phone with AES-256-GCM, each with
+  a random 32-byte key of its own. The associated data is
+  `routes_chat/v2/file`, the chat id and the file id. The stored file is the
+  12-byte nonce, the ciphertext and the 16-byte tag, at
+  `chat_media/<chat id>/<file id>` in Storage. The message's payload lists
+  each file under `attachments`: `{id, kind: "photo" | "gif", width, height,
+  size, key, thumb?}`, where `thumb` is a JPEG about 40 pixels across. The keys
+  and previews therefore travel inside the message's encryption, and Storage
+  holds only files it cannot read. Photos are re-encoded on the phone as JPEG,
+  at most 2048 pixels on the shorter side, which also drops metadata such as
+  where they were taken; GIFs are sent as they are. A reply to a photo carries
+  its preview as `replyTo.thumb`.
+- **Unsent drafts and messages on their way** stay on the phone until they
+  are sent, in the app's support directory under `local_chats/<uid>/`. Each
+  file is encrypted with AES-256-GCM under a random 32-byte key kept in the
+  phone's secure storage (Keychain, Keystore), with the file's name as the
+  associated data, so a copy of the app's files reads nothing and one file
+  cannot pass for another. A photo's file key is kept there before the photo
+  is uploaded, so an upload repeated after a lost connection uses the key its
+  message records. Signing out deletes these files and their key.
 - **Version 1 messages**, sent before replies, encrypt the text alone (UTF-8,
   not JSON), with `routes_chat/v1/message` in place of
   `routes_chat/v2/message`. They still decrypt. Each version has its own
@@ -87,6 +107,7 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
 | `userKeys/{uid}` | The public key and the key version | Any signed-in user |
 | `chats/{chatId}` | Every generation of the chat key, sealed for each participant; the current generation; the encrypted last message | The chat's participants |
 | `chats/{chatId}/messages/{id}` | The encrypted message | The chat's participants |
+| Storage `chat_media/{chatId}/{fileId}` | An encrypted photo or GIF, and who uploaded it; only they can delete it, for a message they gave up sending | The chat's participants |
 
 Stored formats (keys, nonces, ciphertext and tags as base64):
 - a message's `content`: `{v: 2, e: <key generation>, nonce, cipherText, mac}`
@@ -136,8 +157,7 @@ They also:
 
 - A compromised or unlocked phone with the app installed.
 - Metadata: who talks to whom, when, and how often. The server sees chat membership and timestamps.
-- Message length. Ciphertext is as long as the text and any quote, so the
-  server can estimate how long a message is.
+- Message length. Ciphertext is as long as the text and any quote, so the server can estimate how long a message is. It also sees how many photos a message has, roughly how big each is, and who uploaded each (which the rules need to let only the uploader delete a file).
 - A malicious chat partner, who can read everything sent to them.
 - Replacing a user's public key through the server. A future improvement is
   showing a safety number that two people can compare.

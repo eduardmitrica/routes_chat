@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -45,6 +46,16 @@ import 'infrastructure/shared/user/current_user_session.dart';
 import 'infrastructure/shared/user/user_repository.dart';
 import 'infrastructure/shared/user/user_utils.dart';
 import 'application/settings/appearance/appearance_bloc.dart';
+import 'domain/chats/messages/media_repository_interface.dart';
+import 'infrastructure/chats/messages/attachment_store.dart';
+import 'infrastructure/chats/messages/image_tools.dart';
+import 'infrastructure/chats/messages/media_repository.dart';
+import 'application/chats/outbox/message_outbox.dart';
+import 'domain/chats/messages/local_chat_repository_interface.dart';
+import 'infrastructure/chats/messages/local_chat_store.dart';
+import 'infrastructure/chats/messages/photo_library.dart';
+import 'infrastructure/core/local_vault.dart';
+import 'infrastructure/core/network_monitor.dart';
 
 final getIt = GetIt.instance;
 
@@ -74,7 +85,14 @@ void configureDependencies() {
       ),
     )
     ..registerFactory<FirebaseMessaging>(() => FirebaseMessaging.instance)
-    ..registerFactory<FirebaseStorage>(() => FirebaseStorage.instance)
+    // Storage keeps retrying a failed upload for 10 minutes by default, which
+    // left a message "Sending" that long without a connection. The outbox
+    // retries on its own, and at once when the connection returns.
+    ..registerFactory<FirebaseStorage>(
+      () => FirebaseStorage.instance
+        ..setMaxUploadRetryTime(const Duration(seconds: 60))
+        ..setMaxOperationRetryTime(const Duration(seconds: 30)),
+    )
     ..registerFactory<FlutterSecureStorage>(() => const FlutterSecureStorage());
 
   // ─── Session ──────────────────────────────────────────────────────────
@@ -106,6 +124,7 @@ void configureDependencies() {
         getIt<ICurrentUserSession>(),
         getIt<ChatKeyring>(),
         getIt<ChatCipher>(),
+        getIt<AttachmentStore>(),
       ),
     )
     ..registerLazySingleton<IChatRepository>(
@@ -145,6 +164,35 @@ void configureDependencies() {
       () => getIt<FirebaseEncryptionRepository>(),
     )
     ..registerLazySingleton<ChatCipher>(ChatCipher.new)
+    ..registerLazySingleton<AttachmentStore>(
+      () => AttachmentStore(
+        getIt<FirebaseStorage>(),
+        getIt<ChatCipher>(),
+        getIt<ICurrentUserSession>(),
+      ),
+    )
+    ..registerLazySingleton<ImageTools>(NativeImageTools.new)
+    // A singleton: it keeps decrypted photos in memory while the app runs.
+    ..registerLazySingleton<IMediaRepository>(
+      () => MediaRepository(
+        getIt<AttachmentStore>(),
+        getIt<ImageTools>(),
+        GalPhotoLibrary(),
+      ),
+    )
+    // Singletons: the vault deletes the user's files when the session ends,
+    // and one store takes every read and write of them in turn.
+    ..registerLazySingleton<LocalVault>(
+      () => LocalVault(
+        SecureSecretStore(getIt<FlutterSecureStorage>()),
+        getIt<ICurrentUserSession>(),
+      ),
+    )
+    ..registerLazySingleton<LocalChatStore>(
+      () => LocalChatStore(getIt<LocalVault>()),
+    )
+    ..registerLazySingleton<IDraftRepository>(() => getIt<LocalChatStore>())
+    ..registerLazySingleton<IOutboxRepository>(() => getIt<LocalChatStore>())
     // A singleton: it holds the session's opened chat keys.
     ..registerLazySingleton<ChatKeyring>(
       () => ChatKeyring(
@@ -154,6 +202,18 @@ void configureDependencies() {
         getIt<ICurrentUserSession>(),
       ),
     );
+
+  // ─── Application services ─────────────────────────────────────────────
+  // A singleton: it holds the messages on their way while the app runs.
+  getIt.registerLazySingleton<MessageOutbox>(
+    () => MessageOutbox(
+      getIt<IMessageRepository>(),
+      getIt<IChatRepository>(),
+      getIt<IOutboxRepository>(),
+      getIt<ICurrentUserSession>(),
+      reconnected: NetworkMonitor(Connectivity()).reconnected,
+    ),
+  );
 
   // ─── Blocs ────────────────────────────────────────────────────────────
   getIt
@@ -190,9 +250,10 @@ void configureDependencies() {
     )
     ..registerFactory<ChatBarBloc>(
       () => ChatBarBloc(
-        getIt<IChatRepository>(),
-        getIt<IMessageRepository>(),
         getIt<ICurrentUserSession>(),
+        getIt<IMediaRepository>(),
+        getIt<IDraftRepository>(),
+        getIt<MessageOutbox>(),
       ),
     )
     ..registerFactory<ChatsWatcherBloc>(

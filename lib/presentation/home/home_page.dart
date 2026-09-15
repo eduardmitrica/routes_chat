@@ -20,6 +20,7 @@ import 'package:routes_chat/presentation/sign_in/sign_in_page.dart';
 
 import '../../application/friend_requests/friend_request_actor/friend_request_actor_bloc.dart';
 import '../../application/chats/outbox/message_outbox.dart';
+import '../../application/safety/block_list_bloc.dart';
 import '../../injection.dart';
 import 'chats/chats_page.dart';
 import 'friend_requests/friend_requests_page.dart';
@@ -50,6 +51,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     // Signed in, with the keys unlocked: messages left on their way when the
     // app closed are sent now.
     unawaited(_outbox.resume());
+    // Who the user blocked, for every screen that keeps them out of sight.
+    getIt<BlockListBloc>().add(const BlockListEvent.started());
     WidgetsBinding.instance.addObserver(this);
     _presence.appResumed();
     _opened = _notifications.opened.listen(_open);

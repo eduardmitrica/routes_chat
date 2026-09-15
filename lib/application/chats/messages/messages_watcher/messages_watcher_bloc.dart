@@ -10,6 +10,7 @@ import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
 import 'package:routes_chat/domain/chats/messages/message_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message_search.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
+import 'package:routes_chat/domain/safety/blocks.dart';
 
 import '../../../../domain/chats/messages/message_failure.dart';
 
@@ -20,16 +21,19 @@ part 'messages_watcher_state.dart';
 /// A chat's messages, a page at a time: the newest page live, older pages as
 /// the user scrolls up, and every page back to the start while searching.
 /// Each message shows with the reactions to it, and a reply's quote follows
-/// the original when it is edited or deleted.
+/// the original when it is edited or deleted. What someone sent while the
+/// user had them blocked stays out of sight.
 class MessagesWatcherBloc
     extends Bloc<MessagesWatcherEvent, MessagesWatcherState> {
   static const pageSize = 30;
 
   final IMessageRepository _messageRepository;
+  final IBlockList? _blocks;
 
   StreamSubscription<Either<MessageFailure, MessagePage>>? _latestSubscription;
   StreamSubscription<Either<MessageFailure, KtList<MessageReaction>>>?
   _reactionsSubscription;
+  StreamSubscription<Blocks>? _blocksSubscription;
   UniqueId? _chatId;
 
   /// Every message seen, by id. Messages are never removed, a deleted one
@@ -50,13 +54,17 @@ class MessagesWatcherBloc
   /// How many reveals were asked for, which numbers each one.
   var _reveals = 0;
 
-  MessagesWatcherBloc(this._messageRepository)
-    : super(MessagesWatcherState.initial()) {
+  MessagesWatcherBloc(this._messageRepository, {IBlockList? blocks})
+    : _blocks = blocks,
+      super(MessagesWatcherState.initial()) {
     on<MessagesWatcherEvent>((event, emit) async {
       switch (event) {
         case MessagesWatchStarted(:final chatId):
           _chatId = chatId;
           emit(state.copyWith(status: MessagesStatus.loading));
+          _blocksSubscription ??= _blocks?.blocksChanges.listen((_) {
+            if (!isClosed) add(const MessagesWatcherEvent.blocksChanged());
+          });
           await _latestSubscription?.cancel();
           _latestSubscription = _messageRepository
               .watchLatestForChatWithId(chatId, limit: pageSize)
@@ -121,7 +129,9 @@ class MessagesWatcherBloc
               revealingMessage: false,
               lastReveal: MessageReveal(
                 messageId,
-                message: message == null ? null : _shown(message),
+                message: message == null || _hidden(message)
+                    ? null
+                    : _shown(message),
                 request: ++_reveals,
               ),
             ),
@@ -155,6 +165,9 @@ class MessagesWatcherBloc
           if (!_messagesById.containsKey(id)) return;
           _messagesById[id] = message;
           emit(_withMessages(state));
+
+        case MessagesBlocksChanged():
+          emit(_withMessages(state));
       }
     });
   }
@@ -166,7 +179,7 @@ class MessagesWatcherBloc
     return _olderPage ??= () async {
       try {
         final chatId = _chatId;
-        final oldest = state.messages.firstOrNull();
+        final oldest = _oldestLoaded();
         if (chatId == null || oldest == null || state.reachedStart) {
           return false;
         }
@@ -199,6 +212,13 @@ class MessagesWatcherBloc
         _olderPage = null;
       }
     }();
+  }
+
+  /// The oldest message loaded, hidden or not: the next page starts before
+  /// it.
+  Message? _oldestLoaded() {
+    final messages = _messagesById.values.toList()..sort(_bySendingTime);
+    return messages.firstOrNull;
   }
 
   void _remember(KtList<Message> messages) {
@@ -235,18 +255,27 @@ class MessagesWatcherBloc
         );
   }
 
-  /// [message] as it shows: with the reactions to it, and when it is a reply
-  /// to a message loaded, with the quote as that message is now.
+  /// Whether [message] was sent by someone while the user had them blocked.
+  bool _hidden(Message message) =>
+      _blocks?.blocks.hides(message.senderId, message.lastUpdatedAt) ?? false;
+
+  /// [message] as it shows: with the reactions to it, except those of people
+  /// blocked, and when it is a reply to a message loaded, with the quote as
+  /// that message is now.
   Message _shown(Message message) {
     final quote = message.replyTo;
     final original = quote == null
         ? null
         : _messagesById[quote.messageId.getOrCrash()];
+    final blocks = _blocks?.blocks;
     return message.copyWith(
       reactions: message.isDeleted
           ? const KtList.empty()
-          : _reactionsByMessage[message.id.getOrCrash()] ??
-                const KtList.empty(),
+          : (_reactionsByMessage[message.id.getOrCrash()] ??
+                    const KtList.empty())
+                .filter(
+                  (reaction) => !(blocks?.isBlocked(reaction.userId) ?? false),
+                ),
       replyTo: original == null ? quote : quote!.following(original),
     );
   }
@@ -257,7 +286,7 @@ class MessagesWatcherBloc
           messages: [
             for (final message
                 in _messagesById.values.toList()..sort(_bySendingTime))
-              _shown(message),
+              if (!_hidden(message)) _shown(message),
           ].toImmutableList(),
         ),
       );
@@ -295,6 +324,7 @@ class MessagesWatcherBloc
   Future<void> close() async {
     await _latestSubscription?.cancel();
     await _reactionsSubscription?.cancel();
+    await _blocksSubscription?.cancel();
     return super.close();
   }
 }

@@ -5,7 +5,7 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 
-const { recipientsOf, notificationFor, friendRequestNotificationFor, deadTokens } = require("./notify");
+const { recipientsOf, notificationFor, friendRequestNotificationFor, deadTokens, isBlocking } = require("./notify");
 
 initializeApp();
 
@@ -49,6 +49,12 @@ async function usernameOf(db, uid) {
   return user.get("username");
 }
 
+/** Whether [uid] has blocked [otherUid] now. */
+async function hasBlocked(db, uid, otherUid) {
+  const block = await db.doc(`users/${uid}/blocks/${otherUid}`).get();
+  return isBlocking(block.data());
+}
+
 /** Notifies the other participants of a chat when a message is sent. */
 exports.notifyNewMessage = onDocumentCreated(
   { document: "chats/{chatId}/messages/{messageId}", database: databaseId, region: REGION },
@@ -61,7 +67,12 @@ exports.notifyNewMessage = onDocumentCreated(
     // The first message of a chat is written in the same transaction as the
     // chat itself, so the chat exists by the time this runs.
     const chat = await db.doc(`chats/${chatId}`).get();
-    const recipients = recipientsOf(chat.get("participantIds"), message.senderId);
+    // Nothing is announced to someone who blocked the sender.
+    const participants = recipientsOf(chat.get("participantIds"), message.senderId);
+    const blocked = await Promise.all(
+      participants.map((uid) => hasBlocked(db, uid, message.senderId)),
+    );
+    const recipients = participants.filter((_, index) => !blocked[index]);
     if (recipients.length === 0) return;
 
     // senderId is pinned to the author's uid by the security rules, so the
@@ -82,6 +93,7 @@ exports.notifyFriendRequest = onDocumentCreated(
     if (!request || request.status !== "Pending" || !request.receiverId) return;
     const { requestId } = event.params;
     const db = getFirestore(databaseId.value());
+    if (await hasBlocked(db, request.receiverId, request.senderId)) return;
 
     const payload = friendRequestNotificationFor({
       senderName: await usernameOf(db, request.senderId),

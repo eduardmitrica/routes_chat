@@ -70,6 +70,27 @@ service cloud.firestore {
           request.resource.data.updatedAt == request.time;
       }
 
+      // The people this user blocked, one document each, private to the
+      // owner: a block is silent, and the blocked person cannot tell. While
+      // someone is blocked, blockedSince is the server time the block started;
+      // earlier holds past blocks, at most 100 (FirestoreSafetyRepository), so
+      // what they sent then stays hidden after unblocking. The notification
+      // functions read it with the Admin SDK, to announce nothing from them.
+      match /blocks/{blockedId} {
+        allow read, delete: if signedIn() && request.auth.uid == userId;
+        allow create, update: if signedIn() &&
+          request.auth.uid == userId &&
+          blockedId != userId &&
+          request.resource.data.keys().hasOnly(['blockedSince', 'earlier']) &&
+          (request.resource.data.get('blockedSince', null) == null ||
+           request.resource.data.blockedSince == request.time ||
+           (resource != null &&
+            request.resource.data.blockedSince ==
+              resource.data.get('blockedSince', null))) &&
+          request.resource.data.get('earlier', []) is list &&
+          request.resource.data.get('earlier', []).size() <= 100;
+      }
+
       // The user's end-to-end encryption keys (see docs/e2ee.md). Everything
       // in the bundle except the public key is encrypted, but only the owner
       // has any reason to read it. The client can never delete it, because
@@ -551,6 +572,31 @@ service cloud.firestore {
            messageWithId(reactionId.split('_')[0]).senderId ==
              request.auth.uid);
       }
+    }
+
+    // Reports of abuse. Chats are end-to-end encrypted, so a report carries
+    // only what its author chose to share: a reason, and at most the last 5
+    // messages of the chat in readable form (ReportedMessage.maxPerReport).
+    // Anyone signed in files one, about someone else, as themselves, from a
+    // chat they are in. No app can read, change or delete one: the project
+    // owner reviews them in the Firebase console. The messages are the
+    // author's word; the server cannot check them against the ciphertext.
+    match /reports/{reportId} {
+      allow create: if signedIn() &&
+        request.resource.data.keys().hasOnly(['reporterId', 'reportedId',
+                                              'chatId', 'reason', 'messages',
+                                              'createdAt']) &&
+        request.resource.data.reporterId == request.auth.uid &&
+        request.resource.data.reportedId is string &&
+        request.resource.data.reportedId != request.auth.uid &&
+        request.resource.data.reason in ['spam', 'harassment', 'inappropriate',
+                                         'impersonation', 'other'] &&
+        request.resource.data.messages is list &&
+        request.resource.data.messages.size() <= 5 &&
+        request.resource.data.createdAt == request.time &&
+        (request.resource.data.get('chatId', null) == null ||
+         request.auth.uid in request.resource.data.chatId.split('_'));
+      allow read, update, delete: if false;
     }
 
     // Whether a user's app is on screen, and the server time it last said so,

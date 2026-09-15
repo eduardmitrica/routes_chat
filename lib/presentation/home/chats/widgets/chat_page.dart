@@ -14,6 +14,9 @@ import 'package:routes_chat/domain/shared/user/current_user_session_interface.da
 import 'package:routes_chat/application/chats/chats_watcher/chats_watcher_bloc.dart';
 import 'package:routes_chat/application/chats/messages/messages_watcher/messages_watcher_bloc.dart';
 import 'package:routes_chat/application/chats/messages/message_actor/message_actor_bloc.dart';
+import 'package:routes_chat/application/safety/block_list_bloc.dart';
+import 'package:routes_chat/application/safety/report_bloc.dart';
+import 'package:routes_chat/domain/safety/safety_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message_changes.dart';
 import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
 import 'package:routes_chat/domain/chats/messages/message_failure.dart'
@@ -44,6 +47,7 @@ import 'message_composer.dart';
 import 'messages_skeleton.dart';
 import 'open_link_dialog.dart';
 import 'outgoing_message_bubble.dart';
+import 'safety_dialogs.dart';
 import 'swipe_to_reply.dart';
 
 class ChatPage extends StatelessWidget {
@@ -108,6 +112,10 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
   final _media = getIt<IMediaRepository>();
   final _activity = getIt<ChatActivityBloc>();
   final _actor = getIt<MessageActorBloc>();
+
+  /// One for the app: never closed here.
+  final _blockList = getIt<BlockListBloc>();
+  final _report = getIt<ReportBloc>();
   UniqueId? _chatId;
 
   Timer? _searchDebounce;
@@ -152,6 +160,7 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
     _highlightTimer?.cancel();
     unawaited(_activity.close());
     unawaited(_actor.close());
+    unawaited(_report.close());
     if (_chatId case final chatId?) OpenChat.closed(chatId);
     super.dispose();
   }
@@ -181,6 +190,119 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
       senderId.getOrCrash() == widget.otherUser.id.getOrCrash();
 
   String? get _myId => getIt<ICurrentUserSession>().current?.id;
+
+  bool _blocks(BlockListState state) =>
+      state.blocks.isBlocked(widget.otherUser.id);
+
+  /// Blocks or unblocks the other person with [event], and whether it worked.
+  Future<bool> _changeBlock(BlockListEvent event) async {
+    final id = widget.otherUser.id.getOrCrash();
+    final failuresBefore = _blockList.state.failures;
+    final finished = _blockList.stream
+        .skipWhile((state) => !state.changing.contains(id))
+        .firstWhere((state) => !state.changing.contains(id))
+        .timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => _blockList.state,
+        );
+    _blockList.add(event);
+    return (await finished).failures == failuresBefore;
+  }
+
+  Future<void> _confirmBlock() async {
+    final name = widget.otherUser.username.getOrCrash();
+    if (!await confirmBlock(context, name) || !mounted) return;
+    final blocked = await _changeBlock(
+      BlockListEvent.blockRequested(widget.otherUser.id),
+    );
+    if (!mounted) return;
+    _tell(
+      blocked
+          ? '$name is blocked.'
+          : '$name couldn\'t be blocked. Check your connection and try again.',
+    );
+  }
+
+  Future<void> _unblock() async {
+    final name = widget.otherUser.username.getOrCrash();
+    final unblocked = await _changeBlock(
+      BlockListEvent.unblockRequested(widget.otherUser.id),
+    );
+    if (!mounted) return;
+    _tell(
+      unblocked
+          ? '$name is unblocked. What they sent while blocked stays hidden.'
+          : '$name couldn\'t be unblocked. Check your connection and try '
+                'again.',
+    );
+  }
+
+  /// The chat's last few readable messages, as a report shares them.
+  List<ReportedMessage> _recentForReport() {
+    final messages = _messages?.state.messages;
+    if (messages == null) return const [];
+    final readable = [
+      for (final message in messages.iter)
+        if (message.isReadable &&
+            !message.isDeleted &&
+            message.lastUpdatedAt != null)
+          message,
+    ];
+    final recent = readable.length > ReportedMessage.maxPerReport
+        ? readable.sublist(readable.length - ReportedMessage.maxPerReport)
+        : readable;
+    return [
+      for (final message in recent)
+        ReportedMessage(
+          messageId: message.id,
+          senderId: message.senderId,
+          text: summaryOf(
+            message.content.getOrCrash(),
+            message.attachments.iter.map((attachment) => attachment.kind),
+          ),
+          sentAt: message.lastUpdatedAt!,
+        ),
+    ];
+  }
+
+  Future<void> _openReport() async {
+    final name = widget.otherUser.username.getOrCrash();
+    final recent = _recentForReport();
+    final choice = await askReport(
+      context,
+      name: name,
+      canShareMessages: recent.isNotEmpty,
+      alreadyBlocked: _blocks(_blockList.state),
+    );
+    if (choice == null || !mounted) return;
+    final before = _report.state;
+    final finished = _report.stream
+        .firstWhere(
+          (state) =>
+              !state.submitting &&
+              (state.sent != before.sent || state.failures != before.failures),
+        )
+        .timeout(const Duration(seconds: 60), onTimeout: () => _report.state);
+    _report.add(
+      ReportEvent.submitted(
+        reportedId: widget.otherUser.id,
+        chatId: widget.chat?.id ?? _chatId,
+        reason: choice.reason,
+        messages: choice.shareMessages ? recent : const [],
+        alsoBlock: choice.alsoBlock,
+      ),
+    );
+    final result = await finished;
+    if (!mounted) return;
+    _tell(
+      result.failures > before.failures
+          ? 'The report couldn\'t be sent. Check your connection and try '
+                'again.'
+          : result.lastAlsoBlocked
+          ? 'Thanks for reporting. $name is blocked.'
+          : 'Thanks for reporting.',
+    );
+  }
 
   void _tell(String text) => ScaffoldMessenger.of(context)
     ..hideCurrentSnackBar()
@@ -760,10 +882,20 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
                 // search.
                 Offstage(
                   offstage: _searchOpen,
-                  child: _ChatBar(
-                    chat: chat,
-                    otherUser: widget.otherUser,
-                    focusNode: _composerFocus,
+                  child: BlocBuilder<BlockListBloc, BlockListState>(
+                    bloc: _blockList,
+                    buildWhen: (previous, current) =>
+                        _blocks(previous) != _blocks(current),
+                    builder: (context, state) => _blocks(state)
+                        ? BlockedChatBar(
+                            name: widget.otherUser.username.getOrCrash(),
+                            onUnblock: () => unawaited(_unblock()),
+                          )
+                        : _ChatBar(
+                            chat: chat,
+                            otherUser: widget.otherUser,
+                            focusNode: _composerFocus,
+                          ),
                   ),
                 ),
               ],
@@ -790,6 +922,30 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
           onPressed: _openSearch,
           icon: const Icon(Icons.search),
         ),
+      BlocBuilder<BlockListBloc, BlockListState>(
+        bloc: _blockList,
+        buildWhen: (previous, current) => _blocks(previous) != _blocks(current),
+        builder: (context, state) => PopupMenuButton<VoidCallback>(
+          tooltip: 'More options',
+          icon: const Icon(Icons.more_vert_rounded),
+          onSelected: (action) => action(),
+          itemBuilder: (context) => [
+            _blocks(state)
+                ? PopupMenuItem(
+                    value: () => unawaited(_unblock()),
+                    child: const Text('Unblock'),
+                  )
+                : PopupMenuItem(
+                    value: () => unawaited(_confirmBlock()),
+                    child: const Text('Block'),
+                  ),
+            PopupMenuItem(
+              value: () => unawaited(_openReport()),
+              child: const Text('Report'),
+            ),
+          ],
+        ),
+      ),
       Padding(
         padding: const EdgeInsets.only(left: 4, right: 12),
         child: CircleAvatar(

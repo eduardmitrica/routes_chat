@@ -35,6 +35,8 @@ The project has no `(default)` database.
 | `presence/{uid}` | `state` (`online`/`offline`), `lastSeenAt` (server time) | The owner and their friends (accepted friend request); never listed |
 | `chats/{pairId}/typing/{uid}` | `typingAt` (server time) | The two people; each writes only their own |
 | `chats/{pairId}/reads/{uid}` | `messageId`, `messageSentAt` (that message's send time, which the rules check), `readAt` (server time). Only while the user shares read receipts | The two people; each writes and deletes only their own |
+| `users/{uid}/blocks/{blockedUid}` | `blockedSince` (server time, while blocked), `earlier` (past blocks, at most 100). A block is silent: what a blocked person sends is stored as usual and hidden by the blocker's app; the notification functions skip it | The owner only (and the functions, with the Admin SDK) |
+| `reports/{id}` | `reporterId`, `reportedId`, `chatId`, `reason` (literal), `messages` (at most 5, readable, only if the reporter ticked it), `createdAt` | Nobody from the app; the owner reviews them in the Firebase console |
 | `userKeys/{uid}` | Public key, key version | Any signed-in user |
 | `usernames/{name}` | `uid`: the uniqueness index | Anyone can get one; no listing |
 | `friendRequests/{pairId}` | Sender, receiver, sorted `participantIds`, status | The two people |

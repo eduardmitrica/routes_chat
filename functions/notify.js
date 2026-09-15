@@ -57,4 +57,13 @@ function deadTokens(tokens, responses) {
     .filter((token) => token !== null);
 }
 
-module.exports = { CHANNELS, recipientsOf, notificationFor, friendRequestNotificationFor, deadTokens };
+/**
+ * Whether the block a user keeps for someone (users/{uid}/blocks/{other})
+ * says that person is blocked now. A block is silent: what a blocked person
+ * sends is stored as usual, and simply not announced.
+ */
+function isBlocking(blockData) {
+  return Boolean(blockData && blockData.blockedSince);
+}
+
+module.exports = { CHANNELS, recipientsOf, notificationFor, friendRequestNotificationFor, deadTokens, isBlocking };

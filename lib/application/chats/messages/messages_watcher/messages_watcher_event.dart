@@ -20,26 +20,10 @@ sealed class MessagesWatcherEvent extends Equatable {
   ) = MessagesReactionsReceived;
   const factory MessagesWatcherEvent.messageChanged(Message message) =
       MessageChanged;
+  const factory MessagesWatcherEvent.blocksChanged() = MessagesBlocksChanged;
 
   @override
   List<Object?> get props => const [];
-}
-
-/// The reactions to the messages loaded changed, or could not be loaded.
-final class MessagesReactionsReceived extends MessagesWatcherEvent {
-  final Either<MessageFailure, KtList<MessageReaction>> failureOrReactions;
-  const MessagesReactionsReceived(this.failureOrReactions);
-  @override
-  List<Object?> get props => [failureOrReactions];
-}
-
-/// The user edited or deleted [message]. It shows as it is now even when it
-/// is on an older page, which does not update by itself.
-final class MessageChanged extends MessagesWatcherEvent {
-  final Message message;
-  const MessageChanged(this.message);
-  @override
-  List<Object?> get props => [message];
 }
 
 /// Start showing [chatId]'s messages, newest page first.
@@ -83,4 +67,26 @@ final class MessageRevealRequested extends MessagesWatcherEvent {
   const MessageRevealRequested(this.messageId);
   @override
   List<Object?> get props => [messageId];
+}
+
+/// The reactions to the messages loaded changed, or could not be loaded.
+final class MessagesReactionsReceived extends MessagesWatcherEvent {
+  final Either<MessageFailure, KtList<MessageReaction>> failureOrReactions;
+  const MessagesReactionsReceived(this.failureOrReactions);
+  @override
+  List<Object?> get props => [failureOrReactions];
+}
+
+/// The user edited or deleted [message]. It shows as it is now even when it
+/// is on an older page, which does not update by itself.
+final class MessageChanged extends MessagesWatcherEvent {
+  final Message message;
+  const MessageChanged(this.message);
+  @override
+  List<Object?> get props => [message];
+}
+
+/// The user blocked or unblocked someone.
+final class MessagesBlocksChanged extends MessagesWatcherEvent {
+  const MessagesBlocksChanged();
 }

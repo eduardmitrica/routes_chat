@@ -9,7 +9,8 @@ import '../../domain/shared/user/current_user_session_interface.dart';
 /// While the app is on screen it says so every [defaultHeartbeat], so a phone
 /// that dies without saying goodbye stops counting as online soon after. When
 /// the app leaves the screen it says so at once. Turning sharing off deletes
-/// what friends could see.
+/// what friends could see, and turning read receipts off deletes how far the
+/// user has read in every chat.
 class PresenceReporter {
   static const defaultHeartbeat = Duration(seconds: 45);
 
@@ -21,12 +22,16 @@ class PresenceReporter {
   Timer? _timer;
   var _onScreen = false;
 
+  /// Whether the user shared read receipts before the last change.
+  bool _sharedReads;
+
   PresenceReporter(
     this._presence,
     this._privacy,
     this._session, {
     Duration heartbeat = defaultHeartbeat,
-  }) : _heartbeat = heartbeat {
+  }) : _heartbeat = heartbeat,
+       _sharedReads = _privacy.privacy.shareReadReceipts {
     _privacy.privacyChanges.listen(_privacyChanged);
     _session.ended.listen((_) => _stopHeartbeat());
   }
@@ -62,6 +67,11 @@ class PresenceReporter {
   }
 
   void _privacyChanged(PrivacySettings settings) {
+    // Read receipts turned off: others no longer see how far the user read.
+    if (_sharedReads && !settings.shareReadReceipts) {
+      unawaited(_presence.clearReads());
+    }
+    _sharedReads = settings.shareReadReceipts;
     if (!settings.shareOnline) {
       _stopHeartbeat();
       final uid = _session.current?.id;

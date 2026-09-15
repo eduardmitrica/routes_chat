@@ -34,6 +34,7 @@ The project has no `(default)` database.
 | `users/{uid}/fcmTokens/{token}` | `platform`, `updatedAt` | The owner |
 | `presence/{uid}` | `state` (`online`/`offline`), `lastSeenAt` (server time) | The owner and their friends (accepted friend request); never listed |
 | `chats/{pairId}/typing/{uid}` | `typingAt` (server time) | The two people; each writes only their own |
+| `chats/{pairId}/reads/{uid}` | `messageId`, `messageSentAt` (that message's send time, which the rules check), `readAt` (server time). Only while the user shares read receipts | The two people; each writes and deletes only their own |
 | `userKeys/{uid}` | Public key, key version | Any signed-in user |
 | `usernames/{name}` | `uid`: the uniqueness index | Anyone can get one; no listing |
 | `friendRequests/{pairId}` | Sender, receiver, sorted `participantIds`, status | The two people |

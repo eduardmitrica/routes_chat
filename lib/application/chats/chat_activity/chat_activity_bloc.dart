@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../domain/chats/chat_reads.dart';
+import '../../../domain/chats/messages/message.dart';
 import '../../../domain/core/value_objects.dart';
 import '../../../domain/presence/presence.dart';
 import '../../../domain/presence/presence_repository_interface.dart';
@@ -17,6 +19,9 @@ sealed class ChatActivityEvent extends Equatable {
     required UniqueId otherUserId,
   }) = ChatActivityStarted;
 
+  /// The chat is on screen, showing messages up to [newest].
+  const factory ChatActivityEvent.messagesShown(Message newest) = MessagesShown;
+
   @override
   List<Object?> get props => const [];
 }
@@ -27,6 +32,13 @@ final class ChatActivityStarted extends ChatActivityEvent {
   const ChatActivityStarted({required this.chatId, required this.otherUserId});
   @override
   List<Object?> get props => [chatId, otherUserId];
+}
+
+final class MessagesShown extends ChatActivityEvent {
+  final Message newest;
+  const MessagesShown(this.newest);
+  @override
+  List<Object?> get props => [newest];
 }
 
 final class _TypingSeen extends ChatActivityEvent {
@@ -41,6 +53,13 @@ final class _PresenceSeen extends ChatActivityEvent {
   const _PresenceSeen(this.presence);
   @override
   List<Object?> get props => [presence];
+}
+
+final class _ReadSeen extends ChatActivityEvent {
+  final DateTime? readUpTo;
+  const _ReadSeen(this.readUpTo);
+  @override
+  List<Object?> get props => [readUpTo];
 }
 
 final class _PrivacyChanged extends ChatActivityEvent {
@@ -63,24 +82,30 @@ final class ChatActivityState extends Equatable {
   /// When they were last in the app, unless [online].
   final DateTime? lastSeen;
 
+  /// When the newest message they have read was sent. Every message sent
+  /// then or before is seen.
+  final DateTime? seenUpTo;
+
   const ChatActivityState({
     this.typing = false,
     this.online = false,
     this.lastSeen,
+    this.seenUpTo,
   });
 
   @override
-  List<Object?> get props => [typing, online, lastSeen];
+  List<Object?> get props => [typing, online, lastSeen, seenUpTo];
 }
 
-/// Whether the other person in a chat is typing, online, or when they were
-/// last seen.
+/// Whether the other person in a chat is typing, online, when they were last
+/// seen, and how far they have read; and how far the user has read.
 ///
 /// Typing shows for [defaultTypingShownFor] after each word from their phone,
 /// which refreshes it while they type, so it ends even if their app dies. A
 /// typing mark older than [defaultTypingIgnoredAfter] is from before, and
 /// ignored. They count as online while their app said so within
-/// [defaultOnlineWithin]. Nothing is watched that the user does not share.
+/// [defaultOnlineWithin]. Nothing is watched that the user does not share,
+/// and the user's own reading is told to others only while they share it.
 class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
   static const defaultTypingShownFor = Duration(seconds: 6);
   static const defaultTypingIgnoredAfter = Duration(seconds: 30);
@@ -88,6 +113,7 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
 
   final IPresenceRepository _presence;
   final IPrivacySettingsReader _privacy;
+  final IChatReads? _reads;
   final DateTime Function() _now;
   final Duration _typingShownFor;
   final Duration _typingIgnoredAfter;
@@ -97,20 +123,29 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
   UniqueId? _otherUserId;
   StreamSubscription<DateTime?>? _typing;
   StreamSubscription<Presence?>? _presenceWatch;
+  StreamSubscription<DateTime?>? _readWatch;
   StreamSubscription<PrivacySettings>? _privacyWatch;
   Timer? _typingEnds;
   Timer? _presenceCheck;
   DateTime? _typingUntil;
   Presence? _lastPresence;
+  DateTime? _seenUpTo;
+
+  /// The newest message shown, and the send time of the newest one others
+  /// were told the user read.
+  Message? _newestShown;
+  DateTime? _reportedUpTo;
 
   ChatActivityBloc(
     this._presence,
     this._privacy, {
+    IChatReads? reads,
     DateTime Function()? now,
     Duration typingShownFor = defaultTypingShownFor,
     Duration typingIgnoredAfter = defaultTypingIgnoredAfter,
     Duration onlineWithin = defaultOnlineWithin,
-  }) : _now = now ?? DateTime.now,
+  }) : _reads = reads,
+       _now = now ?? DateTime.now,
        _typingShownFor = typingShownFor,
        _typingIgnoredAfter = typingIgnoredAfter,
        _onlineWithin = onlineWithin,
@@ -127,8 +162,18 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
           _follow(_privacy.privacy);
           emit(_current());
 
+        case MessagesShown(:final newest):
+          final chatId = _chatId;
+          final sentAt = newest.lastUpdatedAt;
+          if (chatId == null || sentAt == null) return;
+          final shown = _newestShown?.lastUpdatedAt;
+          if (shown == null || sentAt.isAfter(shown)) _newestShown = newest;
+          _reportRead(_privacy.privacy);
+          await _reads?.markRead(chatId, sentAt);
+
         case _PrivacyChanged(:final settings):
           _follow(settings);
+          _reportRead(settings);
           emit(_current());
 
         case _TypingSeen(:final typingAt):
@@ -149,10 +194,32 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
           _lastPresence = presence;
           emit(_current());
 
+        case _ReadSeen(:final readUpTo):
+          _seenUpTo = readUpTo;
+          emit(_current());
+
         case _Tick():
           emit(_current());
       }
     });
+  }
+
+  /// Tells others the user has read up to the newest message shown, while
+  /// the user shares it, and only when that is further than before.
+  void _reportRead(PrivacySettings settings) {
+    final chatId = _chatId;
+    final newest = _newestShown;
+    final sentAt = newest?.lastUpdatedAt;
+    if (!settings.shareReadReceipts ||
+        chatId == null ||
+        newest == null ||
+        sentAt == null) {
+      return;
+    }
+    final reported = _reportedUpTo;
+    if (reported != null && !sentAt.isAfter(reported)) return;
+    _reportedUpTo = sentAt;
+    unawaited(_presence.markRead(chatId, newest.id));
   }
 
   /// Watches what the user shares, and stops watching what they don't.
@@ -187,6 +254,18 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
       _presenceCheck = null;
       _lastPresence = null;
     }
+
+    if (settings.shareReadReceipts) {
+      _readWatch ??= _presence
+          .watchReadUpTo(chatId, otherUserId)
+          .listen((readUpTo) => add(_ReadSeen(readUpTo)));
+    } else {
+      unawaited(_readWatch?.cancel());
+      _readWatch = null;
+      _seenUpTo = null;
+      // Turned on again, the newest message shown is reported again.
+      _reportedUpTo = null;
+    }
   }
 
   ChatActivityState _current() {
@@ -205,6 +284,7 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
           now.isBefore(typingUntil),
       online: online,
       lastSeen: online ? null : presence?.lastSeenAt,
+      seenUpTo: settings.shareReadReceipts ? _seenUpTo : null,
     );
   }
 
@@ -214,6 +294,7 @@ class ChatActivityBloc extends Bloc<ChatActivityEvent, ChatActivityState> {
     _presenceCheck?.cancel();
     await _typing?.cancel();
     await _presenceWatch?.cancel();
+    await _readWatch?.cancel();
     await _privacyWatch?.cancel();
     return super.close();
   }

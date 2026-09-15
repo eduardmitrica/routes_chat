@@ -11,16 +11,28 @@ final class PrivacySettings extends Equatable {
   /// see others.
   final bool shareOnline;
 
-  const PrivacySettings({this.shareTyping = true, this.shareOnline = true});
+  /// Whether others see when this user has read their messages, and they see
+  /// when others read theirs.
+  final bool shareReadReceipts;
 
-  PrivacySettings copyWith({bool? shareTyping, bool? shareOnline}) =>
-      PrivacySettings(
-        shareTyping: shareTyping ?? this.shareTyping,
-        shareOnline: shareOnline ?? this.shareOnline,
-      );
+  const PrivacySettings({
+    this.shareTyping = true,
+    this.shareOnline = true,
+    this.shareReadReceipts = true,
+  });
+
+  PrivacySettings copyWith({
+    bool? shareTyping,
+    bool? shareOnline,
+    bool? shareReadReceipts,
+  }) => PrivacySettings(
+    shareTyping: shareTyping ?? this.shareTyping,
+    shareOnline: shareOnline ?? this.shareOnline,
+    shareReadReceipts: shareReadReceipts ?? this.shareReadReceipts,
+  );
 
   @override
-  List<Object?> get props => [shareTyping, shareOnline];
+  List<Object?> get props => [shareTyping, shareOnline, shareReadReceipts];
 }
 
 /// The user's current privacy settings, and their changes.

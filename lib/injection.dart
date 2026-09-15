@@ -67,6 +67,8 @@ import 'infrastructure/presence/firestore_presence_repository.dart';
 import 'application/chats/messages/message_actor/message_actor_bloc.dart';
 import 'domain/chats/messages/emoji_usage.dart';
 import 'infrastructure/chats/messages/emoji_preferences_store.dart';
+import 'domain/chats/chat_reads.dart';
+import 'infrastructure/chats/chat_reads_store.dart';
 
 final getIt = GetIt.instance;
 
@@ -216,6 +218,9 @@ void configureDependencies() {
     ..registerLazySingleton<IEmojiPreferences>(
       () => EmojiPreferencesStore(getIt<LocalVault>()),
     )
+    ..registerLazySingleton<IChatReads>(
+      () => ChatReadsStore(getIt<LocalVault>(), getIt<ICurrentUserSession>()),
+    )
     // A singleton: it holds the session's opened chat keys.
     ..registerLazySingleton<ChatKeyring>(
       () => ChatKeyring(
@@ -270,6 +275,7 @@ void configureDependencies() {
       () => ChatActivityBloc(
         getIt<IPresenceRepository>(),
         getIt<IPrivacySettingsReader>(),
+        reads: getIt<IChatReads>(),
       ),
     )
     ..registerFactory<RegisterFormBloc>(
@@ -313,6 +319,7 @@ void configureDependencies() {
       () => ChatsWatcherBloc(
         getIt<IChatRepository>(),
         getIt<ICurrentUserSession>(),
+        reads: getIt<IChatReads>(),
       ),
     )
     ..registerFactory<MessagesWatcherBloc>(

@@ -93,7 +93,7 @@ class _ChatView extends StatefulWidget {
   State<_ChatView> createState() => _ChatViewState();
 }
 
-class _ChatViewState extends State<_ChatView> {
+class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
   /// How close to the oldest loaded message, in pixels, the next page loads.
   static const _loadOlderWithin = 800.0;
 
@@ -118,6 +118,7 @@ class _ChatViewState extends State<_ChatView> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _scrollController.addListener(_loadOlderIfNearTop);
     // Brings back what the user wrote here and did not send.
     _chatBar.add(ChatBarEvent.started(widget.otherUser.id));
@@ -140,6 +141,7 @@ class _ChatViewState extends State<_ChatView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scrollController
       ..removeListener(_loadOlderIfNearTop)
       ..dispose();
@@ -156,6 +158,24 @@ class _ChatViewState extends State<_ChatView> {
 
   MessagesWatcherBloc? get _messages =>
       widget.chat == null ? null : context.read<MessagesWatcherBloc>();
+
+  /// Back on screen with the chat open: what it shows is read now.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _reportShown();
+  }
+
+  /// Says the chat shows messages up to the newest loaded, while the app is
+  /// on screen. A message that arrives with the app in the background is not
+  /// read until the user comes back.
+  void _reportShown([MessagesWatcherState? state]) {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    final newest = (state ?? _messages?.state)?.messages.lastOrNull();
+    if (newest != null) {
+      _activity.add(ChatActivityEvent.messagesShown(newest));
+    }
+  }
 
   bool _isFromOtherUser(UniqueId senderId) =>
       senderId.getOrCrash() == widget.otherUser.id.getOrCrash();
@@ -840,6 +860,7 @@ class _ChatViewState extends State<_ChatView> {
           WidgetsBinding.instance.addPostFrameCallback(
             (_) => _loadOlderIfNearTop(),
           );
+          _reportShown(state);
         },
         buildWhen: (previous, current) =>
             previous.status != current.status ||
@@ -866,6 +887,16 @@ class _ChatViewState extends State<_ChatView> {
         builder: (context, chatBar) {
           final items = _timeline(chat, state);
           final outgoing = _stillOutgoing(chatBar.outgoing, state.messages);
+          // "Seen" goes under the newest message when the user sent it, and
+          // nothing of theirs is still on its way below it.
+          final newest = state.messages.lastOrNull();
+          final seenCandidateId =
+              outgoing.isEmpty &&
+                  newest != null &&
+                  !newest.isDeleted &&
+                  !_isFromOtherUser(newest.senderId)
+              ? newest.id.getOrCrash()
+              : null;
           return Stack(
             fit: StackFit.expand,
             children: [
@@ -886,7 +917,10 @@ class _ChatViewState extends State<_ChatView> {
                   }
                   final itemIndex = index - outgoing.length;
                   return itemIndex < items.length
-                      ? _row(items[items.length - 1 - itemIndex])
+                      ? _row(
+                          items[items.length - 1 - itemIndex],
+                          seenCandidateId: seenCandidateId,
+                        )
                       : const MessagesSkeleton.older();
                 },
               ),
@@ -902,10 +936,13 @@ class _ChatViewState extends State<_ChatView> {
         },
       );
 
-  Widget _row(ChatTimelineItem item) {
+  Widget _row(ChatTimelineItem item, {String? seenCandidateId}) {
     final otherUser = widget.otherUser;
     return switch (item) {
-      MessageItem(:final message) => _messageRow(message),
+      MessageItem(:final message) => _messageRow(
+        message,
+        seenCandidate: message.id.getOrCrash() == seenCandidateId,
+      ),
       UnreadableMessagesItem(:final count) => _ChatNotice(
         icon: Icons.lock_outline,
         text: count == 1
@@ -932,7 +969,24 @@ class _ChatViewState extends State<_ChatView> {
         : 'You';
   }
 
-  Widget _messageRow(Message message) {
+  /// [message] in the chat, with "Seen" under it once the other person has
+  /// read it, when it is the [seenCandidate].
+  Widget _messageRow(Message message, {bool seenCandidate = false}) {
+    final sentAt = message.lastUpdatedAt;
+    // Always a column, so a message that stops being the newest keeps its
+    // state, such as which photo a carousel shows.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _bubbleRow(message),
+        if (seenCandidate && sentAt != null)
+          _SeenLabel(activity: _activity, sentAt: sentAt),
+      ],
+    );
+  }
+
+  Widget _bubbleRow(Message message) {
     final id = message.id.getOrCrash();
     final quote = message.replyTo;
     final bubble = MessageBubble(
@@ -1292,6 +1346,45 @@ class _ChatTitle extends StatelessWidget {
                 ),
               ),
           ],
+        );
+      },
+    );
+  }
+}
+
+/// "Seen" under the user's newest message, once the other person has read
+/// it, as far as both share read receipts.
+class _SeenLabel extends StatelessWidget {
+  final ChatActivityBloc activity;
+
+  /// When the message was sent.
+  final DateTime sentAt;
+
+  const _SeenLabel({required this.activity, required this.sentAt});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return BlocBuilder<ChatActivityBloc, ChatActivityState>(
+      bloc: activity,
+      buildWhen: (previous, current) => previous.seenUpTo != current.seenUpTo,
+      builder: (context, state) {
+        final seenUpTo = state.seenUpTo;
+        final seen = seenUpTo != null && !seenUpTo.isBefore(sentAt);
+        return Semantics(
+          liveRegion: true,
+          child: seen
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 2, 18, 4),
+                  child: Text(
+                    'Seen',
+                    textAlign: TextAlign.end,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
         );
       },
     );

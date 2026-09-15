@@ -48,6 +48,9 @@ class EncryptionGatePage extends StatelessWidget {
                 return;
               }
               state.failureOption.fold(() {}, (failure) {
+                // Said under the field instead, where it stays until the
+                // user types again.
+                if (failure is RecoveryKeyNotConfirmed) return;
                 ScaffoldMessenger.of(context)
                   ..hideCurrentSnackBar()
                   ..showSnackBar(
@@ -96,6 +99,7 @@ class EncryptionGatePage extends StatelessWidget {
                   key: ValueKey(state.recoveryKeyToShow),
                   recoveryKey: state.recoveryKeyToShow.getOrElse(() => ''),
                   groupNumber: state.confirmationGroup + 1,
+                  rejections: state.rejectedConfirmations,
                   onConfirmed: (typedGroup) => bloc.add(
                     EncryptionEvent.recoveryKeyConfirmed(typedGroup),
                   ),

@@ -402,6 +402,45 @@ service cloud.firestore {
           isOwnEncryptedMessage(request.resource.data, messageFields(),
                                 chatAfter().currentKeyGeneration);
       }
+
+      // Who is typing in the chat: one document per participant, holding the
+      // server time they last typed and nothing else. Only the chat's
+      // participants, whose ids make up the chat id, read it, and each writes
+      // only their own. The read decides from the ids, so it also works before
+      // anyone typed.
+      match /typing/{userId} {
+        allow read: if signedIn() && request.auth.uid in chatId.split('_');
+        allow create, update: if signedIn() &&
+          request.auth.uid == userId &&
+          userId in chatId.split('_') &&
+          request.resource.data.keys().hasOnly(['typingAt']) &&
+          request.resource.data.typingAt == request.time;
+        allow delete: if signedIn() && request.auth.uid == userId;
+      }
+    }
+
+    // Whether a user's app is on screen, and the server time it last said so,
+    // for their friends. Only the user writes it, and only people with an
+    // accepted friend request with them read it. That request's id is both
+    // uids sorted and joined with "_", so the rule finds it without a query.
+    match /presence/{userId} {
+      function friendsWithCaller() {
+        let pair = request.auth.uid < userId
+          ? request.auth.uid + '_' + userId
+          : userId + '_' + request.auth.uid;
+        let requestPath = /databases/$(database)/documents/friendRequests/$(pair);
+        return exists(requestPath) && get(requestPath).data.status == 'Accepted';
+      }
+
+      allow get: if signedIn() &&
+        (request.auth.uid == userId || friendsWithCaller());
+      allow list: if false;
+      allow create, update: if signedIn() &&
+        request.auth.uid == userId &&
+        request.resource.data.keys().hasOnly(['state', 'lastSeenAt']) &&
+        request.resource.data.state in ['online', 'offline'] &&
+        request.resource.data.lastSeenAt == request.time;
+      allow delete: if signedIn() && request.auth.uid == userId;
     }
   }
 }

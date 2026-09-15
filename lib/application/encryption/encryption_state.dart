@@ -54,6 +54,11 @@ final class EncryptionState extends Equatable {
   /// How the user confirms their sign-in before a reset.
   final SignInMethod resetSignInMethod;
 
+  /// How many times the user typed back a group that did not match. Each
+  /// wrong group changes it, so the page can say so every time, not only the
+  /// first: the failure itself is the same each time.
+  final int rejectedConfirmations;
+
   const EncryptionState({
     required this.phase,
     required this.isWorking,
@@ -61,6 +66,7 @@ final class EncryptionState extends Equatable {
     required this.recoveryKeyToShow,
     required this.confirmationGroup,
     required this.resetSignInMethod,
+    this.rejectedConfirmations = 0,
   });
 
   factory EncryptionState.initial() => EncryptionState(
@@ -79,6 +85,7 @@ final class EncryptionState extends Equatable {
     Option<String>? recoveryKeyToShow,
     int? confirmationGroup,
     SignInMethod? resetSignInMethod,
+    int? rejectedConfirmations,
   }) => EncryptionState(
     phase: phase ?? this.phase,
     isWorking: isWorking ?? this.isWorking,
@@ -86,6 +93,7 @@ final class EncryptionState extends Equatable {
     recoveryKeyToShow: recoveryKeyToShow ?? this.recoveryKeyToShow,
     confirmationGroup: confirmationGroup ?? this.confirmationGroup,
     resetSignInMethod: resetSignInMethod ?? this.resetSignInMethod,
+    rejectedConfirmations: rejectedConfirmations ?? this.rejectedConfirmations,
   );
 
   @override
@@ -96,6 +104,7 @@ final class EncryptionState extends Equatable {
     recoveryKeyToShow,
     confirmationGroup,
     resetSignInMethod,
+    rejectedConfirmations,
   ];
 
   @override
@@ -103,5 +112,6 @@ final class EncryptionState extends Equatable {
       'EncryptionState(phase: ${phase.name}, isWorking: $isWorking, '
       'failure: $failureOption, recoveryKeyShown: '
       '${recoveryKeyToShow.isSome()}, confirmationGroup: $confirmationGroup, '
-      'resetSignInMethod: ${resetSignInMethod.name})';
+      'resetSignInMethod: ${resetSignInMethod.name}, '
+      'rejectedConfirmations: $rejectedConfirmations)';
 }

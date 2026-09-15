@@ -32,6 +32,8 @@ The project has no `(default)` database.
 | `users/{uid}` | `username`, `imageUrl`, `description`. No email address. | Any signed-in user (username search) |
 | `users/{uid}/private/encryption` | The user's wrapped key bundle | The owner |
 | `users/{uid}/fcmTokens/{token}` | `platform`, `updatedAt` | The owner |
+| `presence/{uid}` | `state` (`online`/`offline`), `lastSeenAt` (server time) | The owner and their friends (accepted friend request); never listed |
+| `chats/{pairId}/typing/{uid}` | `typingAt` (server time) | The two people; each writes only their own |
 | `userKeys/{uid}` | Public key, key version | Any signed-in user |
 | `usernames/{name}` | `uid`: the uniqueness index | Anyone can get one; no listing |
 | `friendRequests/{pairId}` | Sender, receiver, sorted `participantIds`, status | The two people |

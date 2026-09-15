@@ -8,12 +8,17 @@ class RecoveryKeyConfirmation extends StatefulWidget {
   /// Which group, counting from 1, the user must type back.
   final int groupNumber;
 
+  /// How many groups typed back did not match. Each one shows an error under
+  /// the field, until the user types again.
+  final int rejections;
+
   final ValueChanged<String> onConfirmed;
 
   const RecoveryKeyConfirmation({
     super.key,
     required this.recoveryKey,
     required this.groupNumber,
+    this.rejections = 0,
     required this.onConfirmed,
   });
 
@@ -24,6 +29,13 @@ class RecoveryKeyConfirmation extends StatefulWidget {
 
 class _RecoveryKeyConfirmationState extends State<RecoveryKeyConfirmation> {
   final _typedGroup = TextEditingController();
+  var _showMismatch = false;
+
+  @override
+  void didUpdateWidget(RecoveryKeyConfirmation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.rejections > oldWidget.rejections) _showMismatch = true;
+  }
 
   @override
   void dispose() {
@@ -79,7 +91,17 @@ class _RecoveryKeyConfirmationState extends State<RecoveryKeyConfirmation> {
           autocorrect: false,
           enableSuggestions: false,
           textCapitalization: TextCapitalization.characters,
-          decoration: InputDecoration(labelText: 'Group ${widget.groupNumber}'),
+          decoration: InputDecoration(
+            labelText: 'Group ${widget.groupNumber}',
+            errorText: _showMismatch
+                ? 'That doesn\'t match group ${widget.groupNumber}. Check the '
+                      'key above and try again.'
+                : null,
+            errorMaxLines: 3,
+          ),
+          onChanged: (_) {
+            if (_showMismatch) setState(() => _showMismatch = false);
+          },
           onSubmitted: (_) => _confirm(),
         ),
         const SizedBox(height: 16),

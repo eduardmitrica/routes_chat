@@ -1,7 +1,13 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { recipientsOf, notificationFor, deadTokens } = require("./notify");
+const {
+  CHANNELS,
+  recipientsOf,
+  notificationFor,
+  friendRequestNotificationFor,
+  deadTokens,
+} = require("./notify");
 
 test("everyone in the chat except the sender is notified", () => {
   assert.deepEqual(recipientsOf(["alice", "bob"], "alice"), ["bob"]);
@@ -16,13 +22,35 @@ test("the notification says who wrote, never what", () => {
   const payload = notificationFor({ senderName: "eduard", chatId: "alice_bob" });
 
   assert.deepEqual(payload.notification, { title: "eduard", body: "New message" });
-  // Only the chat id travels as data; message text would leak past E2EE.
-  assert.deepEqual(payload.data, { chatId: "alice_bob" });
+  // Only the kind and the chat id travel as data; message text would leak
+  // past E2EE.
+  assert.deepEqual(payload.data, { type: "message", chatId: "alice_bob" });
   assert.deepEqual(Object.keys(payload).sort(), ["android", "apns", "data", "notification"]);
+});
+
+test("a message notification goes to the messages channel, one per chat", () => {
+  const { android } = notificationFor({ senderName: "eduard", chatId: "alice_bob" });
+
+  assert.deepEqual(android.notification, { tag: "alice_bob", channelId: CHANNELS.messages });
 });
 
 test("a sender without a readable profile still gets a title", () => {
   assert.equal(notificationFor({ senderName: undefined, chatId: "a_b" }).notification.title, "Someone");
+  assert.equal(
+    friendRequestNotificationFor({ senderName: undefined, requestId: "a_b" }).notification.title,
+    "Someone",
+  );
+});
+
+test("a friend request notification says who, on its own channel", () => {
+  const payload = friendRequestNotificationFor({ senderName: "eduard", requestId: "alice_bob" });
+
+  assert.deepEqual(payload.notification, { title: "eduard", body: "Sent you a friend request" });
+  assert.deepEqual(payload.data, { type: "friendRequest" });
+  assert.deepEqual(payload.android.notification, {
+    tag: "alice_bob",
+    channelId: CHANNELS.friendRequests,
+  });
 });
 
 test("only permanently invalid tokens are removed", () => {

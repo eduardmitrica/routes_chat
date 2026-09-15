@@ -11,6 +11,7 @@ import 'package:routes_chat/domain/authentication/sign_in_failure.dart'
     as sign_in;
 import 'package:routes_chat/domain/encryption/encryption_repository_interface.dart';
 import 'package:routes_chat/domain/notifications/push_token_registry_interface.dart';
+import 'package:routes_chat/domain/presence/presence_repository_interface.dart';
 import 'package:routes_chat/infrastructure/shared/user/current_user_session.dart';
 import 'package:routes_chat/presentation/core/theme/app_theme.dart';
 import 'package:routes_chat/presentation/register/register_page.dart';
@@ -30,7 +31,8 @@ class _FakeAuthFacade implements IAuthFacade {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _Unused implements IPushTokenRegistry, IEncryptionRepository {
+class _Unused
+    implements IPushTokenRegistry, IEncryptionRepository, IPresenceRepository {
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
@@ -92,6 +94,7 @@ void main() {
       final authentication = AuthenticationBloc(
         facade,
         CurrentUserSession(),
+        _Unused(),
         _Unused(),
         _Unused(),
       );

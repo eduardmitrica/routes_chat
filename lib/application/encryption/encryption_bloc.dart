@@ -93,6 +93,7 @@ class EncryptionBloc extends Bloc<EncryptionEvent, EncryptionState> {
                   )
                 : state.copyWith(
                     failureOption: some(const RecoveryKeyNotConfirmed()),
+                    rejectedConfirmations: state.rejectedConfirmations + 1,
                   ),
           );
 
@@ -258,5 +259,6 @@ class EncryptionBloc extends Bloc<EncryptionEvent, EncryptionState> {
     failureOption: none(),
     recoveryKeyToShow: some(formatted),
     confirmationGroup: _random.nextInt(_recoveryKeyGroups),
+    rejectedConfirmations: 0,
   );
 }

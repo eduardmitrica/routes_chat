@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/message_page.dart';
+import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
 import 'package:routes_chat/domain/chats/messages/message_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message_search.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
@@ -18,6 +19,8 @@ part 'messages_watcher_state.dart';
 
 /// A chat's messages, a page at a time: the newest page live, older pages as
 /// the user scrolls up, and every page back to the start while searching.
+/// Each message shows with the reactions to it, and a reply's quote follows
+/// the original when it is edited or deleted.
 class MessagesWatcherBloc
     extends Bloc<MessagesWatcherEvent, MessagesWatcherState> {
   static const pageSize = 30;
@@ -25,11 +28,20 @@ class MessagesWatcherBloc
   final IMessageRepository _messageRepository;
 
   StreamSubscription<Either<MessageFailure, MessagePage>>? _latestSubscription;
+  StreamSubscription<Either<MessageFailure, KtList<MessageReaction>>>?
+  _reactionsSubscription;
   UniqueId? _chatId;
 
-  /// Every message seen, by id. Messages are never deleted, so one that moves
-  /// out of the live page as new ones arrive stays shown.
+  /// Every message seen, by id. Messages are never removed, a deleted one
+  /// only emptied, so one that moves out of the live page as new ones arrive
+  /// stays shown.
   final _messagesById = <String, Message>{};
+
+  /// The reactions to the messages loaded, by message id.
+  var _reactionsByMessage = <String, KtList<MessageReaction>>{};
+
+  /// When the oldest message the reactions are watched for was sent.
+  DateTime? _reactionsSince;
 
   /// The older page being loaded, which a second request joins instead of
   /// loading it again.
@@ -103,12 +115,13 @@ class MessagesWatcherBloc
             emit(state.copyWith(revealingMessage: true));
             loading = await _loadOlderPage(emit);
           }
+          final message = _messagesById[id];
           emit(
             state.copyWith(
               revealingMessage: false,
               lastReveal: MessageReveal(
                 messageId,
-                message: _messagesById[id],
+                message: message == null ? null : _shown(message),
                 request: ++_reveals,
               ),
             ),
@@ -122,6 +135,26 @@ class MessagesWatcherBloc
               searchingOlder: false,
             ),
           );
+
+        case MessagesReactionsReceived(:final failureOrReactions):
+          // Without reactions, the messages still show.
+          if (failureOrReactions case Right(value: final reactions)) {
+            final byMessage = <String, List<MessageReaction>>{};
+            for (final reaction in reactions.iter) {
+              (byMessage[reaction.messageId.getOrCrash()] ??= []).add(reaction);
+            }
+            _reactionsByMessage = {
+              for (final MapEntry(:key, :value) in byMessage.entries)
+                key: value.toImmutableList(),
+            };
+            emit(_withMessages(state));
+          }
+
+        case MessageChanged(:final message):
+          final id = message.id.getOrCrash();
+          if (!_messagesById.containsKey(id)) return;
+          _messagesById[id] = message;
+          emit(_withMessages(state));
       }
     });
   }
@@ -172,13 +205,60 @@ class MessagesWatcherBloc
     for (final message in messages.iter) {
       _messagesById[message.id.getOrCrash()] = message;
     }
+    _watchReactionsToLoaded();
+  }
+
+  /// Watches the reactions to every message loaded, from the oldest: again
+  /// each time an older page goes further back.
+  void _watchReactionsToLoaded() {
+    final chatId = _chatId;
+    DateTime? oldest;
+    for (final message in _messagesById.values) {
+      final sentAt = message.lastUpdatedAt;
+      if (sentAt != null && (oldest == null || sentAt.isBefore(oldest))) {
+        oldest = sentAt;
+      }
+    }
+    final since = _reactionsSince;
+    if (chatId == null ||
+        oldest == null ||
+        (since != null && !oldest.isBefore(since))) {
+      return;
+    }
+    _reactionsSince = oldest;
+    unawaited(_reactionsSubscription?.cancel());
+    _reactionsSubscription = _messageRepository
+        .watchReactions(chatId, since: oldest)
+        .listen(
+          (failureOrReactions) =>
+              add(MessagesWatcherEvent.reactionsReceived(failureOrReactions)),
+        );
+  }
+
+  /// [message] as it shows: with the reactions to it, and when it is a reply
+  /// to a message loaded, with the quote as that message is now.
+  Message _shown(Message message) {
+    final quote = message.replyTo;
+    final original = quote == null
+        ? null
+        : _messagesById[quote.messageId.getOrCrash()];
+    return message.copyWith(
+      reactions: message.isDeleted
+          ? const KtList.empty()
+          : _reactionsByMessage[message.id.getOrCrash()] ??
+                const KtList.empty(),
+      replyTo: original == null ? quote : quote!.following(original),
+    );
   }
 
   MessagesWatcherState _withMessages(MessagesWatcherState next) =>
       _withSearchResults(
         next.copyWith(
-          messages: (_messagesById.values.toList()..sort(_bySendingTime))
-              .toImmutableList(),
+          messages: [
+            for (final message
+                in _messagesById.values.toList()..sort(_bySendingTime))
+              _shown(message),
+          ].toImmutableList(),
         ),
       );
 
@@ -191,6 +271,7 @@ class MessagesWatcherBloc
                 .filter(
                   (message) =>
                       message.isReadable &&
+                      !message.isDeleted &&
                       matchesSearch(
                         message.content.value.fold((_) => '', (text) => text),
                         query,
@@ -213,6 +294,7 @@ class MessagesWatcherBloc
   @override
   Future<void> close() async {
     await _latestSubscription?.cancel();
+    await _reactionsSubscription?.cancel();
     return super.close();
   }
 }

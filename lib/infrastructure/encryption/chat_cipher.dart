@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
+import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
 
 /// A chat's encryption failed. See the subclasses.
 abstract base class ChatEncryptionException implements Exception {
@@ -653,6 +654,107 @@ class ChatCipher {
       throw const UnreadableCiphertext();
     }
   }
+
+  /// How many bytes a reaction encrypts, whatever its emoji, so its length
+  /// tells nothing about which emoji it is.
+  static const reactionPayloadBytes = 128;
+
+  static const _reactionPurpose = 'routes_chat/v1/reaction';
+
+  /// Encrypts [emoji] as the reaction of [reactorId] to [messageId]: JSON
+  /// `{emoji, pad}`, padded with spaces to [reactionPayloadBytes].
+  ///
+  /// Throws [ArgumentError] for an empty emoji, or one longer than
+  /// [MessageReaction.maxEmojiBytes].
+  Future<EncryptedContent> encryptReaction(
+    String emoji, {
+    required SecretKey chatKey,
+    required String chatId,
+    required int keyGeneration,
+    required String messageId,
+    required String reactorId,
+  }) async {
+    final emojiBytes = utf8.encode(emoji).length;
+    if (emojiBytes == 0 || emojiBytes > MessageReaction.maxEmojiBytes) {
+      throw ArgumentError('A reaction is one emoji');
+    }
+    final unpadded = utf8.encode(jsonEncode({'emoji': emoji, 'pad': ''}));
+    final padded = utf8.encode(
+      jsonEncode({
+        'emoji': emoji,
+        'pad': ' ' * (reactionPayloadBytes - unpadded.length),
+      }),
+    );
+    final box = await _aead.encrypt(
+      padded,
+      secretKey: chatKey,
+      aad: _reactionAssociatedData(
+        chatId: chatId,
+        keyGeneration: keyGeneration,
+        messageId: messageId,
+        reactorId: reactorId,
+      ),
+    );
+    return EncryptedContent(
+      version: 1,
+      keyGeneration: keyGeneration,
+      nonce: Uint8List.fromList(box.nonce),
+      cipherText: Uint8List.fromList(box.cipherText),
+      mac: Uint8List.fromList(box.mac.bytes),
+    );
+  }
+
+  /// The emoji of a reaction [encryptReaction] made.
+  ///
+  /// Throws [UnreadableCiphertext] if [chatKey] is wrong, [content] belongs to
+  /// another chat, message or person or was altered, or it holds no emoji.
+  Future<String> decryptReaction(
+    EncryptedContent content, {
+    required SecretKey chatKey,
+    required String chatId,
+    required String messageId,
+    required String reactorId,
+  }) async {
+    if (content.version != 1) throw const UnreadableCiphertext();
+    final bytes = await _decrypt(
+      SecretBox(
+        content.cipherText,
+        nonce: content.nonce,
+        mac: Mac(content.mac),
+      ),
+      chatKey,
+      _reactionAssociatedData(
+        chatId: chatId,
+        keyGeneration: content.keyGeneration,
+        messageId: messageId,
+        reactorId: reactorId,
+      ),
+    );
+    try {
+      final json = jsonDecode(utf8.decode(bytes));
+      final emoji = json is Map ? json['emoji'] : null;
+      if (emoji is! String ||
+          emoji.isEmpty ||
+          utf8.encode(emoji).length > MessageReaction.maxEmojiBytes) {
+        throw const UnreadableCiphertext();
+      }
+      return emoji;
+    } on FormatException {
+      throw const UnreadableCiphertext();
+    }
+  }
+
+  static Uint8List _reactionAssociatedData({
+    required String chatId,
+    required int keyGeneration,
+    required String messageId,
+    required String reactorId,
+  }) => _associatedData(_reactionPurpose, [
+    chatId,
+    '$keyGeneration',
+    messageId,
+    reactorId,
+  ]);
 
   /// Bytes an encrypted file adds: a 12-byte nonce before the content and a
   /// 16-byte tag after it.

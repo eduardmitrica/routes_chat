@@ -67,11 +67,6 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
       id: UniqueId.fromUniqueString(lastMessage.id!),
       senderId: UniqueId.fromUniqueString(lastMessage.senderId),
       content: Content(lastMessageContent),
-      reactions: lastMessage.reactions
-          .map(
-            (reactionIdString) => UniqueId.fromUniqueString(reactionIdString),
-          )
-          .toImmutableList(),
       imageUrls: lastMessage.imageUrls
           .map((imageUrlString) => ImageUrl(imageUrlString))
           .toImmutableList(),
@@ -79,7 +74,8 @@ abstract class ChatDataTransferObject with _$ChatDataTransferObject {
 
       lastUpdatedAt: lastMessage.timeStamp,
       isReadable: lastMessageReadable,
-      keyGeneration: lastMessage.content.keyGeneration,
+      isDeleted: lastMessage.isDeleted,
+      keyGeneration: lastMessage.content?.keyGeneration ?? 1,
     ),
     // Every generation after the first was added by a participant who reset
     // their keys.

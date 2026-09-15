@@ -30,11 +30,16 @@ final class MessageQuote extends Equatable {
   /// A small preview of the original's first photo or GIF, if it has any.
   final Uint8List? thumbnail;
 
+  /// Whether the original was deleted since. The quote then keeps nothing
+  /// of it.
+  final bool originalDeleted;
+
   const MessageQuote({
     required this.messageId,
     required this.senderId,
     required this.text,
     this.thumbnail,
+    this.originalDeleted = false,
   });
 
   /// A quote of [message]: its text cut to [maxLength], never through the
@@ -61,12 +66,31 @@ final class MessageQuote extends Equatable {
     );
   }
 
+  /// The quote as [original], the message it quotes, is now. The reply
+  /// carries the quote as it was when sent, so once the original is edited
+  /// the quote shows its new text, and once it is deleted, nothing of it.
+  MessageQuote following(Message original) {
+    if (original.id != messageId) return this;
+    if (original.isDeleted) {
+      return MessageQuote(
+        messageId: messageId,
+        senderId: senderId,
+        text: '',
+        originalDeleted: true,
+      );
+    }
+    return original.isEdited && original.isReadable
+        ? MessageQuote.of(original)
+        : this;
+  }
+
   @override
   List<Object?> get props => [
     messageId,
     senderId,
     text,
     thumbnail == null ? null : base64Encode(thumbnail!),
+    originalDeleted,
   ];
 
   /// The id only: the text is decrypted content, which does not belong in

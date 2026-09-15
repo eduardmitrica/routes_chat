@@ -64,6 +64,7 @@ dependencies:
   flutter_image_compress: ^2.5.1
   gal: ^2.3.3
   connectivity_plus: ^7.3.1
+  emoji_picker_flutter: ^4.5.4
 
 dev_dependencies:
   flutter_test:

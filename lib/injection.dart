@@ -64,6 +64,9 @@ import 'domain/presence/presence_repository_interface.dart';
 import 'domain/settings/privacy_settings.dart';
 import 'infrastructure/notifications/firebase_notification_events.dart';
 import 'infrastructure/presence/firestore_presence_repository.dart';
+import 'application/chats/messages/message_actor/message_actor_bloc.dart';
+import 'domain/chats/messages/emoji_usage.dart';
+import 'infrastructure/chats/messages/emoji_preferences_store.dart';
 
 final getIt = GetIt.instance;
 
@@ -210,6 +213,9 @@ void configureDependencies() {
     )
     ..registerLazySingleton<IDraftRepository>(() => getIt<LocalChatStore>())
     ..registerLazySingleton<IOutboxRepository>(() => getIt<LocalChatStore>())
+    ..registerLazySingleton<IEmojiPreferences>(
+      () => EmojiPreferencesStore(getIt<LocalVault>()),
+    )
     // A singleton: it holds the session's opened chat keys.
     ..registerLazySingleton<ChatKeyring>(
       () => ChatKeyring(
@@ -284,6 +290,13 @@ void configureDependencies() {
     ..registerFactory<UserWatcherBloc>(
       () => UserWatcherBloc(getIt<IUserRepository>()),
     )
+    ..registerFactory<MessageActorBloc>(
+      () => MessageActorBloc(
+        getIt<IMessageRepository>(),
+        getIt<IEmojiPreferences>(),
+        getIt<ICurrentUserSession>(),
+      ),
+    )
     ..registerFactory<ChatBarBloc>(
       () => ChatBarBloc(
         getIt<ICurrentUserSession>(),
@@ -292,6 +305,8 @@ void configureDependencies() {
         getIt<MessageOutbox>(),
         presence: getIt<IPresenceRepository>(),
         privacy: getIt<IPrivacySettingsReader>(),
+        messages: getIt<IMessageRepository>(),
+        emojis: getIt<IEmojiPreferences>(),
       ),
     )
     ..registerFactory<ChatsWatcherBloc>(

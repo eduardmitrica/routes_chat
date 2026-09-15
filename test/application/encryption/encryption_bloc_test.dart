@@ -180,6 +180,19 @@ void main() {
       expect(bloc.state.recoveryKeyToShow, some(_recoveryKey));
     });
 
+    // Regression: the failure is the same each time, so a second wrong group
+    // left the state unchanged, and the page said nothing.
+    test('every wrong group changes the state, so each is reported', () async {
+      await send(EncryptionEvent.setUpRequested(Passphrase(_passphrase)));
+
+      await send(const EncryptionEvent.recoveryKeyConfirmed('ZZZZ'));
+      final afterFirst = bloc.state;
+      await send(const EncryptionEvent.recoveryKeyConfirmed('ZZZZ'));
+
+      expect(bloc.state.rejectedConfirmations, 2);
+      expect(bloc.state, isNot(afterFirst));
+    });
+
     test('finishes on the right group and forgets the key', () async {
       await send(EncryptionEvent.setUpRequested(Passphrase(_passphrase)));
 

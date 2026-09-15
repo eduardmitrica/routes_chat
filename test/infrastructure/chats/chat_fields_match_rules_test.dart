@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -11,6 +12,8 @@ import 'package:routes_chat/domain/chats/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/infrastructure/chats/chat_data_transfer_object.dart';
 import 'package:routes_chat/infrastructure/chats/messages/message_data_transfer_object.dart';
+import 'package:routes_chat/domain/chats/messages/message_changes.dart';
+import 'package:routes_chat/infrastructure/chats/messages/message_repository.dart';
 import 'package:routes_chat/infrastructure/encryption/chat_cipher.dart';
 
 final _message = Message(
@@ -157,5 +160,46 @@ void main() {
       'keyVersion',
     });
     expect(_generation.toJson().keys.toSet(), {'createdBy', 'sealedKeys'});
+  });
+
+  test('a deleted message keeps only the fields deletedFields() allows', () {
+    expect(
+      MessageDataTransferObject.deletedFields,
+      _listReturnedBy('deletedFields'),
+    );
+    // Deleting removes every other field a message may have.
+    final stored = MessageDataTransferObject.fromDomain(
+      _message,
+      content: _content,
+    ).toJson().keys.toSet();
+    expect({
+      ...MessageDataTransferObject.deletedFields,
+      ...MessageRepository.erasedFields,
+    }, containsAll({...stored, ..._legacyMessageFields}));
+  });
+
+  test('the rules accept an edit for as long as the app says', () {
+    expect(
+      _rules,
+      contains("duration.value(${messageEditSaveWindow.inMinutes}, 'm')"),
+    );
+  });
+
+  test('the rules check the reaction format the app writes', () {
+    final length = base64Encode(
+      Uint8List(ChatCipher.reactionPayloadBytes),
+    ).length;
+    expect(_rules, contains('content.cipherText.size() == $length'));
+    expect(
+      _rules,
+      contains("request.resource.data.keys().hasOnly(['messageId', 'userId',"),
+    );
+    expect(_rules, contains("'messageSentAt', 'content']"));
+    final repository = File(
+      'lib/infrastructure/chats/messages/message_repository.dart',
+    ).readAsStringSync();
+    for (final field in ['messageId', 'userId', 'messageSentAt', 'content']) {
+      expect(repository, contains("'$field':"));
+    }
   });
 }

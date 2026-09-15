@@ -8,6 +8,8 @@ sealed class ChatBarEvent extends Equatable {
       MessageContentChanged;
   const factory ChatBarEvent.replyStarted(Message message) = ReplyStarted;
   const factory ChatBarEvent.replyCancelled() = ReplyCancelled;
+  const factory ChatBarEvent.editStarted(Message message) = EditStarted;
+  const factory ChatBarEvent.editCancelled() = EditCancelled;
   const factory ChatBarEvent.mediaPicked(List<String> paths) = MediaPicked;
   const factory ChatBarEvent.mediaRemoved(UniqueId id) = MediaRemoved;
   const factory ChatBarEvent.sent(String text, {required bool chatExists}) =
@@ -51,6 +53,21 @@ final class ReplyCancelled extends ChatBarEvent {
   const ReplyCancelled();
 }
 
+/// The user chose to edit [message], which they sent: its text is theirs to
+/// change, and sending saves it.
+final class EditStarted extends ChatBarEvent {
+  final Message message;
+  const EditStarted(this.message);
+  @override
+  List<Object?> get props => [message];
+}
+
+/// The user stopped editing without saving: what they were writing before
+/// comes back.
+final class EditCancelled extends ChatBarEvent {
+  const EditCancelled();
+}
+
 /// The user chose photos or GIFs at [paths] for the next message.
 final class MediaPicked extends ChatBarEvent {
   final List<String> paths;
@@ -68,7 +85,8 @@ final class MediaRemoved extends ChatBarEvent {
 }
 
 /// The user sent [text], with the reply and photos chosen, to a chat that
-/// exists already or that this message starts.
+/// exists already or that this message starts. While editing, [text] is the
+/// edited message's new text.
 final class MessageSent extends ChatBarEvent {
   final String text;
   final bool chatExists;

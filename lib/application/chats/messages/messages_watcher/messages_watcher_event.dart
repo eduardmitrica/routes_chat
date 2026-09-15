@@ -15,9 +15,31 @@ sealed class MessagesWatcherEvent extends Equatable {
   const factory MessagesWatcherEvent.messageRevealRequested(
     UniqueId messageId,
   ) = MessageRevealRequested;
+  const factory MessagesWatcherEvent.reactionsReceived(
+    Either<MessageFailure, KtList<MessageReaction>> failureOrReactions,
+  ) = MessagesReactionsReceived;
+  const factory MessagesWatcherEvent.messageChanged(Message message) =
+      MessageChanged;
 
   @override
   List<Object?> get props => const [];
+}
+
+/// The reactions to the messages loaded changed, or could not be loaded.
+final class MessagesReactionsReceived extends MessagesWatcherEvent {
+  final Either<MessageFailure, KtList<MessageReaction>> failureOrReactions;
+  const MessagesReactionsReceived(this.failureOrReactions);
+  @override
+  List<Object?> get props => [failureOrReactions];
+}
+
+/// The user edited or deleted [message]. It shows as it is now even when it
+/// is on an older page, which does not update by itself.
+final class MessageChanged extends MessagesWatcherEvent {
+  final Message message;
+  const MessageChanged(this.message);
+  @override
+  List<Object?> get props => [message];
 }
 
 /// Start showing [chatId]'s messages, newest page first.

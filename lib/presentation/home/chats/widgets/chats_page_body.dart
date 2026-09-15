@@ -26,7 +26,7 @@ class ChatsPageBody extends StatelessWidget {
         ChatsWatcherLoadInProgress() => const Center(
           child: CircularProgressIndicator(),
         ),
-        ChatsWatcherLoadSuccess(:final chats) => Padding(
+        ChatsWatcherLoadSuccess(:final chats, :final unreadChatIds) => Padding(
           padding: const EdgeInsets.all(10.0),
           child: Column(
             children: [
@@ -38,6 +38,7 @@ class ChatsPageBody extends StatelessWidget {
                   BlocProvider.of<ChatsWatcherBloc>(
                     context,
                   ).refreshSubscription,
+                  unreadChatIds: unreadChatIds,
                 ),
               ),
             ],

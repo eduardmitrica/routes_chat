@@ -32,6 +32,23 @@ abstract class ChatBarState with _$ChatBarState {
     /// Counts the messages the user asked to delete while they were being
     /// sent, which were not deleted, so the page can say so each time.
     @Default(0) int discardsRefused,
+
+    /// The message the user is editing. Meanwhile [text] is its new text,
+    /// and the draft waits, to come back once the edit ends.
+    Message? editing,
+
+    /// Whether the edit is being saved.
+    @Default(false) bool savingEdit,
+
+    /// Why the last edit could not be saved.
+    MessageFailure? lastEditFailure,
+
+    /// Counts the edits that could not be saved, so the page can say so each
+    /// time.
+    @Default(0) int editFailures,
+
+    /// The message edited last, as it is now.
+    Message? lastEdited,
   }) = _ChatBarState;
 
   factory ChatBarState.initial() => ChatBarState(mediaFailureOption: none());

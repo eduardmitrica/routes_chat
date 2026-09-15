@@ -80,6 +80,30 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
   at most 2048 pixels on the shorter side, which also drops metadata such as
   where they were taken; GIFs are sent as they are. A reply to a photo carries
   its preview as `replyTo.thumb`.
+- **Edits** encrypt the whole payload again (the new text, the quote and the
+  attachments) with a new nonce, under the key generation the message was sent
+  with, and set `isEdited`. Only the sender can edit, for 15 minutes after
+  sending.
+- **Deleting a message** first deletes its photos from Storage, then removes
+  its encrypted content, and with it the keys of those photos, then deletes
+  the reactions to it. What stays is who sent it, when, and `deleted: true`,
+  so replies to it still have something to point at. A reply carries its own
+  copy of the quote inside its ciphertext, which the sender of the reply
+  encrypted; the app shows "This message was deleted" in place of that quote
+  once it has loaded the original.
+- **Reactions** are one document per person per message, at
+  `chats/<chat id>/reactions/<message id>_<user id>`. The emoji is encrypted
+  with AES-256-GCM under the chat's current key generation, as JSON
+  `{emoji, pad}` padded with spaces to 128 bytes, so every reaction is as long
+  whatever the emoji. The associated data is `routes_chat/v1/reaction`, the
+  chat id, the key generation, the message id and the reactor's id; the stored
+  content has `v: 1`. The document also holds the message id, the reactor's id
+  and when the message was sent, so a chat can watch the reactions to the
+  messages it has loaded.
+- **The emojis offered first when reacting** are the ones the user reacts with
+  and sends most, counted on the phone only, in a file encrypted like drafts
+  (below). The emoji picker's own list of recent emojis, which it would keep
+  unencrypted, is off.
 - **Unsent drafts and messages on their way** stay on the phone until they
   are sent, in the app's support directory under `local_chats/<uid>/`. Each
   file is encrypted with AES-256-GCM under a random 32-byte key kept in the
@@ -106,7 +130,8 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
 | `users/{uid}/private/encryption` | KDF params and salt, the master key wrapped twice (by passphrase and by recovery key), the private key wrapped by the master key, the public key, the key version | The owner only |
 | `userKeys/{uid}` | The public key and the key version | Any signed-in user |
 | `chats/{chatId}` | Every generation of the chat key, sealed for each participant; the current generation; the encrypted last message | The chat's participants |
-| `chats/{chatId}/messages/{id}` | The encrypted message | The chat's participants |
+| `chats/{chatId}/messages/{id}` | The encrypted message, and whether it was edited; once deleted, only who sent it and when | The chat's participants |
+| `chats/{chatId}/reactions/{messageId}_{uid}` | One person's encrypted reaction to a message, the ids, and when the message was sent | The chat's participants |
 | Storage `chat_media/{chatId}/{fileId}` | An encrypted photo or GIF, and who uploaded it; only they can delete it, for a message they gave up sending | The chat's participants |
 
 Stored formats (keys, nonces, ciphertext and tags as base64):
@@ -124,6 +149,10 @@ They also:
 - require one sealed key per participant;
 - allow a chat's key generations only to grow by one, made by the writer;
 - accept messages only under the current generation;
+- let only a message's sender edit it, within 20 minutes of sending, or
+  delete it, which leaves only who sent it and when, for good;
+- accept a reaction only as its reactor's own, encrypted at the fixed length,
+  under the current generation, to a message that is not deleted;
 - allow a key reset only as the next key version, with the bundle and the
   published key written together, within 5 minutes of signing in.
 
@@ -158,7 +187,12 @@ They also:
 - A compromised or unlocked phone with the app installed.
 - Metadata: who talks to whom, when, and how often. The server sees chat membership and timestamps.
 - Message length. Ciphertext is as long as the text and any quote, so the server can estimate how long a message is. It also sees how many photos a message has, roughly how big each is, and who uploaded each (which the rules need to let only the uploader delete a file).
-- Activity. While people share it, the server sees when someone types in a chat (`chats/{chatId}/typing/{uid}`) and when their app is on screen (`presence/{uid}`), never what they type. Push notifications carry the sender's name and the chat, never message text.
+- Activity. While people share it, the server sees when someone types in a chat (`chats/{chatId}/typing/{uid}`), when their app is on screen (`presence/{uid}`), and which message they have read up to and when (`chats/{chatId}/reads/{uid}`), never what they type or read. Which chats are unread is kept only on the phone, encrypted like drafts. Push notifications carry the sender's name and the chat, never message text.
+- Changes as events. The server sees when a message is edited or deleted, and
+  when someone reacts to which message, never the new text or which emoji.
+- Taking back what the other person already has. Deleting a message removes it
+  from the server, but it may have been seen, copied, or kept in a phone's
+  offline cache until that phone next connects.
 - A malicious chat partner, who can read everything sent to them.
 - Replacing a user's public key through the server. A future improvement is
   showing a safety number that two people can compare.

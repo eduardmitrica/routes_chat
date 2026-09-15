@@ -101,4 +101,49 @@ void main() {
       );
     });
   });
+
+  group('read receipts', () {
+    String reads() => _block(rules, '/reads/{userId}');
+
+    test('hold only what the repository writes', () {
+      expect(
+        reads().replaceAll(RegExp(r'\s+'), ' '),
+        contains("hasOnly(['messageId', 'messageSentAt', 'readAt'])"),
+      );
+      expect(reads(), contains('request.resource.data.readAt == request.time'));
+      expect(reads(), contains('.data.serverTimeStamp'));
+      for (final field in [
+        "'messageId': id",
+        "'messageSentAt': sentAt",
+        "'readAt': FieldValue.serverTimestamp()",
+      ]) {
+        expect(repository, contains(field));
+      }
+    });
+
+    test('are read by the chat\'s participants, decided from the ids', () {
+      expect(
+        reads(),
+        contains(
+          "allow read: if signedIn() && request.auth.uid in chatId.split('_');",
+        ),
+      );
+    });
+
+    test('are written and deleted only by their own participant', () {
+      expect(reads(), contains('request.auth.uid == userId'));
+      expect(reads(), contains("userId in chatId.split('_')"));
+      expect(
+        reads(),
+        contains('allow delete: if signedIn() && request.auth.uid == userId;'),
+      );
+    });
+
+    test('live inside the chat they are about', () {
+      expect(
+        _block(rules, '/chats/{chatId}'),
+        contains('match /reads/{userId}'),
+      );
+    });
+  });
 }

@@ -5,13 +5,24 @@ import 'package:routes_chat/application/shared/users_watcher/users_watcher_bloc.
 import 'package:routes_chat/domain/chats/chat.dart';
 import 'package:routes_chat/presentation/home/chats/widgets/chat_page.dart';
 
+import 'chat_list_time.dart';
+
 import '../../../../application/chats/chats_watcher/chats_watcher_bloc.dart';
 
 class ChatsList extends StatelessWidget {
   final KtList<Chat> chats;
   final ValueGetter<Future<void>> onRefresh;
 
-  const ChatsList(this.chats, this.onRefresh, {super.key});
+  /// The ids of the chats with messages the user has not read, which stand
+  /// out.
+  final Set<String> unreadChatIds;
+
+  const ChatsList(
+    this.chats,
+    this.onRefresh, {
+    super.key,
+    this.unreadChatIds = const {},
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -44,8 +55,26 @@ class ChatsList extends StatelessWidget {
                       (user) => participantsIds.contains(user.id.getOrCrash()),
                     );
 
+                    final theme = Theme.of(context);
+                    final unread = unreadChatIds.contains(chat.id.getOrCrash());
+                    final sentAt = chat.lastMessage.lastUpdatedAt;
                     return ListTile(
                       key: ValueKey(chat.id.getOrCrash()),
+                      titleTextStyle: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: unread ? FontWeight.w700 : null,
+                      ),
+                      subtitleTextStyle: theme.textTheme.bodyMedium?.copyWith(
+                        color: unread
+                            ? theme.colorScheme.onSurface
+                            : theme.colorScheme.onSurfaceVariant,
+                        fontWeight: unread ? FontWeight.w600 : null,
+                      ),
+                      trailing: _ChatListTrailing(
+                        time: sentAt == null
+                            ? null
+                            : chatListTime(sentAt, DateTime.now()),
+                        unread: unread,
+                      ),
                       onTap: () => Navigator.of(context).push(
                         MaterialPageRoute(
                           builder: (ctx) => BlocProvider.value(
@@ -67,7 +96,11 @@ class ChatsList extends StatelessWidget {
                       title: chatParticipants.size == 1
                           ? Text(chatParticipants.first().username.getOrCrash())
                           : Text('Chat with ${chatParticipants.size}'),
-                      subtitle: Text(chat.lastMessage.content.getOrCrash()),
+                      subtitle: Text(
+                        chat.lastMessage.content.getOrCrash(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     );
                   },
                 ),
@@ -75,6 +108,51 @@ class ChatsList extends StatelessWidget {
             }
         }
       },
+    );
+  }
+}
+
+/// When the last message was sent, and a dot while the chat is unread.
+class _ChatListTrailing extends StatelessWidget {
+  final String? time;
+  final bool unread;
+
+  const _ChatListTrailing({required this.time, required this.unread});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final time = this.time;
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (time != null)
+          Text(
+            time,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: unread
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        const SizedBox(height: 6),
+        Semantics(
+          label: unread ? 'Unread' : null,
+          child: SizedBox.square(
+            dimension: 10,
+            child: unread
+                ? DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  )
+                : null,
+          ),
+        ),
+      ],
     );
   }
 }

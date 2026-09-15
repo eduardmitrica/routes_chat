@@ -28,4 +28,16 @@ abstract interface class IPresenceRepository {
   /// [userId]'s presence, or null when there is none or it may not be read,
   /// such as when they are not friends.
   Stream<Presence?> watchPresence(UniqueId userId);
+
+  /// Says the signed-in user has read [chatId] up to the message [messageId]:
+  /// its id and when it was sent, never what it says.
+  Future<void> markRead(UniqueId chatId, UniqueId messageId);
+
+  /// When the newest message [userId] has read in [chatId] was sent; null
+  /// when they have not said, or stopped sharing it.
+  Stream<DateTime?> watchReadUpTo(UniqueId chatId, UniqueId userId);
+
+  /// Deletes what others can see of how far the signed-in user has read, in
+  /// every chat.
+  Future<void> clearReads();
 }

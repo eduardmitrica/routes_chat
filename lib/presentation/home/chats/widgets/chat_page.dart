@@ -13,6 +13,11 @@ import 'package:routes_chat/domain/core/composite_id.dart';
 import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 import 'package:routes_chat/application/chats/chats_watcher/chats_watcher_bloc.dart';
 import 'package:routes_chat/application/chats/messages/messages_watcher/messages_watcher_bloc.dart';
+import 'package:routes_chat/application/chats/messages/message_actor/message_actor_bloc.dart';
+import 'package:routes_chat/domain/chats/messages/message_changes.dart';
+import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
+import 'package:routes_chat/domain/chats/messages/message_failure.dart'
+    show EditTimeExpired;
 import 'package:routes_chat/domain/chats/chat.dart';
 import 'package:routes_chat/domain/chats/messages/media_failure.dart';
 import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
@@ -23,12 +28,16 @@ import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/injection.dart';
+import 'package:routes_chat/presentation/core/theme/app_theme.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../open_chat.dart';
 import 'activity_label.dart';
 import 'chat_timeline.dart';
+import 'emoji_picker_sheet.dart';
+import 'message_reactions.dart';
+import 'reaction_bar.dart';
 import 'media_failure_message.dart';
 import 'message_bubble.dart';
 import 'message_composer.dart';
@@ -98,6 +107,7 @@ class _ChatViewState extends State<_ChatView> {
   final _chatBar = getIt<ChatBarBloc>();
   final _media = getIt<IMediaRepository>();
   final _activity = getIt<ChatActivityBloc>();
+  final _actor = getIt<MessageActorBloc>();
   UniqueId? _chatId;
 
   Timer? _searchDebounce;
@@ -139,6 +149,7 @@ class _ChatViewState extends State<_ChatView> {
     _searchDebounce?.cancel();
     _highlightTimer?.cancel();
     unawaited(_activity.close());
+    unawaited(_actor.close());
     if (_chatId case final chatId?) OpenChat.closed(chatId);
     super.dispose();
   }
@@ -148,6 +159,12 @@ class _ChatViewState extends State<_ChatView> {
 
   bool _isFromOtherUser(UniqueId senderId) =>
       senderId.getOrCrash() == widget.otherUser.id.getOrCrash();
+
+  String? get _myId => getIt<ICurrentUserSession>().current?.id;
+
+  void _tell(String text) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(text)));
 
   /// The list is reversed, newest at the bottom, so the oldest loaded
   /// messages are at the far end of the scroll extent.
@@ -193,7 +210,126 @@ class _ChatViewState extends State<_ChatView> {
     _composerFocus.requestFocus();
   }
 
+  void _startEdit(Message message) {
+    _chatBar.add(ChatBarEvent.editStarted(message));
+    _composerFocus.requestFocus();
+  }
+
+  void _react(Message message, String emoji) {
+    final chat = widget.chat;
+    if (chat == null) return;
+    _actor.add(
+      MessageActorEvent.reactionPicked(
+        chatId: chat.id,
+        message: message,
+        emoji: emoji,
+      ),
+    );
+  }
+
+  Future<void> _pickReaction(Message message) async {
+    final emoji = await pickEmoji(context);
+    if (emoji != null && mounted) _react(message, emoji);
+  }
+
+  /// Asks first: deleting a message cannot be undone.
+  Future<void> _confirmDelete(Message message) async {
+    final chat = widget.chat;
+    if (chat == null) return;
+    final delete = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        final scheme = Theme.of(context).colorScheme;
+        return AlertDialog(
+          title: const Text('Delete for everyone?'),
+          content: Text(
+            'The message will be deleted for you and for '
+            '${widget.otherUser.username.getOrCrash()}, with its photos and '
+            'reactions. This can\'t be undone.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: AppTheme.destructiveButton(scheme),
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+    if (delete == true && mounted) {
+      _actor.add(
+        MessageActorEvent.deleteRequested(chatId: chat.id, message: message),
+      );
+    }
+  }
+
+  /// Who reacted to [message] with what. The user can take theirs back here.
+  Future<void> _showReactions(Message message) async {
+    final myId = _myId;
+    final chat = widget.chat;
+    if (myId == null || chat == null) return;
+    bool isMine(MessageReaction reaction) =>
+        reaction.userId.getOrCrash() == myId;
+    // The user's own first.
+    final reactions = [
+      ...message.reactions.iter.where(isMine),
+      ...message.reactions.iter.where((reaction) => !isMine(reaction)),
+    ];
+    final remove = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        final textTheme = Theme.of(context).textTheme;
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Text('Reactions', style: textTheme.titleMedium),
+                ),
+              ),
+              for (final reaction in reactions)
+                if (isMine(reaction))
+                  ListTile(
+                    leading: Text(
+                      reaction.emoji,
+                      style: textTheme.headlineSmall,
+                    ),
+                    title: const Text('You'),
+                    subtitle: const Text('Tap to remove'),
+                    onTap: () => Navigator.of(context).pop(true),
+                  )
+                else
+                  ListTile(
+                    leading: Text(
+                      reaction.emoji,
+                      style: textTheme.headlineSmall,
+                    ),
+                    title: Text(widget.otherUser.username.getOrCrash()),
+                  ),
+            ],
+          ),
+        );
+      },
+    );
+    if (remove == true && mounted) {
+      _actor.add(
+        MessageActorEvent.reactionRemoved(chatId: chat.id, message: message),
+      );
+    }
+  }
+
   Future<void> _showMessageActions(Message message) async {
+    final myId = _myId;
+    if (message.isDeleted || myId == null) return;
     final text = message.content.getOrCrash();
     final attachments = message.attachments;
     // A few at most: the sheet is for this message, not a list of links.
@@ -201,6 +337,11 @@ class _ChatViewState extends State<_ChatView> {
       for (final part in splitLinks(text))
         if (part.link != null) part.text,
     }.take(3);
+    final myReaction = message.reactions
+        .firstOrNull((reaction) => reaction.userId.getOrCrash() == myId)
+        ?.emoji;
+    // Emojis sent since the chat opened count too.
+    _actor.add(const MessageActorEvent.quickEmojisRequested());
     // Each item returns what to do once the sheet has closed.
     final action = await showModalBottomSheet<VoidCallback>(
       context: context,
@@ -209,12 +350,35 @@ class _ChatViewState extends State<_ChatView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (message.canBeReactedTo) ...[
+              BlocBuilder<MessageActorBloc, MessageActorState>(
+                bloc: _actor,
+                buildWhen: (previous, current) =>
+                    previous.quickEmojis != current.quickEmojis,
+                builder: (context, state) => ReactionBar(
+                  favourites: state.quickEmojis,
+                  current: myReaction,
+                  onPicked: (emoji) =>
+                      Navigator.of(context).pop(() => _react(message, emoji)),
+                  onMore: () =>
+                      Navigator.of(context).pop(() => _pickReaction(message)),
+                ),
+              ),
+              const Divider(),
+            ],
             ListTile(
               leading: const Icon(Icons.reply_rounded),
               title: const Text('Reply'),
               onTap: () =>
                   Navigator.of(context).pop(() => _startReply(message)),
             ),
+            if (message.canBeEditedBy(myId, DateTime.now()))
+              ListTile(
+                leading: const Icon(Icons.edit_outlined),
+                title: const Text('Edit'),
+                onTap: () =>
+                    Navigator.of(context).pop(() => _startEdit(message)),
+              ),
             if (text.trim().isNotEmpty)
               ListTile(
                 leading: const Icon(Icons.copy_rounded),
@@ -241,6 +405,22 @@ class _ChatViewState extends State<_ChatView> {
                 ),
                 onTap: () =>
                     Navigator.of(context).pop(() => _copy(link, 'Link copied')),
+              ),
+            if (message.canBeDeletedBy(myId))
+              Builder(
+                builder: (context) {
+                  final error = Theme.of(context).colorScheme.error;
+                  return ListTile(
+                    leading: Icon(Icons.delete_outline_rounded, color: error),
+                    title: Text(
+                      'Delete for everyone',
+                      style: TextStyle(color: error),
+                    ),
+                    onTap: () => Navigator.of(
+                      context,
+                    ).pop(() => _confirmDelete(message)),
+                  );
+                },
               ),
           ],
         ),
@@ -470,49 +650,104 @@ class _ChatViewState extends State<_ChatView> {
     final chat = widget.chat;
     return BlocProvider(
       create: (_) => _chatBar,
-      child: PopScope(
-        // Back leaves the search first, then the chat.
-        canPop: !_searchOpen,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) _closeSearch();
-        },
-        child: Scaffold(
-          appBar: _searchOpen
-              ? _searchBar()
-              : _titleBar(canSearch: chat != null),
-          body: Column(
-            children: [
-              Expanded(
-                child: chat == null
-                    ? _firstMessages()
-                    // The messages stay underneath the search, so closing it
-                    // returns to where the chat was scrolled.
-                    : IndexedStack(
-                        index: _searchOpen ? 1 : 0,
-                        sizing: StackFit.expand,
-                        children: [
-                          _messageList(chat),
-                          if (_searchOpen)
-                            _SearchResults(
-                              otherUser: widget.otherUser,
-                              onSelected: _showInChat,
-                            )
-                          else
-                            const SizedBox.shrink(),
-                        ],
-                      ),
-              ),
-              // Hidden, not removed, so a half-typed message survives a
-              // search.
-              Offstage(
-                offstage: _searchOpen,
-                child: _ChatBar(
-                  chat: chat,
-                  otherUser: widget.otherUser,
-                  focusNode: _composerFocus,
+      child: MultiBlocListener(
+        listeners: [
+          BlocListener<ChatBarBloc, ChatBarState>(
+            bloc: _chatBar,
+            listenWhen: (previous, current) =>
+                previous.editFailures != current.editFailures,
+            listener: (context, state) => _tell(switch (state.lastEditFailure) {
+              EditTimeExpired() =>
+                'Messages can be edited for ${messageEditWindow.inMinutes} '
+                    'minutes after they are sent.',
+              _ =>
+                'Your edit couldn\'t be saved. Check your connection and try '
+                    'again.',
+            }),
+          ),
+          // An edit or a deletion shows at once, even on an older page, which
+          // does not update by itself.
+          BlocListener<ChatBarBloc, ChatBarState>(
+            bloc: _chatBar,
+            listenWhen: (previous, current) =>
+                current.lastEdited != null &&
+                previous.lastEdited != current.lastEdited,
+            listener: (context, state) => _messages?.add(
+              MessagesWatcherEvent.messageChanged(state.lastEdited!),
+            ),
+          ),
+          BlocListener<MessageActorBloc, MessageActorState>(
+            bloc: _actor,
+            listenWhen: (previous, current) =>
+                current.lastDeleted != null &&
+                previous.lastDeleted != current.lastDeleted,
+            listener: (context, state) {
+              final deleted = state.lastDeleted!;
+              _messages?.add(MessagesWatcherEvent.messageChanged(deleted));
+              if (_chatBar.state.editing?.id == deleted.id) {
+                _chatBar.add(const ChatBarEvent.editCancelled());
+              }
+            },
+          ),
+          BlocListener<MessageActorBloc, MessageActorState>(
+            bloc: _actor,
+            listenWhen: (previous, current) =>
+                current.lastProblem != null &&
+                previous.lastProblem != current.lastProblem,
+            listener: (context, state) => _tell(switch (state.lastProblem!) {
+              MessageProblem(action: MessageAction.delete) =>
+                'The message couldn\'t be deleted. Check your connection and '
+                    'try again.',
+              MessageProblem(action: MessageAction.react) =>
+                'Your reaction couldn\'t be saved. Check your connection and '
+                    'try again.',
+            }),
+          ),
+        ],
+        child: PopScope(
+          // Back leaves the search first, then the chat.
+          canPop: !_searchOpen,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) _closeSearch();
+          },
+          child: Scaffold(
+            appBar: _searchOpen
+                ? _searchBar()
+                : _titleBar(canSearch: chat != null),
+            body: Column(
+              children: [
+                Expanded(
+                  child: chat == null
+                      ? _firstMessages()
+                      // The messages stay underneath the search, so closing it
+                      // returns to where the chat was scrolled.
+                      : IndexedStack(
+                          index: _searchOpen ? 1 : 0,
+                          sizing: StackFit.expand,
+                          children: [
+                            _messageList(chat),
+                            if (_searchOpen)
+                              _SearchResults(
+                                otherUser: widget.otherUser,
+                                onSelected: _showInChat,
+                              )
+                            else
+                              const SizedBox.shrink(),
+                          ],
+                        ),
                 ),
-              ),
-            ],
+                // Hidden, not removed, so a half-typed message survives a
+                // search.
+                Offstage(
+                  offstage: _searchOpen,
+                  child: _ChatBar(
+                    chat: chat,
+                    otherUser: widget.otherUser,
+                    focusNode: _composerFocus,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -698,7 +933,32 @@ class _ChatViewState extends State<_ChatView> {
   }
 
   Widget _messageRow(Message message) {
+    final id = message.id.getOrCrash();
     final quote = message.replyTo;
+    final bubble = MessageBubble(
+      message: message,
+      sent: !_isFromOtherUser(message.senderId),
+      highlighted: id == _highlightedMessageId,
+      quoteAuthor: _quoteAuthor(message),
+      onQuoteTap: quote == null ? null : () => _revealMessage(quote.messageId),
+      onLongPress: message.isDeleted
+          ? null
+          : () => _showMessageActions(message),
+      onOpenLink: _openLink,
+      loadAttachment: (attachment) => _media.load(widget.chat!.id, attachment),
+      saveAttachment: (attachment) =>
+          _media.saveToPhotos(widget.chat!.id, attachment),
+      reactions: message.reactions.isEmpty()
+          ? null
+          : MessageReactions(
+              reactions: message.reactions,
+              onTap: () => _showReactions(message),
+            ),
+    );
+    // Nothing is left of it to reply to.
+    if (message.isDeleted) {
+      return KeyedSubtree(key: ValueKey(id), child: bubble);
+    }
     return Semantics(
       // Swiping is not available to everyone; this is the same as a swipe.
       customSemanticsActions: {
@@ -706,22 +966,18 @@ class _ChatViewState extends State<_ChatView> {
       },
       child: SwipeToReply(
         // Its own state per message, such as which photo a carousel shows.
-        key: ValueKey(message.id.getOrCrash()),
+        key: ValueKey(id),
         onReply: () => _startReply(message),
-        child: MessageBubble(
-          message: message,
-          sent: !_isFromOtherUser(message.senderId),
-          highlighted: message.id.getOrCrash() == _highlightedMessageId,
-          quoteAuthor: _quoteAuthor(message),
-          onQuoteTap: quote == null
-              ? null
-              : () => _revealMessage(quote.messageId),
-          onLongPress: () => _showMessageActions(message),
-          onOpenLink: _openLink,
-          loadAttachment: (attachment) =>
-              _media.load(widget.chat!.id, attachment),
-          saveAttachment: (attachment) =>
-              _media.saveToPhotos(widget.chat!.id, attachment),
+        // Faded while it is being deleted.
+        child: BlocBuilder<MessageActorBloc, MessageActorState>(
+          bloc: _actor,
+          buildWhen: (previous, current) =>
+              previous.deleting.contains(id) != current.deleting.contains(id),
+          builder: (context, state) => AnimatedOpacity(
+            opacity: state.deleting.contains(id) ? 0.5 : 1,
+            duration: const Duration(milliseconds: 200),
+            child: bubble,
+          ),
         ),
       ),
     );
@@ -863,10 +1119,13 @@ class _ChatBar extends StatelessWidget {
             previous.replyingTo != current.replyingTo ||
             previous.media != current.media ||
             previous.preparingMedia != current.preparingMedia ||
-            previous.textRevision != current.textRevision,
+            previous.textRevision != current.textRevision ||
+            previous.editing != current.editing ||
+            previous.savingEdit != current.savingEdit,
         builder: (context, state) {
           final chatBar = BlocProvider.of<ChatBarBloc>(context);
           final replyingTo = state.replyingTo;
+          final editing = state.editing;
           return MessageComposer(
             focusNode: focusNode,
             text: state.text,
@@ -874,6 +1133,10 @@ class _ChatBar extends StatelessWidget {
             replyingTo: replyingTo,
             media: state.media.asList(),
             preparingMedia: state.preparingMedia,
+            editing: editing != null,
+            savingEdit: state.savingEdit,
+            canSaveEmpty: editing?.attachments.isNotEmpty() ?? false,
+            onCancelEdit: () => chatBar.add(const ChatBarEvent.editCancelled()),
             onAddMedia: () => _pickMedia(context, chatBar),
             onRemoveMedia: (id) => chatBar.add(ChatBarEvent.mediaRemoved(id)),
             replyingToName:

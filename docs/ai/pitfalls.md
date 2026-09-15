@@ -5,6 +5,11 @@ them.
 
 ## Dart and Flutter
 
+- **A deleted message vanished instead of showing as deleted.** A
+  `JsonConverter` on a nullable field is still handed `null`, and the
+  converter for encrypted content threw on it, so the document was left out
+  as malformed. A nullable field needs a converter of the nullable type
+  (`OptionalEncryptedContentConverter`).
 - **"Superclass has no method named 'initState'" all over a file.**
   `package:dartz/dartz.dart` exports a `State` class. Import dartz with `show`
   in files that declare a `StatefulWidget`.

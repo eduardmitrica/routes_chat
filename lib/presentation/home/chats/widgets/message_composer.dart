@@ -46,6 +46,18 @@ class MessageComposer extends StatefulWidget {
 
   final ValueChanged<UniqueId>? onRemoveMedia;
 
+  /// Whether the text is an edit of a message sent. Sending saves it, and
+  /// photos cannot be added.
+  final bool editing;
+
+  /// Whether the edit is being saved.
+  final bool savingEdit;
+
+  /// Whether the edit may leave no text, as a photo's caption can.
+  final bool canSaveEmpty;
+
+  final VoidCallback? onCancelEdit;
+
   const MessageComposer({
     super.key,
     required this.focusNode,
@@ -60,6 +72,10 @@ class MessageComposer extends StatefulWidget {
     this.textRevision = 0,
     this.onAddMedia,
     this.onRemoveMedia,
+    this.editing = false,
+    this.savingEdit = false,
+    this.canSaveEmpty = false,
+    this.onCancelEdit,
   });
 
   @override
@@ -87,21 +103,25 @@ class _MessageComposerState extends State<MessageComposer> {
   }
 
   bool _canSend(String text) =>
-      (text.trim().isNotEmpty || widget.media.isNotEmpty) &&
-      !widget.preparingMedia;
+      (text.trim().isNotEmpty ||
+          widget.media.isNotEmpty ||
+          (widget.editing && widget.canSaveEmpty)) &&
+      !widget.preparingMedia &&
+      !widget.savingEdit;
 
   void _send() {
     final text = _text.text.trim();
     if (!_canSend(text)) return;
     widget.onSend(text);
-    _text.clear();
+    // An edit stays in the field until it is saved.
+    if (!widget.editing) _text.clear();
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final replyingTo = widget.replyingTo;
-    final onAddMedia = widget.onAddMedia;
+    final onAddMedia = widget.editing ? null : widget.onAddMedia;
     const pill = OutlineInputBorder(
       borderRadius: BorderRadius.all(Radius.circular(24)),
       borderSide: BorderSide.none,
@@ -114,7 +134,12 @@ class _MessageComposerState extends State<MessageComposer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (replyingTo != null)
+            if (widget.editing)
+              _EditStrip(
+                saving: widget.savingEdit,
+                onCancel: widget.onCancelEdit,
+              )
+            else if (replyingTo != null)
               _ReplyStrip(
                 name: widget.replyingToName,
                 quote: replyingTo,
@@ -176,7 +201,11 @@ class _MessageComposerState extends State<MessageComposer> {
                         ),
                       ],
                       decoration: InputDecoration(
-                        hintText: widget.media.isEmpty
+                        hintText: widget.editing
+                            ? widget.canSaveEmpty
+                                  ? 'Add a caption...'
+                                  : 'Edit your message...'
+                            : widget.media.isEmpty
                             ? 'Start typing...'
                             : 'Add a caption...',
                         filled: true,
@@ -195,12 +224,24 @@ class _MessageComposerState extends State<MessageComposer> {
                   ),
                   ValueListenableBuilder(
                     valueListenable: _text,
-                    builder: (context, value, _) => IconButton(
-                      tooltip: 'Send',
-                      color: scheme.primary,
-                      onPressed: _canSend(value.text) ? _send : null,
-                      icon: const Icon(Icons.send_rounded),
-                    ),
+                    builder: (context, value, _) => widget.savingEdit
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox.square(
+                              dimension: 24,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            ),
+                          )
+                        : IconButton(
+                            tooltip: widget.editing ? 'Save edit' : 'Send',
+                            color: scheme.primary,
+                            onPressed: _canSend(value.text) ? _send : null,
+                            icon: Icon(
+                              widget.editing
+                                  ? Icons.check_rounded
+                                  : Icons.send_rounded,
+                            ),
+                          ),
                   ),
                 ],
               ),
@@ -282,6 +323,46 @@ class _DraftThumbnail extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// "Editing message" above the field, with a way to stop without saving.
+class _EditStrip extends StatelessWidget {
+  final bool saving;
+  final VoidCallback? onCancel;
+
+  const _EditStrip({required this.saving, required this.onCancel});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 4, 0),
+      child: Row(
+        children: [
+          Icon(Icons.edit_rounded, color: scheme.primary),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Semantics(
+              liveRegion: true,
+              child: Text(
+                saving ? 'Saving your edit…' : 'Editing message',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: scheme.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Cancel edit',
+            onPressed: saving ? null : onCancel,
+            icon: const Icon(Icons.close_rounded),
+          ),
+        ],
       ),
     );
   }

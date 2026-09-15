@@ -53,6 +53,10 @@ The page is `presentation/home/chats/widgets/chat_page.dart`.
 | Messages, 30 at a time, older pages on scroll | `MessagesWatcherBloc`, `MessageRepository.watchLatestForChatWithId` / `getPageBefore` | `test/application/chats/messages_watcher_bloc_test.dart` |
 | Search in the chat, on the device, loading older pages | `MessagesWatcherBloc` (`searchChanged`), `domain/chats/messages/message_search.dart` | same, plus `test/domain/chats/message_search_test.dart` |
 | Replies (quote inside the encrypted payload) | `MessageQuote`, `ChatBarBloc` (`replyStarted`), `message_payloads.dart`, `MessageBubble`, `SwipeToReply`, `MessageComposer` | `chat_bar_reply_test.dart`, `message_quote_test.dart`, `message_payloads_test.dart`, widget tests |
+| Editing a message: the sender's own, for 15 minutes, marked "edited" | `message_changes.dart` (`messageEditWindow`, `canBeEditedBy`), `ChatBarBloc` (`editStarted`: the edit happens in the composer while the draft waits), `MessageRepository.editMessage` (encrypted again under the message's key generation, with the chat's last message), `MessageComposer` (edit strip), `MessageBubble` ("edited") | `chat_bar_edit_test.dart`, `message_changes_test.dart`, `edit_delete_react_widgets_test.dart` |
+| Deleting a message for everyone, leaving a placeholder | `MessageActorBloc` (`deleteRequested`), `MessageRepository.deleteMessage` (photos first, then the message emptied to `deletedFields`, then its reactions), `MessageBubble` placeholder, `MessageQuote.following` (quotes of it say it was deleted) | `message_actor_bloc_test.dart`, `messages_watcher_changes_test.dart`, `message_data_transfer_object_test.dart` |
+| Reactions: one per person, encrypted | `MessageReaction`, `MessageActorBloc` (`reactionPicked`: the same emoji takes it back), `MessageRepository.watchReactions` / `react` (`chats/{chatId}/reactions/{messageId}_{uid}`), `ChatCipher.encryptReaction`, `MessagesWatcherBloc` (watches from the oldest message loaded), `MessageReactions`, the reactions sheet in `chat_page.dart` | `message_actor_bloc_test.dart`, `messages_watcher_changes_test.dart`, `reaction_cipher_test.dart` |
+| Quick reactions learned from the user, no fixed set | `emoji_usage.dart` (`emojisIn`, `EmojiUsage`: counts that halve every week), `EmojiPreferencesStore` (in `LocalVault`), `ChatBarBloc` (counts the emojis sent), `ReactionBar`, `emoji_picker_sheet.dart` (`emoji_picker_flutter`, its own recents off) | `emoji_usage_test.dart`, `edit_delete_react_widgets_test.dart` |
 | Jump to the message a reply quotes | `MessagesWatcherEvent.messageRevealRequested`, `MessageReveal` | `messages_watcher_bloc_test.dart` |
 | Links: detection, confirmation, opening | `domain/chats/messages/message_links.dart`, `LinkifiedText`, `open_link_dialog.dart`, `url_launcher` (in-app browser tab) | `message_links_test.dart`, `message_links_widget_test.dart`, `open_link_dialog_test.dart` |
 | Photos and GIFs: choosing, encrypting, carousel, full screen | `message_attachment.dart` (limits), `IMediaRepository` / `MediaRepository` (prepare, load, memory cache), `AttachmentStore` (encrypt, Storage), `ChatBarBloc` (`mediaPicked`), `MessageComposer`, `AttachmentGallery`, `EncryptedImage`, `MediaViewerPage` | `chat_bar_media_test.dart`, `media_repository_test.dart`, `chat_cipher_file_test.dart`, `attachment_gallery_test.dart`, `message_composer_media_test.dart` |
@@ -68,9 +72,12 @@ The page is `presentation/home/chats/widgets/chat_page.dart`.
 | Key reset and unreadable-message notices | `chat_timeline.dart` | `chat_timeline_test.dart`, `chat_timeline_partial_history_test.dart` |
 | Sending | `ChatBarBloc` (`sent`), `MessageOutbox`, `MessageRepository.addMessageToChatWithId` / `ChatRepository.create` (a message sent twice lands once) | `chat_bar_reply_test.dart`, `chat_creation_ids_test.dart`, `message_outbox_test.dart` |
 
-The long-press menu on a message has Reply, Copy text, Save photo (or Save
-all) and Copy link. On a message not sent yet it has Try again now, Copy text
-and Delete message.
+The long-press menu on a message starts with the user's favourite reactions
+and a button for any emoji, then has Reply, Edit (their own message, for 15
+minutes), Copy text, Save photo (or Save all), Copy link and Delete for
+everyone (their own message, after asking). A deleted message has no menu and
+cannot be replied to. On a message not sent yet the menu has Try again now,
+Copy text and Delete message.
 
 ## Friends and friend requests
 

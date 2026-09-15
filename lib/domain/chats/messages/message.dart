@@ -6,6 +6,7 @@ import 'package:routes_chat/domain/shared/user/value_objects.dart';
 import '../../core/value_objects.dart';
 import 'package:routes_chat/domain/chats/messages/message_quote.dart';
 import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
 
 part 'message.freezed.dart';
 
@@ -15,7 +16,9 @@ abstract class Message with _$Message {
     required UniqueId id,
     required UniqueId senderId,
     required KtList<ImageUrl> imageUrls,
-    required KtList<UniqueId> reactions,
+
+    /// Each person's reaction, at most one each, decrypted.
+    @Default(KtList<MessageReaction>.empty()) KtList<MessageReaction> reactions,
     required Content content,
 
     /// For a reply, the message it answers.
@@ -31,6 +34,10 @@ abstract class Message with _$Message {
     /// example because it was sent before the user reset their keys,
     /// [content] is only a placeholder.
     @Default(true) bool isReadable,
+
+    /// Whether its sender deleted it for everyone. Its text, photos and
+    /// reactions are gone, and [content] is empty.
+    @Default(false) bool isDeleted,
 
     /// The generation of the chat's key it was encrypted under. It grows each
     /// time a participant resets their keys.

@@ -56,6 +56,14 @@ import 'infrastructure/chats/messages/local_chat_store.dart';
 import 'infrastructure/chats/messages/photo_library.dart';
 import 'infrastructure/core/local_vault.dart';
 import 'infrastructure/core/network_monitor.dart';
+import 'application/chats/chat_activity/chat_activity_bloc.dart';
+import 'application/presence/presence_reporter.dart';
+import 'application/settings/privacy/privacy_bloc.dart';
+import 'domain/notifications/app_notification.dart';
+import 'domain/presence/presence_repository_interface.dart';
+import 'domain/settings/privacy_settings.dart';
+import 'infrastructure/notifications/firebase_notification_events.dart';
+import 'infrastructure/presence/firestore_presence_repository.dart';
 
 final getIt = GetIt.instance;
 
@@ -149,6 +157,15 @@ void configureDependencies() {
         getIt<ICurrentUserSession>(),
       ),
     )
+    ..registerLazySingleton<IPresenceRepository>(
+      () => FirestorePresenceRepository(
+        getIt<FirebaseFirestore>(),
+        getIt<ICurrentUserSession>(),
+      ),
+    )
+    ..registerLazySingleton<INotificationEvents>(
+      () => FirebaseNotificationEvents(getIt<FirebaseMessaging>()),
+    )
     ..registerLazySingleton<UserKeyManager>(UserKeyManager.new)
     // One instance behind both registrations: the encryption gate unlocks the
     // keys through IEncryptionRepository, and the chat keyring reads them.
@@ -214,6 +231,18 @@ void configureDependencies() {
       reconnected: NetworkMonitor(Connectivity()).reconnected,
     ),
   );
+  // Singletons: the privacy settings are the same everywhere, and the
+  // reporter owns the presence heartbeat.
+  getIt
+    ..registerLazySingleton<PrivacyBloc>(PrivacyBloc.new)
+    ..registerLazySingleton<IPrivacySettingsReader>(() => getIt<PrivacyBloc>())
+    ..registerLazySingleton<PresenceReporter>(
+      () => PresenceReporter(
+        getIt<IPresenceRepository>(),
+        getIt<IPrivacySettingsReader>(),
+        getIt<ICurrentUserSession>(),
+      ),
+    );
 
   // ─── Blocs ────────────────────────────────────────────────────────────
   getIt
@@ -223,6 +252,7 @@ void configureDependencies() {
         getIt<ICurrentUserSession>(),
         getIt<IPushTokenRegistry>(),
         getIt<IEncryptionRepository>(),
+        getIt<IPresenceRepository>(),
       ),
     )
     ..registerFactory<EncryptionBloc>(
@@ -230,6 +260,12 @@ void configureDependencies() {
           EncryptionBloc(getIt<IEncryptionRepository>(), getIt<IAuthFacade>()),
     )
     ..registerFactory<AppearanceBloc>(AppearanceBloc.new)
+    ..registerFactory<ChatActivityBloc>(
+      () => ChatActivityBloc(
+        getIt<IPresenceRepository>(),
+        getIt<IPrivacySettingsReader>(),
+      ),
+    )
     ..registerFactory<RegisterFormBloc>(
       () => RegisterFormBloc(getIt<IAuthFacade>(), getIt<IUserUtils>()),
     )
@@ -254,6 +290,8 @@ void configureDependencies() {
         getIt<IMediaRepository>(),
         getIt<IDraftRepository>(),
         getIt<MessageOutbox>(),
+        presence: getIt<IPresenceRepository>(),
+        privacy: getIt<IPrivacySettingsReader>(),
       ),
     )
     ..registerFactory<ChatsWatcherBloc>(

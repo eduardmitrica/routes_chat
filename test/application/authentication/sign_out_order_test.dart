@@ -3,6 +3,7 @@ import 'package:routes_chat/application/authentication/authentication_bloc.dart'
 import 'package:routes_chat/domain/authentication/authentication_facade_interface.dart';
 import 'package:routes_chat/domain/encryption/encryption_repository_interface.dart';
 import 'package:routes_chat/domain/notifications/push_token_registry_interface.dart';
+import 'package:routes_chat/domain/presence/presence_repository_interface.dart';
 import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
 import 'package:routes_chat/infrastructure/shared/user/current_user_session.dart';
 
@@ -46,6 +47,19 @@ class _FakeEncryption implements IEncryptionRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// Reports back when what friends see of this user's presence is deleted.
+class _FakePresence implements IPresenceRepository {
+  _FakePresence(this._onClear);
+
+  final void Function(String uid) _onClear;
+
+  @override
+  Future<void> clearPresence(String userId) async => _onClear(userId);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 void main() {
   test(
     'removes the push token and the keys, then ends the session, then signs out',
@@ -74,6 +88,10 @@ void main() {
         _FakeEncryption(
           () => steps.add('encryption keys locked, session ${sessionState()}'),
         ),
+        _FakePresence(
+          (uid) =>
+              steps.add('presence cleared for $uid, session ${sessionState()}'),
+        ),
       );
       addTearDown(bloc.close);
 
@@ -82,6 +100,7 @@ void main() {
 
       expect(steps, [
         'push token removed for user-1, session active',
+        'presence cleared for user-1, session active',
         'encryption keys locked, session active',
         'session ended',
         'signed out of Firebase',

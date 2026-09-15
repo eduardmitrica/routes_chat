@@ -17,6 +17,8 @@ import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/core/composite_id.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
+import 'package:routes_chat/domain/presence/presence_repository_interface.dart';
+import 'package:routes_chat/domain/settings/privacy_settings.dart';
 import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 
 part 'chat_bar_event.dart';
@@ -34,15 +36,28 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
   /// How long typing pauses before the draft is saved.
   static const defaultDraftDelay = Duration(milliseconds: 500);
 
+  /// How often, at most, the other person is told the user is still typing.
+  /// Their app shows typing for a little longer than this.
+  static const defaultTypingRefresh = Duration(seconds: 3);
+
+  /// How long typing pauses before the other person is told it stopped.
+  static const defaultTypingPause = Duration(seconds: 5);
+
   final ICurrentUserSession _session;
   final IMediaRepository _mediaRepository;
   final IDraftRepository _drafts;
   final MessageOutbox _outbox;
   final Duration _draftDelay;
+  final IPresenceRepository? _presence;
+  final IPrivacySettingsReader? _privacy;
+  final Duration _typingRefresh;
+  final Duration _typingPause;
 
   UniqueId? _otherUserId;
   Timer? _draftTimer;
   StreamSubscription<KtList<OutgoingMessage>>? _outgoing;
+  DateTime? _typingSentAt;
+  Timer? _typingPauseTimer;
 
   ChatBarBloc(
     this._session,
@@ -50,7 +65,15 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
     this._drafts,
     this._outbox, {
     Duration draftDelay = defaultDraftDelay,
+    IPresenceRepository? presence,
+    IPrivacySettingsReader? privacy,
+    Duration typingRefresh = defaultTypingRefresh,
+    Duration typingPause = defaultTypingPause,
   }) : _draftDelay = draftDelay,
+       _presence = presence,
+       _privacy = privacy,
+       _typingRefresh = typingRefresh,
+       _typingPause = typingPause,
        super(ChatBarState.initial()) {
     on<ChatBarEvent>((event, emit) async {
       switch (event) {
@@ -90,6 +113,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
         case MessageContentChanged(:final contentString):
           emit(state.copyWith(text: contentString));
           _saveDraftSoon();
+          _typed(contentString);
 
         case ReplyStarted(:final message):
           emit(state.copyWith(replyingTo: MessageQuote.of(message)));
@@ -166,6 +190,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
             queuedAt: DateTime.now(),
           );
           _draftTimer?.cancel();
+          _stopTyping();
           // The field has already cleared itself.
           emit(
             state.copyWith(
@@ -192,6 +217,40 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
           }
       }
     });
+  }
+
+  /// Tells the other person the user is typing, while the user shares it:
+  /// at most every [_typingRefresh], and that it stopped once typing pauses
+  /// for [_typingPause] or the field empties.
+  void _typed(String text) {
+    final presence = _presence;
+    final chatId = state.chatId;
+    if (presence == null ||
+        chatId == null ||
+        !(_privacy?.privacy.shareTyping ?? false)) {
+      return;
+    }
+    if (text.trim().isEmpty) {
+      _stopTyping();
+      return;
+    }
+    final now = DateTime.now();
+    final sentAt = _typingSentAt;
+    if (sentAt == null || now.difference(sentAt) >= _typingRefresh) {
+      _typingSentAt = now;
+      unawaited(presence.startTyping(chatId));
+    }
+    _typingPauseTimer?.cancel();
+    _typingPauseTimer = Timer(_typingPause, _stopTyping);
+  }
+
+  void _stopTyping() {
+    _typingPauseTimer?.cancel();
+    _typingPauseTimer = null;
+    if (_typingSentAt == null) return;
+    _typingSentAt = null;
+    final chatId = state.chatId;
+    if (chatId != null) unawaited(_presence?.stopTyping(chatId));
   }
 
   void _saveDraftSoon() {
@@ -229,6 +288,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
   /// Saves what was typed just before the chat closed.
   @override
   Future<void> close() async {
+    _stopTyping();
     await _outgoing?.cancel();
     if (_draftTimer?.isActive ?? false) await _saveDraft();
     return super.close();

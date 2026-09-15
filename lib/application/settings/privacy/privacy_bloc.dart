@@ -10,6 +10,8 @@ sealed class PrivacyEvent extends Equatable {
       TypingSharingChanged;
   const factory PrivacyEvent.onlineSharingChanged(bool share) =
       OnlineSharingChanged;
+  const factory PrivacyEvent.readReceiptsSharingChanged(bool share) =
+      ReadReceiptsSharingChanged;
 }
 
 final class TypingSharingChanged extends PrivacyEvent {
@@ -26,6 +28,13 @@ final class OnlineSharingChanged extends PrivacyEvent {
   List<Object?> get props => [share];
 }
 
+final class ReadReceiptsSharingChanged extends PrivacyEvent {
+  final bool share;
+  const ReadReceiptsSharingChanged(this.share);
+  @override
+  List<Object?> get props => [share];
+}
+
 /// The privacy settings the user chose, kept on this device between launches.
 class PrivacyBloc extends HydratedBloc<PrivacyEvent, PrivacySettings>
     implements IPrivacySettingsReader {
@@ -36,6 +45,8 @@ class PrivacyBloc extends HydratedBloc<PrivacyEvent, PrivacySettings>
           emit(state.copyWith(shareTyping: share));
         case OnlineSharingChanged(:final share):
           emit(state.copyWith(shareOnline: share));
+        case ReadReceiptsSharingChanged(:final share):
+          emit(state.copyWith(shareReadReceipts: share));
       }
     });
   }
@@ -46,16 +57,18 @@ class PrivacyBloc extends HydratedBloc<PrivacyEvent, PrivacySettings>
   @override
   Stream<PrivacySettings> get privacyChanges => stream;
 
-  /// Both on, the defaults, for anything not saved by [toJson].
+  /// All on, the defaults, for anything not saved by [toJson].
   @override
   PrivacySettings fromJson(Map<String, dynamic> json) => PrivacySettings(
     shareTyping: json['shareTyping'] as bool? ?? true,
     shareOnline: json['shareOnline'] as bool? ?? true,
+    shareReadReceipts: json['shareReadReceipts'] as bool? ?? true,
   );
 
   @override
   Map<String, dynamic> toJson(PrivacySettings state) => {
     'shareTyping': state.shareTyping,
     'shareOnline': state.shareOnline,
+    'shareReadReceipts': state.shareReadReceipts,
   };
 }

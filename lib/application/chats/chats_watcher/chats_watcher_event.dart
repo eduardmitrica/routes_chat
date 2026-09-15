@@ -9,12 +9,23 @@ sealed class ChatsWatcherEvent extends Equatable {
     Either<ChatFailure, KtList<Chat>> failureOrFriendRequests,
   ) = ChatsReceived;
 
+  const factory ChatsWatcherEvent.readsChanged(ChatReads reads) =
+      ChatsReadsChanged;
+
   @override
   List<Object?> get props => const [];
 }
 
 final class ChatsWatchAllStarted extends ChatsWatcherEvent {
   const ChatsWatchAllStarted();
+}
+
+/// How far the user has read changed.
+final class ChatsReadsChanged extends ChatsWatcherEvent {
+  final ChatReads reads;
+  const ChatsReadsChanged(this.reads);
+  @override
+  List<Object?> get props => [reads];
 }
 
 final class ChatsReceived extends ChatsWatcherEvent {

@@ -43,9 +43,26 @@ class FakePresence implements IPresenceRepository {
     return presence.stream;
   }
 
+  final reads = StreamController<DateTime?>.broadcast();
+  var readWatches = 0;
+
+  @override
+  Future<void> markRead(UniqueId chatId, UniqueId messageId) async =>
+      calls.add('read ${chatId.getOrCrash()} ${messageId.getOrCrash()}');
+
+  @override
+  Stream<DateTime?> watchReadUpTo(UniqueId chatId, UniqueId userId) {
+    readWatches++;
+    return reads.stream;
+  }
+
+  @override
+  Future<void> clearReads() async => calls.add('cleared reads');
+
   Future<void> close() async {
     await typing.close();
     await presence.close();
+    await reads.close();
   }
 }
 

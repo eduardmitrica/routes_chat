@@ -187,7 +187,7 @@ They also:
 - A compromised or unlocked phone with the app installed.
 - Metadata: who talks to whom, when, and how often. The server sees chat membership and timestamps.
 - Message length. Ciphertext is as long as the text and any quote, so the server can estimate how long a message is. It also sees how many photos a message has, roughly how big each is, and who uploaded each (which the rules need to let only the uploader delete a file).
-- Activity. While people share it, the server sees when someone types in a chat (`chats/{chatId}/typing/{uid}`) and when their app is on screen (`presence/{uid}`), never what they type. Push notifications carry the sender's name and the chat, never message text.
+- Activity. While people share it, the server sees when someone types in a chat (`chats/{chatId}/typing/{uid}`), when their app is on screen (`presence/{uid}`), and which message they have read up to and when (`chats/{chatId}/reads/{uid}`), never what they type or read. Which chats are unread is kept only on the phone, encrypted like drafts. Push notifications carry the sender's name and the chat, never message text.
 - Changes as events. The server sees when a message is edited or deleted, and
   when someone reacts to which message, never the new text or which emoji.
 - Taking back what the other person already has. Deleting a message removes it

@@ -7,11 +7,14 @@ import '../../domain/presence/presence.dart';
 import '../../domain/presence/presence_repository_interface.dart';
 import '../../domain/shared/user/current_user_session_interface.dart';
 
-/// Typing in `chats/{chatId}/typing/{uid}` and presence in `presence/{uid}`.
+/// Typing in `chats/{chatId}/typing/{uid}`, how far each person has read in
+/// `chats/{chatId}/reads/{uid}`, and presence in `presence/{uid}`.
 ///
-/// firestore.rules let a chat's participants see who types in it, and only
-/// friends see each other's presence. Both documents hold a server time and
-/// nothing else a client could use to say more than "now".
+/// firestore.rules let a chat's participants see who types and reads in it,
+/// and only friends see each other's presence. Typing and presence hold a
+/// server time and nothing else a client could use to say more than "now". A
+/// read marker also names the message read, with its send time, never what
+/// it says.
 class FirestorePresenceRepository implements IPresenceRepository {
   final FirebaseFirestore _firestore;
   final ICurrentUserSession _session;
@@ -23,6 +26,11 @@ class FirestorePresenceRepository implements IPresenceRepository {
 
   DocumentReference<Map<String, dynamic>> _presence(String uid) =>
       _firestore.collection('presence').doc(uid);
+
+  DocumentReference<Map<String, dynamic>> _readMarker(
+    String chatId,
+    String uid,
+  ) => _firestore.collection('chats').doc(chatId).collection('reads').doc(uid);
 
   /// Runs [write] for the signed-in user, logging only the kind of failure.
   Future<void> _bestEffort(
@@ -115,4 +123,57 @@ class FirestorePresenceRepository implements IPresenceRepository {
           debugPrint('Presence not watched: ${error.runtimeType}');
         });
   }
+
+  @override
+  Future<void> markRead(UniqueId chatId, UniqueId messageId) =>
+      _bestEffort('Marking read', (uid) async {
+        final chat = chatId.getOrCrash();
+        final id = messageId.getOrCrash();
+        // The rules require the message's own send time, to the microsecond.
+        final message = await _firestore
+            .collection('chats')
+            .doc(chat)
+            .collection('messages')
+            .doc(id)
+            .get();
+        final sentAt = message.data()?['serverTimeStamp'];
+        if (sentAt is! Timestamp) return;
+        await _readMarker(chat, uid).set({
+          'messageId': id,
+          'messageSentAt': sentAt,
+          'readAt': FieldValue.serverTimestamp(),
+        });
+      });
+
+  @override
+  Stream<DateTime?> watchReadUpTo(UniqueId chatId, UniqueId userId) {
+    if (_session.current == null) return const Stream.empty();
+    return _readMarker(chatId.getOrCrash(), userId.getOrCrash())
+        .snapshots()
+        .takeUntil(_session.ended)
+        .map(
+          (snapshot) =>
+              (snapshot.data()?['messageSentAt'] as Timestamp?)?.toDate(),
+        )
+        .handleError((Object error) {
+          debugPrint('Read receipts not watched: ${error.runtimeType}');
+        });
+  }
+
+  @override
+  Future<void> clearReads() =>
+      _bestEffort('Clearing read receipts', (uid) async {
+        final chats = await _firestore
+            .collection('chats')
+            .where('participantIds', arrayContains: uid)
+            .get();
+        // A batch holds at most 500 writes.
+        for (var start = 0; start < chats.docs.length; start += 400) {
+          final batch = _firestore.batch();
+          for (final chat in chats.docs.skip(start).take(400)) {
+            batch.delete(_readMarker(chat.id, uid));
+          }
+          await batch.commit();
+        }
+      });
 }

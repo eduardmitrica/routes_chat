@@ -482,6 +482,28 @@ service cloud.firestore {
         allow delete: if signedIn() && request.auth.uid == userId;
       }
 
+      // How far each participant has read the chat, for read receipts: the
+      // newest message they read, when it was sent, and the server time they
+      // said so. Never what it says. Only the chat's participants read it, and
+      // each writes only their own, about a message of this chat; the app
+      // stops writing it, and deletes it, when the user stops sharing read
+      // receipts. The read decides from the ids, so it also works before
+      // anyone read.
+      match /reads/{userId} {
+        allow read: if signedIn() && request.auth.uid in chatId.split('_');
+        allow create, update: if signedIn() &&
+          request.auth.uid == userId &&
+          userId in chatId.split('_') &&
+          request.resource.data.keys().hasOnly(['messageId', 'messageSentAt',
+                                                'readAt']) &&
+          request.resource.data.readAt == request.time &&
+          request.resource.data.messageId is string &&
+          request.resource.data.messageSentAt == get(
+            /databases/$(database)/documents/chats/$(chatId)/messages/$(request.resource.data.messageId)
+          ).data.serverTimeStamp;
+        allow delete: if signedIn() && request.auth.uid == userId;
+      }
+
       // Reactions to the chat's messages, one document per person per
       // message, with the id "<message id>_<user id>" (neither contains "_").
       // The emoji is encrypted under the chat's current key generation

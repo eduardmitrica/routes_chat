@@ -182,8 +182,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
       );
     _bannerTimer?.cancel();
+    // Long enough to read it and reach for Open.
     _bannerTimer = Timer(
-      const Duration(seconds: 6),
+      const Duration(seconds: 10),
       messenger.hideCurrentMaterialBanner,
     );
   }

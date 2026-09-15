@@ -56,11 +56,17 @@ The page is `presentation/home/chats/widgets/chat_page.dart`.
 | Jump to the message a reply quotes | `MessagesWatcherEvent.messageRevealRequested`, `MessageReveal` | `messages_watcher_bloc_test.dart` |
 | Links: detection, confirmation, opening | `domain/chats/messages/message_links.dart`, `LinkifiedText`, `open_link_dialog.dart`, `url_launcher` (in-app browser tab) | `message_links_test.dart`, `message_links_widget_test.dart`, `open_link_dialog_test.dart` |
 | Photos and GIFs: choosing, encrypting, carousel, full screen | `message_attachment.dart` (limits), `IMediaRepository` / `MediaRepository` (prepare, load, memory cache), `AttachmentStore` (encrypt, Storage), `ChatBarBloc` (`mediaPicked`), `MessageComposer`, `AttachmentGallery`, `EncryptedImage`, `MediaViewerPage` | `chat_bar_media_test.dart`, `media_repository_test.dart`, `chat_cipher_file_test.dart`, `attachment_gallery_test.dart`, `message_composer_media_test.dart` |
+| Saving a photo or GIF to the phone | `MediaRepository.saveToPhotos`, `PhotoLibrary` / `GalPhotoLibrary` (`gal`), the save button in `MediaViewerPage`, "Save photo" in the long-press menu | `media_repository_test.dart` (saving), `media_viewer_save_test.dart` |
+| Messages on their way: kept on the phone, sent in order, retried | `MessageOutbox` (per-chat queue, growing pauses, retry now on reconnect and on resume), `OutgoingMessage`, `IOutboxRepository`, `OutgoingMessageBubble`, `NetworkMonitor`, `HomePage` (`resume`, `retryNow`) | `message_outbox_test.dart`, `outgoing_message_bubble_test.dart`, `chat_bar_draft_test.dart` |
+| Files of a message given up, deleted from Storage | `MessageOutbox.discard`, `IMessageRepository.deleteAttachment`, `storage.rules` (uploader deletes) | `message_outbox_test.dart`, `storage_rules_match_media_limits_test.dart` |
+| Drafts kept on the phone | `ChatBarBloc` (`started`, saving after a pause), `ChatDraft`, `IDraftRepository`, `LocalChatStore`, `LocalVault` (encrypted, wiped on sign-out) | `chat_bar_draft_test.dart`, `local_chat_store_test.dart`, `message_composer_media_test.dart` |
 | Loading skeleton | `messages_skeleton.dart`, `presentation/core/widgets/skeleton.dart` | `test/presentation/core/messages_skeleton_test.dart` |
 | Key reset and unreadable-message notices | `chat_timeline.dart` | `chat_timeline_test.dart`, `chat_timeline_partial_history_test.dart` |
-| Sending, and reporting failed sends | `ChatBarBloc`, `MessageComposer` | `chat_bar_send_failure_test.dart` |
+| Sending | `ChatBarBloc` (`sent`), `MessageOutbox`, `MessageRepository.addMessageToChatWithId` / `ChatRepository.create` (a message sent twice lands once) | `chat_bar_reply_test.dart`, `chat_creation_ids_test.dart`, `message_outbox_test.dart` |
 
-The long-press menu on a message has Reply, Copy text and Copy link.
+The long-press menu on a message has Reply, Copy text, Save photo (or Save
+all) and Copy link. On a message not sent yet it has Try again now, Copy text
+and Delete message.
 
 ## Friends and friend requests
 

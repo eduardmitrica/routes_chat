@@ -18,4 +18,15 @@ abstract interface class IMediaRepository {
     UniqueId chatId,
     MessageAttachment attachment,
   );
+
+  /// Keeps [file] as the decrypted photo or GIF [attachmentId] of [chatId],
+  /// as if it had been loaded, so a photo just sent is not downloaded again.
+  void remember(UniqueId chatId, UniqueId attachmentId, Uint8List file);
+
+  /// Adds [attachment] of a message in [chatId] to the phone's photos, as the
+  /// photo or GIF it is, asking for permission first if needed.
+  Future<Either<MediaFailure, Unit>> saveToPhotos(
+    UniqueId chatId,
+    MessageAttachment attachment,
+  );
 }

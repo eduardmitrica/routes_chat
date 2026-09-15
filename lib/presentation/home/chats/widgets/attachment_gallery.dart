@@ -12,11 +12,15 @@ class AttachmentGallery extends StatefulWidget {
   final AttachmentLoader loader;
   final double width;
 
+  /// Saves a photo from the full-screen view.
+  final AttachmentSaver? onSave;
+
   const AttachmentGallery({
     super.key,
     required this.attachments,
     required this.loader,
     required this.width,
+    this.onSave,
   });
 
   @override
@@ -56,6 +60,7 @@ class _AttachmentGalleryState extends State<AttachmentGallery> {
         attachments: widget.attachments,
         initialIndex: index,
         loader: widget.loader,
+        onSave: widget.onSave,
       ),
     ),
   );

@@ -34,8 +34,12 @@ class MessageComposer extends StatefulWidget {
   /// Whether chosen photos are still being made ready.
   final bool preparingMedia;
 
-  /// Whether a message is on its way, during which nothing else is sent.
-  final bool sending;
+  /// The text the field starts with, such as a restored draft.
+  final String text;
+
+  /// Changes each time [text] is set from outside the field, which then shows
+  /// it in place of what it had.
+  final int textRevision;
 
   /// Asks for photos to add. Without it there is no button for them.
   final VoidCallback? onAddMedia;
@@ -52,7 +56,8 @@ class MessageComposer extends StatefulWidget {
     required this.onCancelReply,
     this.media = const [],
     this.preparingMedia = false,
-    this.sending = false,
+    this.text = '',
+    this.textRevision = 0,
     this.onAddMedia,
     this.onRemoveMedia,
   });
@@ -62,7 +67,18 @@ class MessageComposer extends StatefulWidget {
 }
 
 class _MessageComposerState extends State<MessageComposer> {
-  final _text = TextEditingController();
+  late final _text = TextEditingController(text: widget.text);
+
+  @override
+  void didUpdateWidget(MessageComposer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.textRevision != oldWidget.textRevision) {
+      _text.value = TextEditingValue(
+        text: widget.text,
+        selection: TextSelection.collapsed(offset: widget.text.length),
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -72,7 +88,6 @@ class _MessageComposerState extends State<MessageComposer> {
 
   bool _canSend(String text) =>
       (text.trim().isNotEmpty || widget.media.isNotEmpty) &&
-      !widget.sending &&
       !widget.preparingMedia;
 
   void _send() {
@@ -99,7 +114,6 @@ class _MessageComposerState extends State<MessageComposer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (widget.sending) const LinearProgressIndicator(),
             if (replyingTo != null)
               _ReplyStrip(
                 name: widget.replyingToName,
@@ -116,7 +130,7 @@ class _MessageComposerState extends State<MessageComposer> {
                     for (final draft in widget.media)
                       _DraftThumbnail(
                         draft: draft,
-                        onRemove: widget.sending || widget.onRemoveMedia == null
+                        onRemove: widget.onRemoveMedia == null
                             ? null
                             : () => widget.onRemoveMedia!(draft.id),
                       ),
@@ -144,7 +158,7 @@ class _MessageComposerState extends State<MessageComposer> {
                     IconButton(
                       tooltip: 'Add photos or GIFs',
                       color: scheme.primary,
-                      onPressed: widget.sending ? null : onAddMedia,
+                      onPressed: onAddMedia,
                       icon: const Icon(Icons.add_photo_alternate_outlined),
                     ),
                   Expanded(

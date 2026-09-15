@@ -1,25 +1,23 @@
+import 'dart:async';
+
 import 'package:dartz/dartz.dart';
 import 'package:equatable/equatable.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:kt_dart/collection.dart';
-import 'package:routes_chat/domain/chats/messages/message_failure.dart'
-    as message_failure;
-import 'package:routes_chat/domain/chats/messages/message_repository_interface.dart';
-import 'package:routes_chat/domain/chats/messages/value_objects.dart';
-import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
-
-import '../../../domain/chats/chat.dart';
-import '../../../domain/chats/chat_failure.dart';
-import '../../../domain/chats/chat_repository_interface.dart';
-import '../../../domain/chats/messages/message.dart';
-import '../../../domain/chats/value_objects.dart';
-import '../../../domain/core/composite_id.dart';
-import '../../../domain/core/value_objects.dart';
-import 'package:routes_chat/domain/chats/messages/message_quote.dart';
+import 'package:routes_chat/application/chats/outbox/message_outbox.dart';
+import 'package:routes_chat/domain/chats/messages/local_chat_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/media_failure.dart';
 import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
+import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import 'package:routes_chat/domain/chats/messages/message_quote.dart';
+import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
+import 'package:routes_chat/domain/chats/messages/value_objects.dart';
+import 'package:routes_chat/domain/core/composite_id.dart';
+import 'package:routes_chat/domain/core/value_objects.dart';
+import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 
 part 'chat_bar_event.dart';
 
@@ -27,34 +25,80 @@ part 'chat_bar_state.dart';
 
 part 'chat_bar_bloc.freezed.dart';
 
+/// What the user writes in a chat, and the messages of the chat on their way.
+///
+/// What is written (its text, the message it replies to and its photos) is
+/// kept on the phone as a draft until it is sent. Then the outbox keeps it
+/// until it arrives, trying again when sending fails.
 class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
-  final IChatRepository _chatRepository;
-  final IMessageRepository _messageRepository;
+  /// How long typing pauses before the draft is saved.
+  static const defaultDraftDelay = Duration(milliseconds: 500);
+
   final ICurrentUserSession _session;
   final IMediaRepository _mediaRepository;
+  final IDraftRepository _drafts;
+  final MessageOutbox _outbox;
+  final Duration _draftDelay;
+
+  UniqueId? _otherUserId;
+  Timer? _draftTimer;
+  StreamSubscription<KtList<OutgoingMessage>>? _outgoing;
 
   ChatBarBloc(
-    this._chatRepository,
-    this._messageRepository,
     this._session,
     this._mediaRepository,
-  ) : super(ChatBarState.initial()) {
+    this._drafts,
+    this._outbox, {
+    Duration draftDelay = defaultDraftDelay,
+  }) : _draftDelay = draftDelay,
+       super(ChatBarState.initial()) {
     on<ChatBarEvent>((event, emit) async {
-      final userId = _session.current?.id ?? '';
-
       switch (event) {
-        case MessageContentChanged():
-          emit(
-            state.copyWith(
-              content: Content(event.contentString),
-              chatCreationFailureOrSuccessOption: none(),
-              messageSendFailureOrSuccessOption: none(),
-            ),
-          );
+        case ChatBarStarted(:final otherUserId):
+          final userId = _session.current?.id;
+          if (userId == null) return;
+          _otherUserId = otherUserId;
+          // The chat's id follows from its participants, so a chat that does
+          // not exist yet already has one to keep a draft under.
+          final chatId = compositeId([
+            UniqueId.fromUniqueString(userId),
+            otherUserId,
+          ]);
+          emit(state.copyWith(chatId: chatId));
+          await _outgoing?.cancel();
+          _outgoing = _outbox
+              .watch(chatId)
+              .listen(
+                (messages) => add(ChatBarEvent.outgoingChanged(messages)),
+              );
+          final draft = await _loadDraft(chatId);
+          final untouched =
+              state.text.isEmpty &&
+              state.replyingTo == null &&
+              state.media.isEmpty();
+          if (draft != null && untouched) {
+            emit(
+              state.copyWith(
+                text: draft.text,
+                textRevision: state.textRevision + 1,
+                replyingTo: draft.replyTo,
+                media: draft.media,
+              ),
+            );
+          }
+
+        case MessageContentChanged(:final contentString):
+          emit(state.copyWith(text: contentString));
+          _saveDraftSoon();
+
         case ReplyStarted(:final message):
           emit(state.copyWith(replyingTo: MessageQuote.of(message)));
+          await _saveDraft();
+
         case ReplyCancelled():
           emit(state.copyWith(replyingTo: null));
+          await _saveDraft();
+
         case MediaPicked(:final paths):
           final room = MediaLimits.maxPerMessage - state.media.size;
           emit(
@@ -77,6 +121,8 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
               mediaFailureOption: optionOf(failure),
             ),
           );
+          await _saveDraft();
+
         case MediaRemoved(:final id):
           emit(
             state.copyWith(
@@ -84,107 +130,107 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
               mediaFailureOption: none(),
             ),
           );
-        case NewChatCreated():
-          {
-            Either<ChatFailure, Unit>? failureOrSuccess;
+          await _saveDraft();
 
-            final content = state.content;
-            if (content.isValid()) {
-              emit(
-                state.copyWith(
-                  isSubmitting: true,
-                  chatCreationFailureOrSuccessOption: none(),
-                  messageSendFailureOrSuccessOption: none(),
-                ),
-              );
-
-              var participantsWithCurrentUserIdIncluded =
-                  event.otherThanCurrentParticipantIds.toMutableList()
-                    ..add(UniqueId.fromUniqueString(userId));
-
-              final message = Message(
-                id: UniqueId(),
-                senderId: UniqueId.fromUniqueString(userId),
-                imageUrls: const KtList.empty(),
-                reactions: const KtList.empty(),
-                content: content,
-
-                lastUpdatedAt: null,
-                isEdited: false,
-              );
-
-              final chat = Chat(
-                // One chat per pair of participants; see compositeId.
-                id: compositeId(participantsWithCurrentUserIdIncluded.asList()),
-                participantsList: ParticipantsList(
-                  participantsWithCurrentUserIdIncluded.map(
-                    (participantId) => Tuple2(participantId, UniqueId.empty()),
-                  ),
-                ),
-                lastMessage: message,
-              );
-              failureOrSuccess = await _chatRepository.create(
-                chat,
-                message,
-                media: state.media,
-              );
-            }
-
-            emit(
-              state.copyWith(
-                isSubmitting: false,
-                showErrorMessages: true,
-                // Photos stay chosen after a failure, to try again.
-                media: failureOrSuccess?.isRight() ?? false
-                    ? const KtList.empty()
-                    : state.media,
-                chatCreationFailureOrSuccessOption: optionOf(failureOrSuccess),
-                messageSendFailureOrSuccessOption: none(),
-              ),
-            );
+        case MessageSent(:final text, :final chatExists):
+          final userId = _session.current?.id;
+          final chatId = state.chatId;
+          final otherUserId = _otherUserId;
+          final content = Content(text);
+          final hasSomething =
+              text.trim().isNotEmpty || state.media.isNotEmpty();
+          if (userId == null ||
+              chatId == null ||
+              otherUserId == null ||
+              !content.isValid() ||
+              !hasSomething ||
+              state.preparingMedia) {
+            return;
           }
-        case NewMessageAddedToChatWithId():
-          {
-            final content = Content(event.content);
-            final hasSomething =
-                event.content.trim().isNotEmpty || state.media.isNotEmpty();
-            if (content.isValid() && hasSomething) {
-              // The reply goes out with this message, not with the next.
-              final replyTo = state.replyingTo;
-              emit(state.copyWith(replyingTo: null, isSubmitting: true));
-              final message = Message(
-                id: UniqueId(),
-                senderId: UniqueId.fromUniqueString(userId),
-                imageUrls: const KtList.empty(),
-                reactions: const KtList.empty(),
-                content: content,
-                replyTo: replyTo,
-                lastUpdatedAt: null,
-                isEdited: false,
-              );
-              // The message bar has already cleared the text, so the outcome
-              // is kept in state for the page to report; ignoring it made a
-              // failed send vanish.
-              final failureOrSuccess = await _messageRepository
-                  .addMessageToChatWithId(
-                    message,
-                    event.chatId,
-                    media: state.media,
-                  );
-              emit(
-                state.copyWith(
-                  isSubmitting: false,
-                  // Photos stay chosen after a failure, to try again.
-                  media: failureOrSuccess.isRight()
-                      ? const KtList.empty()
-                      : state.media,
-                  chatCreationFailureOrSuccessOption: none(),
-                  messageSendFailureOrSuccessOption: some(failureOrSuccess),
-                ),
-              );
-            }
+          final outgoing = OutgoingMessage(
+            message: Message(
+              id: UniqueId(),
+              senderId: UniqueId.fromUniqueString(userId),
+              imageUrls: const KtList.empty(),
+              reactions: const KtList.empty(),
+              content: content,
+              replyTo: state.replyingTo,
+              lastUpdatedAt: null,
+              isEdited: false,
+            ),
+            chatId: chatId,
+            startsChatWith: chatExists
+                ? const KtList.empty()
+                : KtList.of(otherUserId),
+            media: state.media,
+            queuedAt: DateTime.now(),
+          );
+          _draftTimer?.cancel();
+          // The field has already cleared itself.
+          emit(
+            state.copyWith(
+              text: '',
+              replyingTo: null,
+              media: const KtList.empty(),
+              mediaFailureOption: none(),
+            ),
+          );
+          // Kept in the outbox before the draft is cleared, so the message is
+          // on the phone the whole time.
+          await _outbox.enqueue(outgoing);
+          await _saveDraft();
+
+        case OutgoingChanged(:final messages):
+          emit(state.copyWith(outgoing: messages));
+
+        case OutgoingRetryRequested(:final messageId):
+          await _outbox.retry(messageId);
+
+        case OutgoingDiscardRequested(:final messageId):
+          if (!await _outbox.discard(messageId)) {
+            emit(state.copyWith(discardsRefused: state.discardsRefused + 1));
           }
       }
     });
+  }
+
+  void _saveDraftSoon() {
+    _draftTimer?.cancel();
+    _draftTimer = Timer(_draftDelay, () => unawaited(_saveDraft()));
+  }
+
+  Future<void> _saveDraft() async {
+    _draftTimer?.cancel();
+    final chatId = state.chatId;
+    if (chatId == null) return;
+    try {
+      await _drafts.saveDraft(
+        chatId,
+        ChatDraft(
+          text: state.text,
+          replyTo: state.replyingTo,
+          media: state.media,
+        ),
+      );
+    } on Object catch (error) {
+      debugPrint('Draft not saved: ${error.runtimeType}');
+    }
+  }
+
+  Future<ChatDraft?> _loadDraft(UniqueId chatId) async {
+    try {
+      return await _drafts.loadDraft(chatId);
+    } on Object catch (error) {
+      debugPrint('Draft not loaded: ${error.runtimeType}');
+      return null;
+    }
+  }
+
+  /// Saves what was typed just before the chat closed.
+  @override
+  Future<void> close() async {
+    await _outgoing?.cancel();
+    if (_draftTimer?.isActive ?? false) await _saveDraft();
+    return super.close();
   }
 }

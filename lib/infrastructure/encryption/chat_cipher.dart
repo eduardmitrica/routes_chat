@@ -662,22 +662,34 @@ class ChatCipher {
 
   /// Encrypts [content], a photo or GIF, with a new key of its own, bound to
   /// the file [fileId] of [chatId].
+  ///
+  /// The key is [key] when given, made earlier with [newFileKey], so a file
+  /// whose upload is repeated is encrypted under the key its message already
+  /// records.
   Future<EncryptedFile> encryptFile(
     List<int> content, {
     required String chatId,
     required String fileId,
+    List<int>? key,
   }) async {
-    final key = SecretKeyData.random(length: chatKeyLength);
+    if (key != null && key.length != chatKeyLength) {
+      throw ArgumentError.value(key.length, 'key', 'not $chatKeyLength bytes');
+    }
+    final secretKey = SecretKeyData(key ?? newFileKey());
     final box = await _aead.encrypt(
       content,
-      secretKey: key,
+      secretKey: secretKey,
       aad: _associatedData(_filePurpose, [chatId, fileId]),
     );
     return EncryptedFile(
-      key: Uint8List.fromList(key.bytes),
+      key: Uint8List.fromList(secretKey.bytes),
       stored: Uint8List.fromList(box.concatenation()),
     );
   }
+
+  /// A new random key for one file.
+  Uint8List newFileKey() =>
+      Uint8List.fromList(SecretKeyData.random(length: chatKeyLength).bytes);
 
   /// The photo or GIF in [stored], encrypted with [key] as the file [fileId]
   /// of [chatId].

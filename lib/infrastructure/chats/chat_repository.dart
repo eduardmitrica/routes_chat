@@ -17,8 +17,6 @@ import 'package:rxdart/rxdart.dart';
 
 import '../../domain/chats/messages/message.dart';
 import 'package:routes_chat/infrastructure/chats/messages/message_payloads.dart';
-import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
-import 'package:routes_chat/infrastructure/chats/messages/attachment_store.dart';
 
 /// Chats, with the last message encrypted on the way in and decrypted on the
 /// way out. See docs/e2ee.md.
@@ -27,14 +25,12 @@ class ChatRepository implements IChatRepository {
   final ICurrentUserSession _session;
   final ChatKeyring _keyring;
   final ChatCipher _cipher;
-  final AttachmentStore _attachments;
 
   const ChatRepository(
     this._firestore,
     this._session,
     this._keyring,
     this._cipher,
-    this._attachments,
   );
 
   @override
@@ -129,9 +125,8 @@ class ChatRepository implements IChatRepository {
   @override
   Future<Either<ChatFailure, Unit>> create(
     Chat chat,
-    Message firstMessage, {
-    KtList<MediaDraft> media = const KtList.empty(),
-  }) async {
+    Message firstMessage,
+  ) async {
     if (_session.current == null) {
       return Left(InsufficientPermissions());
     }
@@ -152,14 +147,6 @@ class ChatRepository implements IChatRepository {
             .asList(),
       );
 
-      // The files go first, because the message refers to them.
-      final attachments = await Future.wait([
-        for (final draft in media.iter) _attachments.upload(chatId, draft),
-      ]);
-      final sent = firstMessage.copyWith(
-        attachments: attachments.toImmutableList(),
-      );
-
       final created = await _firestore.runTransaction((transaction) async {
         // The chat id is derived from its participants (compositeId), so a
         // chat between the same people is always this document. Reading it
@@ -168,6 +155,11 @@ class ChatRepository implements IChatRepository {
         // inside the transaction, was invisible to it, so both could create a
         // chat.
         final existingChat = await transaction.get(chatRef);
+        // Sent already, by an attempt whose answer was lost. Asked only once
+        // the chat exists: the rules read a message through its chat.
+        if (existingChat.exists && (await transaction.get(messageRef)).exists) {
+          return false;
+        }
         final int keyGeneration;
         final SecretKey chatKey;
         if (existingChat.exists) {
@@ -183,7 +175,7 @@ class ChatRepository implements IChatRepository {
           chatKey = firstGeneration.key;
         }
         final content = await _cipher.encrypt(
-          payloadOf(sent),
+          payloadOf(firstMessage),
           chatKey: chatKey,
           chatId: chatId,
           keyGeneration: keyGeneration,

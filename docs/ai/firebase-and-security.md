@@ -39,7 +39,7 @@ The project has no `(default)` database.
 | `chats/{pairId}/messages/{id}` | Sender, encrypted `content`, timestamps | The two people |
 | Storage `placeholders/…` | Shared placeholder avatar (public read, no client writes) | Anyone |
 | Storage `user_images/{uid}.jpg` | Profile photo | Signed-in users; only the owner writes |
-| Storage `chat_media/{chatId}/{fileId}` | A photo or GIF of a chat, encrypted (never readable by the server), never replaced | The two people |
+| Storage `chat_media/{chatId}/{fileId}` | A photo or GIF of a chat, encrypted (never readable by the server), never replaced; its `uploader` metadata lets only them delete it | The two people |
 
 ## Rules: principles the code depends on
 

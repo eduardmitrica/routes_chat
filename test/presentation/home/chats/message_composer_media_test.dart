@@ -38,7 +38,8 @@ void main() {
   Future<void> show(
     WidgetTester tester, {
     List<MediaDraft> media = const [],
-    bool sending = false,
+    String text = '',
+    int textRevision = 0,
     bool preparing = false,
   }) => tester.pumpWidget(
     MaterialApp(
@@ -54,7 +55,8 @@ void main() {
             replyingToName: '',
             onCancelReply: () {},
             media: media,
-            sending: sending,
+            text: text,
+            textRevision: textRevision,
             preparingMedia: preparing,
             onAddMedia: () => addRequests++,
             onRemoveMedia: removed.add,
@@ -99,14 +101,37 @@ void main() {
     expect(find.text('GIF'), findsOneWidget);
   });
 
-  testWidgets('nothing more is sent while a message is on its way', (
+  testWidgets('a draft brought back replaces what the field had', (
     tester,
   ) async {
-    await show(tester, media: [_draft('a')], sending: true);
+    await show(tester);
+    await tester.enterText(find.byType(TextField), 'typed');
 
-    expect(sendButton(tester).onPressed, isNull);
-    expect(find.byTooltip('Remove photo'), findsNothing);
-    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    await show(tester, text: 'Ne vedem mâine', textRevision: 1);
+
+    expect(find.text('Ne vedem mâine'), findsOneWidget);
+    expect(sendButton(tester).onPressed, isNotNull);
+  });
+
+  testWidgets('what the user types is not replaced by the same draft', (
+    tester,
+  ) async {
+    await show(tester, text: 'Ne vedem', textRevision: 1);
+    await tester.enterText(find.byType(TextField), 'Ne vedem mâine');
+
+    await show(tester, text: 'Ne vedem', textRevision: 1);
+
+    expect(find.text('Ne vedem mâine'), findsOneWidget);
+  });
+
+  testWidgets('another message can be written while one is on its way', (
+    tester,
+  ) async {
+    await show(tester, media: [_draft('a')]);
+
+    expect(sendButton(tester).onPressed, isNotNull);
+    expect(find.byTooltip('Remove photo'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
   });
 
   testWidgets('photos still being made ready cannot be sent yet', (

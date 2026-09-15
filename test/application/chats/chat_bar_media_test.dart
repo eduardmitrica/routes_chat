@@ -4,19 +4,17 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/application/chats/chat_bar/chat_bar_bloc.dart';
-import 'package:routes_chat/domain/chats/chat.dart';
-import 'package:routes_chat/domain/chats/chat_failure.dart' as chat_failure;
-import 'package:routes_chat/domain/chats/chat_repository_interface.dart';
+import 'package:routes_chat/application/chats/outbox/message_outbox.dart';
 import 'package:routes_chat/domain/chats/messages/media_failure.dart';
 import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
 import 'package:routes_chat/domain/chats/messages/message_failure.dart';
-import 'package:routes_chat/domain/chats/messages/message_repository_interface.dart';
+import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
-import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
-import 'package:routes_chat/infrastructure/shared/user/current_user_session.dart';
+
+import '../../helpers/outbox_fakes.dart';
 
 /// Prepares every path as a photo, except those set to fail.
 class _FakeMedia implements IMediaRepository {
@@ -42,62 +40,34 @@ class _FakeMedia implements IMediaRepository {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-/// Keeps what the bloc sends, and answers with [result].
-class _Messages implements IMessageRepository {
-  final sent = <(Message, KtList<MediaDraft>)>[];
-  Either<MessageFailure, Unit> result = const Right(unit);
-
-  @override
-  Future<Either<MessageFailure, Unit>> addMessageToChatWithId(
-    Message message,
-    UniqueId chatId, {
-    KtList<MediaDraft> media = const KtList.empty(),
-  }) async {
-    sent.add((message, media));
-    return result;
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _Chats implements IChatRepository {
-  final created = <KtList<MediaDraft>>[];
-
-  @override
-  Future<Either<chat_failure.ChatFailure, Unit>> create(
-    Chat chat,
-    Message message, {
-    KtList<MediaDraft> media = const KtList.empty(),
-  }) async {
-    created.add(media);
-    return const Right(unit);
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-final _chatId = UniqueId.fromUniqueString('uid-alice_uid-bob');
-
 void main() {
   late _FakeMedia media;
-  late _Messages messages;
-  late _Chats chats;
+  late FakeMessageSender messages;
+  late FakeChatStarter chats;
   late ChatBarBloc bloc;
 
-  setUp(() {
+  setUp(() async {
     media = _FakeMedia();
-    messages = _Messages();
-    chats = _Chats();
+    messages = FakeMessageSender();
+    chats = FakeChatStarter();
+    final store = MemoryChatStore();
+    final session = signedInAlice();
+    addTearDown(session.end);
     bloc = ChatBarBloc(
-      chats,
-      messages,
-      CurrentUserSession()
-        ..start(const CurrentUserInformationPersistent('uid-alice', 'alice')),
+      session,
       media,
+      store,
+      MessageOutbox(
+        messages,
+        chats,
+        store,
+        session,
+        retryDelays: const [Duration(hours: 1)],
+      ),
     );
     addTearDown(bloc.close);
+    bloc.add(ChatBarEvent.started(UniqueId.fromUniqueString('uid-bob')));
+    await pumpEventQueue();
   });
 
   Future<void> send(ChatBarEvent event) async {
@@ -165,13 +135,13 @@ void main() {
   test('photos can be sent without a caption', () async {
     await send(const ChatBarEvent.mediaPicked(['a.jpg', 'b.jpg']));
 
-    await send(ChatBarEvent.newMessageAddedToChatWithId('', _chatId));
+    await send(const ChatBarEvent.sent('', chatExists: true));
 
-    final (message, sentMedia) = messages.sent.single;
+    final message = messages.sent.single;
     expect(message.content.getOrCrash(), '');
-    expect(sentMedia.size, 2);
+    expect(message.attachments.size, 2);
+    expect(messages.uploads, hasLength(2));
     expect(bloc.state.media.isEmpty(), isTrue);
-    expect(bloc.state.isSubmitting, isFalse);
   });
 
   test('photos go out with their caption and the reply', () async {
@@ -187,40 +157,39 @@ void main() {
     await send(ChatBarEvent.replyStarted(original));
     await send(const ChatBarEvent.mediaPicked(['a.jpg']));
 
-    await send(ChatBarEvent.newMessageAddedToChatWithId('Aici', _chatId));
+    await send(const ChatBarEvent.sent('Aici', chatExists: true));
 
-    final (message, sentMedia) = messages.sent.single;
+    final message = messages.sent.single;
     expect(message.content.getOrCrash(), 'Aici');
     expect(message.replyTo?.messageId, original.id);
-    expect(sentMedia.size, 1);
+    expect(message.attachments.size, 1);
   });
 
   test('an empty message without photos is not sent', () async {
-    await send(ChatBarEvent.newMessageAddedToChatWithId('  ', _chatId));
+    await send(const ChatBarEvent.sent('  ', chatExists: true));
 
     expect(messages.sent, isEmpty);
+    expect(bloc.state.outgoing.isEmpty(), isTrue);
   });
 
-  test('photos stay chosen when sending fails, to try again', () async {
-    messages.result = Left(Unexpected());
+  test('photos stay with a message that could not be sent yet', () async {
+    messages.sendFailures.add(Unexpected());
     await send(const ChatBarEvent.mediaPicked(['a.jpg']));
 
-    await send(ChatBarEvent.newMessageAddedToChatWithId('', _chatId));
+    await send(const ChatBarEvent.sent('', chatExists: true));
 
-    expect(draftIds(), ['draft-a.jpg']);
-    expect(bloc.state.isSubmitting, isFalse);
+    expect(bloc.state.media.isEmpty(), isTrue);
+    final entry = bloc.state.outgoing.single();
+    expect(entry.status, OutgoingStatus.waiting);
+    expect(entry.media.single().id.getOrCrash(), 'draft-a.jpg');
   });
 
   test('the first message of a chat can carry photos', () async {
     await send(const ChatBarEvent.mediaPicked(['a.jpg']));
 
-    await send(
-      ChatBarEvent.newChatCreated(
-        KtList.of(UniqueId.fromUniqueString('uid-bob')),
-      ),
-    );
+    await send(const ChatBarEvent.sent('', chatExists: false));
 
-    expect(chats.created.single.size, 1);
+    expect(chats.created.single.lastMessage.attachments.size, 1);
     expect(bloc.state.media.isEmpty(), isTrue);
   });
 }

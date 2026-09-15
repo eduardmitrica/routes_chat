@@ -1,3 +1,4 @@
+import 'package:dartz/dartz.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -8,6 +9,7 @@ import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/infrastructure/chats/messages/attachment_store.dart';
 import 'package:routes_chat/infrastructure/chats/messages/image_tools.dart';
 import 'package:routes_chat/infrastructure/chats/messages/media_repository.dart';
+import 'package:routes_chat/infrastructure/chats/messages/photo_library.dart';
 import 'package:routes_chat/infrastructure/encryption/chat_cipher.dart';
 
 /// Re-encodes by making bytes of a chosen length, and records what it did.
@@ -59,6 +61,34 @@ class _FakeStore implements AttachmentStore {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// The phone's photos, with permission as set, recording what was added.
+class _FakePhotos implements PhotoLibrary {
+  var access = true;
+  var grantedWhenAsked = true;
+  var requests = 0;
+  Object? failure;
+  final saved = <({Uint8List image, String name, bool gif})>[];
+
+  @override
+  Future<bool> hasAccess() async => access;
+
+  @override
+  Future<bool> requestAccess() async {
+    requests++;
+    return access = grantedWhenAsked;
+  }
+
+  @override
+  Future<void> save(
+    Uint8List image, {
+    required String name,
+    required bool gif,
+  }) async {
+    if (failure case final failure?) throw failure;
+    saved.add((image: image, name: name, gif: gif));
+  }
+}
+
 final _gif = Uint8List.fromList([
   ...'GIF89a'.codeUnits,
   ...List.filled(100, 0),
@@ -77,16 +107,19 @@ MessageAttachment _attachment(String id) => MessageAttachment(
 void main() {
   late _FakeImages images;
   late _FakeStore store;
+  late _FakePhotos photos;
   late Map<String, Uint8List> files;
   late MediaRepository media;
 
   setUp(() {
     images = _FakeImages();
     store = _FakeStore();
+    photos = _FakePhotos();
     files = {'photo.jpg': _jpeg, 'animation.gif': _gif};
     media = MediaRepository(
       store,
       images,
+      photos,
       readFile: (path) async => files[path] ?? (throw Exception('no file')),
     );
   });
@@ -190,6 +223,19 @@ void main() {
   group('loading', () {
     final chatId = UniqueId.fromUniqueString('alice_bob');
 
+    test('a photo just sent shows without being downloaded', () async {
+      media.remember(
+        chatId,
+        UniqueId.fromUniqueString('file-9'),
+        Uint8List.fromList([7]),
+      );
+
+      final shown = await media.load(chatId, _attachment('file-9'));
+
+      expect(store.downloads, 0);
+      expect(shown.getOrElse(() => Uint8List(0)), [7]);
+    });
+
     test('a photo is downloaded once, then kept', () async {
       await media.load(chatId, _attachment('file-1'));
       final again = await media.load(chatId, _attachment('file-1'));
@@ -232,6 +278,80 @@ void main() {
       );
       expect(retried.isRight(), isTrue);
       expect(store.downloads, 2);
+    });
+  });
+
+  group('saving to the phone', () {
+    final chatId = UniqueId.fromUniqueString('alice_bob');
+
+    MediaFailure? failureOf(Either<MediaFailure, Unit> result) =>
+        result.fold((failure) => failure, (_) => null);
+
+    test('a photo is added as it was sent', () async {
+      final result = await media.saveToPhotos(chatId, _attachment('file-1'));
+
+      expect(result.isRight(), isTrue);
+      final saved = photos.saved.single;
+      expect(saved.image, [1, 2, 3]);
+      expect(saved.name, 'routes_chat_file-1');
+      expect(saved.gif, isFalse);
+      expect(photos.requests, 0);
+    });
+
+    test('a GIF is added as a GIF, so it keeps its animation', () async {
+      await media.saveToPhotos(
+        chatId,
+        MessageAttachment(
+          id: UniqueId.fromUniqueString('file-2'),
+          kind: AttachmentKind.gif,
+          width: 10,
+          height: 10,
+          byteSize: 3,
+          key: Uint8List(32),
+        ),
+      );
+
+      expect(photos.saved.single.gif, isTrue);
+    });
+
+    test('permission is asked for first when the app has none', () async {
+      photos.access = false;
+
+      final result = await media.saveToPhotos(chatId, _attachment('file-1'));
+
+      expect(result.isRight(), isTrue);
+      expect(photos.requests, 1);
+      expect(photos.saved, hasLength(1));
+    });
+
+    test('nothing is added without permission', () async {
+      photos
+        ..access = false
+        ..grantedWhenAsked = false;
+
+      final result = await media.saveToPhotos(chatId, _attachment('file-1'));
+
+      expect(failureOf(result), const PhotoAccessDenied());
+      expect(photos.saved, isEmpty);
+    });
+
+    test('a photo that cannot be downloaded is not added', () async {
+      store.failure = Exception('offline');
+
+      final result = await media.saveToPhotos(chatId, _attachment('file-1'));
+
+      expect(failureOf(result), const MediaUnavailable());
+      expect(photos.saved, isEmpty);
+    });
+
+    test('a photo the phone does not take is reported', () async {
+      photos.failure = Exception('disk full');
+      final notSaved = await media.saveToPhotos(chatId, _attachment('file-1'));
+      photos.failure = const PhotoAccessException();
+      final denied = await media.saveToPhotos(chatId, _attachment('file-1'));
+
+      expect(failureOf(notSaved), const MediaNotSaved());
+      expect(failureOf(denied), const PhotoAccessDenied());
     });
   });
 }

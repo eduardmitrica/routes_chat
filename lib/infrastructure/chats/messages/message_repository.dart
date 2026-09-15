@@ -174,9 +174,8 @@ class MessageRepository implements IMessageRepository {
   @override
   Future<Either<MessageFailure, Unit>> addMessageToChatWithId(
     Message message,
-    UniqueId chatId, {
-    KtList<MediaDraft> media = const KtList.empty(),
-  }) async {
+    UniqueId chatId,
+  ) async {
     final id = chatId.getOrCrash();
     final messageId = message.id.getOrCrash();
     final chatRef = _firestore.collection('chats').doc(id);
@@ -184,13 +183,6 @@ class MessageRepository implements IMessageRepository {
     try {
       // A user whose keys were reset first adds a generation of the chat key
       // they can use.
-      // The files go first, because the message refers to them. If the
-      // message then fails, they stay in Storage, unused and unreadable.
-      final attachments = await Future.wait([
-        for (final draft in media.iter) _attachments.upload(id, draft),
-      ]);
-      final sent = message.copyWith(attachments: attachments.toImmutableList());
-
       await _keyring.addGenerationIfNeeded(id);
 
       await _firestore.runTransaction((transaction) async {
@@ -201,9 +193,12 @@ class MessageRepository implements IMessageRepository {
         if (chat == null) {
           throw const FormatException('The chat does not exist');
         }
+        // Sent already, by an attempt whose answer was lost. The rules refuse
+        // to overwrite a message, and there is nothing to add.
+        if ((await transaction.get(messageRef)).exists) return;
         final current = chat['currentKeyGeneration'] as int;
         final content = await _cipher.encrypt(
-          payloadOf(sent),
+          payloadOf(message),
           chatKey: await _keyring.chatKey(
             id,
             current,
@@ -229,12 +224,45 @@ class MessageRepository implements IMessageRepository {
     }
   }
 
+  @override
+  MessageAttachment attachmentFor(MediaDraft draft) =>
+      _attachments.attachmentFor(draft);
+
+  @override
+  Future<Either<MessageFailure, Unit>> uploadAttachment(
+    UniqueId chatId,
+    MediaDraft draft,
+    MessageAttachment attachment,
+  ) async {
+    try {
+      await _attachments.upload(chatId.getOrCrash(), draft, attachment);
+      return const Right(unit);
+    } on Exception catch (exception) {
+      return Left(_failureFor(exception));
+    }
+  }
+
+  @override
+  Future<Either<MessageFailure, Unit>> deleteAttachment(
+    UniqueId chatId,
+    UniqueId attachmentId,
+  ) async {
+    try {
+      await _attachments.delete(chatId.getOrCrash(), attachmentId.getOrCrash());
+      return const Right(unit);
+    } on Exception catch (exception) {
+      return Left(_failureFor(exception));
+    }
+  }
+
   CollectionReference<Map<String, dynamic>> _messages(String chatId) =>
       _firestore.collection('chats').doc(chatId).collection('messages');
 
   static MessageFailure _failureFor(Object exception) {
+    // Firestore says permission-denied, Storage unauthorized.
     if (exception is FirebaseException &&
-        exception.code.contains('permission-denied')) {
+        (exception.code.contains('permission-denied') ||
+            exception.code == 'unauthorized')) {
       return InsufficientPermissions();
     }
     // The type, and a format error's fixed message, which never includes the

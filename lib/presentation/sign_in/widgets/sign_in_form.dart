@@ -6,6 +6,8 @@ import 'package:routes_chat/domain/core/failures.dart';
 import 'package:routes_chat/presentation/encryption/encryption_gate_page.dart';
 import 'package:routes_chat/presentation/register/register_page.dart';
 
+import 'sign_in_failure_message.dart';
+
 import '../../../application/authentication/authentication_bloc.dart';
 
 class SignInForm extends StatelessWidget {
@@ -30,18 +32,27 @@ class SignInForm extends StatelessWidget {
             () {},
             (either) => either.fold(
               (failure) {
-                final message = switch (failure) {
-                  InvalidEmailAndPasswordCombination() =>
-                    'Invalid email and password combination',
-                  ServerError() => 'Server error',
-                  CancelledByUser() => 'Cancelled by user',
-                  InvalidUser() => 'Invalid user, please register first',
-                  SignInFailed() => 'Sign in failed',
-                  GoogleError() => 'Google error',
-                };
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(SnackBar(content: Text(message)));
+                final message = signInFailureMessage(failure);
+                if (message == null) return;
+                final notRegistered = failure is InvalidUser;
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      content: Text(message),
+                      // Long enough to read and act on.
+                      duration: Duration(seconds: notRegistered ? 10 : 6),
+                      action: notRegistered
+                          ? SnackBarAction(
+                              label: 'Register',
+                              onPressed: () =>
+                                  Navigator.of(context).pushReplacementNamed(
+                                    RegisterPage.registerPageRoute,
+                                  ),
+                            )
+                          : null,
+                    ),
+                  );
               },
               (_) {
                 BlocProvider.of<AuthenticationBloc>(

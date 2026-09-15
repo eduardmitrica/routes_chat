@@ -1,5 +1,6 @@
 import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:routes_chat/domain/presence/presence_repository_interface.dart';
 import 'package:routes_chat/application/authentication/authentication_bloc.dart';
 import 'package:routes_chat/domain/authentication/authentication_facade_interface.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
@@ -75,6 +76,7 @@ void main() {
       session,
       pushTokens,
       encryption,
+      _NoPresence(),
     );
     addTearDown(bloc.close);
 
@@ -91,6 +93,7 @@ void main() {
       session,
       pushTokens,
       encryption,
+      _NoPresence(),
     );
     addTearDown(bloc.close);
 
@@ -106,6 +109,7 @@ void main() {
       session,
       pushTokens,
       encryption,
+      _NoPresence(),
     );
     addTearDown(bloc.close);
 
@@ -124,6 +128,7 @@ void main() {
         session,
         pushTokens,
         encryption,
+        _NoPresence(),
       );
       addTearDown(bloc.close);
 
@@ -137,7 +142,13 @@ void main() {
 
   test('clears the session and the push token on sign out', () async {
     final facade = _FakeAuthFacade(some(_user()));
-    final bloc = AuthenticationBloc(facade, session, pushTokens, encryption);
+    final bloc = AuthenticationBloc(
+      facade,
+      session,
+      pushTokens,
+      encryption,
+      _NoPresence(),
+    );
     addTearDown(bloc.close);
 
     bloc.add(const AuthenticationEvent.authenticationRequested());
@@ -164,6 +175,7 @@ void main() {
       session,
       pushTokens,
       encryption,
+      _NoPresence(),
     );
     addTearDown(bloc.close);
 
@@ -181,7 +193,13 @@ void main() {
     // Regression: the matching getIt.unregister threw when nothing was
     // registered.
     final facade = _FakeAuthFacade(none());
-    final bloc = AuthenticationBloc(facade, session, pushTokens, encryption);
+    final bloc = AuthenticationBloc(
+      facade,
+      session,
+      pushTokens,
+      encryption,
+      _NoPresence(),
+    );
     addTearDown(bloc.close);
 
     bloc.add(const AuthenticationEvent.signedOut());
@@ -204,4 +222,13 @@ void main() {
       reason: 'with no session there are no keys of anyone to forget',
     );
   });
+}
+
+/// Presence that nothing in these tests looks at.
+class _NoPresence implements IPresenceRepository {
+  @override
+  Future<void> clearPresence(String userId) async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

@@ -4,6 +4,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:routes_chat/domain/encryption/encryption_repository_interface.dart';
 import 'package:routes_chat/domain/notifications/push_token_registry_interface.dart';
+import 'package:routes_chat/domain/presence/presence_repository_interface.dart';
 import 'package:routes_chat/domain/shared/user/current_user_information_persistent.dart';
 import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 
@@ -19,12 +20,14 @@ class AuthenticationBloc
   final ICurrentUserSession _session;
   final IPushTokenRegistry _pushTokens;
   final IEncryptionRepository _encryption;
+  final IPresenceRepository _presence;
 
   AuthenticationBloc(
     this._authFacade,
     this._session,
     this._pushTokens,
     this._encryption,
+    this._presence,
   ) : super(const AuthenticationState.initial()) {
     on<AuthenticationEvent>((event, emit) async {
       switch (event) {
@@ -50,6 +53,9 @@ class AuthenticationBloc
             // would keep sending this user's notifications to a device they
             // signed out of.
             await _pushTokens.unregister(uid);
+            // Friends stop seeing this user online or last seen. Only the
+            // owner may delete it, so while still signed in.
+            await _presence.clearPresence(uid);
             // Forget the encryption keys on this device, so the next person to
             // sign in here cannot read this user's messages. It needs the
             // session to know whose keys to remove.

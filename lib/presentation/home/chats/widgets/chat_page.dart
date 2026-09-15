@@ -7,7 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:kt_dart/collection.dart';
+import 'package:routes_chat/application/chats/chat_activity/chat_activity_bloc.dart';
 import 'package:routes_chat/application/chats/chat_bar/chat_bar_bloc.dart';
+import 'package:routes_chat/domain/core/composite_id.dart';
+import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 import 'package:routes_chat/application/chats/chats_watcher/chats_watcher_bloc.dart';
 import 'package:routes_chat/application/chats/messages/messages_watcher/messages_watcher_bloc.dart';
 import 'package:routes_chat/domain/chats/chat.dart';
@@ -23,6 +26,8 @@ import 'package:routes_chat/injection.dart';
 import 'package:super_sliver_list/super_sliver_list.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../open_chat.dart';
+import 'activity_label.dart';
 import 'chat_timeline.dart';
 import 'media_failure_message.dart';
 import 'message_bubble.dart';
@@ -92,6 +97,8 @@ class _ChatViewState extends State<_ChatView> {
   /// and the messages on their way show among them.
   final _chatBar = getIt<ChatBarBloc>();
   final _media = getIt<IMediaRepository>();
+  final _activity = getIt<ChatActivityBloc>();
+  UniqueId? _chatId;
 
   Timer? _searchDebounce;
   Timer? _highlightTimer;
@@ -104,6 +111,21 @@ class _ChatViewState extends State<_ChatView> {
     _scrollController.addListener(_loadOlderIfNearTop);
     // Brings back what the user wrote here and did not send.
     _chatBar.add(ChatBarEvent.started(widget.otherUser.id));
+    final myId = getIt<ICurrentUserSession>().current?.id;
+    if (myId != null) {
+      final chatId = compositeId([
+        UniqueId.fromUniqueString(myId),
+        widget.otherUser.id,
+      ]);
+      _chatId = chatId;
+      OpenChat.opened(chatId);
+      _activity.add(
+        ChatActivityEvent.started(
+          chatId: chatId,
+          otherUserId: widget.otherUser.id,
+        ),
+      );
+    }
   }
 
   @override
@@ -116,6 +138,8 @@ class _ChatViewState extends State<_ChatView> {
     _composerFocus.dispose();
     _searchDebounce?.cancel();
     _highlightTimer?.cancel();
+    unawaited(_activity.close());
+    if (_chatId case final chatId?) OpenChat.closed(chatId);
     super.dispose();
   }
 
@@ -500,7 +524,10 @@ class _ChatViewState extends State<_ChatView> {
       onPressed: () => Navigator.of(context).pop(),
       icon: const Icon(Icons.arrow_back_rounded),
     ),
-    title: Text(widget.otherUser.username.getOrCrash()),
+    title: _ChatTitle(
+      name: widget.otherUser.username.getOrCrash(),
+      activity: _activity,
+    ),
     actions: [
       if (canSearch)
         IconButton(
@@ -964,5 +991,46 @@ Future<void> _pickMedia(BuildContext context, ChatBarBloc chatBar) async {
           ),
         ),
       );
+  }
+}
+
+/// The other person's name, and under it whether they are typing, online, or
+/// when they were last seen.
+class _ChatTitle extends StatelessWidget {
+  final String name;
+  final ChatActivityBloc activity;
+
+  const _ChatTitle({required this.name, required this.activity});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return BlocBuilder<ChatActivityBloc, ChatActivityState>(
+      bloc: activity,
+      builder: (context, state) {
+        final label = activityLabel(state, DateTime.now());
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            if (label != null)
+              Semantics(
+                liveRegion: true,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: state.typing
+                        ? theme.colorScheme.primary
+                        : theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
   }
 }

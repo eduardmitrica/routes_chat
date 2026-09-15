@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'privacy_switches.dart';
+import 'blocked_people.dart';
 
 // dartz exports its own State class, which would shadow Flutter's.
 import 'package:dartz/dartz.dart' show optionOf;
@@ -235,6 +236,7 @@ class _UserFormState extends State<UserForm> {
               const SizedBox(height: 32),
               Text('Privacy', style: Theme.of(context).textTheme.titleSmall),
               const PrivacySwitches(),
+              const BlockedPeopleTile(),
               const SizedBox(height: 24),
               const SignOut(),
               const SizedBox(height: 10),

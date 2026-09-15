@@ -9,6 +9,8 @@ sealed class ChatsWatcherState extends Equatable {
     KtList<Chat> chats,
     KtList<UniqueId> friendsThatCurrentUserHasChatsTo, {
     Set<String> unreadChatIds,
+    Set<String> blockedChatIds,
+    Set<String> hiddenPreviewChatIds,
   }) = ChatsWatcherLoadSuccess;
   const factory ChatsWatcherState.loadFailure(ChatFailure failure) =
       ChatsWatcherLoadFailure;
@@ -32,16 +34,27 @@ final class ChatsWatcherLoadSuccess extends ChatsWatcherState {
   /// The ids of the chats with messages the user has not read on this phone.
   final Set<String> unreadChatIds;
 
+  /// The ids of the chats with someone the user blocked.
+  final Set<String> blockedChatIds;
+
+  /// The ids of the chats whose last message stays out of sight, sent by
+  /// someone while the user had them blocked.
+  final Set<String> hiddenPreviewChatIds;
+
   const ChatsWatcherLoadSuccess(
     this.chats,
     this.friendsThatCurrentUserHasChatsTo, {
     this.unreadChatIds = const {},
+    this.blockedChatIds = const {},
+    this.hiddenPreviewChatIds = const {},
   });
   @override
   List<Object?> get props => [
     chats,
     friendsThatCurrentUserHasChatsTo,
     unreadChatIds,
+    blockedChatIds,
+    hiddenPreviewChatIds,
   ];
 }
 

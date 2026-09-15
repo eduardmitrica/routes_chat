@@ -64,3 +64,15 @@ test("only permanently invalid tokens are removed", () => {
 
   assert.deepEqual(deadTokens(tokens, responses), ["uninstalled", "malformed"]);
 });
+
+const { isBlocking } = require("./notify");
+
+test("nothing is announced from someone blocked now", () => {
+  assert.equal(isBlocking({ blockedSince: { seconds: 1, nanoseconds: 0 } }), true);
+});
+
+test("an unblocked person, or no block at all, is announced as usual", () => {
+  assert.equal(isBlocking({ earlier: [{ from: 1, to: 2 }] }), false);
+  assert.equal(isBlocking({}), false);
+  assert.equal(isBlocking(undefined), false);
+});

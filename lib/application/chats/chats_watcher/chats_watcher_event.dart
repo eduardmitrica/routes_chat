@@ -12,6 +12,8 @@ sealed class ChatsWatcherEvent extends Equatable {
   const factory ChatsWatcherEvent.readsChanged(ChatReads reads) =
       ChatsReadsChanged;
 
+  const factory ChatsWatcherEvent.blocksChanged() = ChatsBlocksChanged;
+
   @override
   List<Object?> get props => const [];
 }
@@ -26,6 +28,11 @@ final class ChatsReadsChanged extends ChatsWatcherEvent {
   const ChatsReadsChanged(this.reads);
   @override
   List<Object?> get props => [reads];
+}
+
+/// The user blocked or unblocked someone.
+final class ChatsBlocksChanged extends ChatsWatcherEvent {
+  const ChatsBlocksChanged();
 }
 
 final class ChatsReceived extends ChatsWatcherEvent {

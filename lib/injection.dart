@@ -69,6 +69,11 @@ import 'domain/chats/messages/emoji_usage.dart';
 import 'infrastructure/chats/messages/emoji_preferences_store.dart';
 import 'domain/chats/chat_reads.dart';
 import 'infrastructure/chats/chat_reads_store.dart';
+import 'application/safety/block_list_bloc.dart';
+import 'application/safety/report_bloc.dart';
+import 'domain/safety/blocks.dart';
+import 'domain/safety/safety_repository_interface.dart';
+import 'infrastructure/safety/firestore_safety_repository.dart';
 
 final getIt = GetIt.instance;
 
@@ -168,6 +173,12 @@ void configureDependencies() {
         getIt<ICurrentUserSession>(),
       ),
     )
+    ..registerLazySingleton<ISafetyRepository>(
+      () => FirestoreSafetyRepository(
+        getIt<FirebaseFirestore>(),
+        getIt<ICurrentUserSession>(),
+      ),
+    )
     ..registerLazySingleton<INotificationEvents>(
       () => FirebaseNotificationEvents(getIt<FirebaseMessaging>()),
     )
@@ -247,6 +258,13 @@ void configureDependencies() {
   getIt
     ..registerLazySingleton<PrivacyBloc>(PrivacyBloc.new)
     ..registerLazySingleton<IPrivacySettingsReader>(() => getIt<PrivacyBloc>())
+    ..registerLazySingleton<BlockListBloc>(
+      () => BlockListBloc(
+        getIt<ISafetyRepository>(),
+        getIt<ICurrentUserSession>(),
+      ),
+    )
+    ..registerLazySingleton<IBlockList>(() => getIt<BlockListBloc>())
     ..registerLazySingleton<PresenceReporter>(
       () => PresenceReporter(
         getIt<IPresenceRepository>(),
@@ -276,6 +294,7 @@ void configureDependencies() {
         getIt<IPresenceRepository>(),
         getIt<IPrivacySettingsReader>(),
         reads: getIt<IChatReads>(),
+        blocks: getIt<IBlockList>(),
       ),
     )
     ..registerFactory<RegisterFormBloc>(
@@ -320,10 +339,14 @@ void configureDependencies() {
         getIt<IChatRepository>(),
         getIt<ICurrentUserSession>(),
         reads: getIt<IChatReads>(),
+        blocks: getIt<IBlockList>(),
       ),
     )
     ..registerFactory<MessagesWatcherBloc>(
-      () => MessagesWatcherBloc(getIt<IMessageRepository>()),
+      () => MessagesWatcherBloc(
+        getIt<IMessageRepository>(),
+        blocks: getIt<IBlockList>(),
+      ),
     )
     ..registerFactory<FriendRequestActorBloc>(
       () => FriendRequestActorBloc(
@@ -343,7 +366,10 @@ void configureDependencies() {
           PendingFriendRequestsWatcherBloc(getIt<IFriendRequestsRepository>()),
     )
     ..registerFactory<ReceivedFriendRequestsWatcherBloc>(
-      () =>
-          ReceivedFriendRequestsWatcherBloc(getIt<IFriendRequestsRepository>()),
-    );
+      () => ReceivedFriendRequestsWatcherBloc(
+        getIt<IFriendRequestsRepository>(),
+        blocks: getIt<IBlockList>(),
+      ),
+    )
+    ..registerFactory<ReportBloc>(() => ReportBloc(getIt<ISafetyRepository>()));
 }

@@ -7,6 +7,7 @@ import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/chat_failure.dart';
 import 'package:routes_chat/domain/chats/chat_reads.dart';
 import 'package:routes_chat/domain/chats/chat_repository_interface.dart';
+import 'package:routes_chat/domain/safety/blocks.dart';
 import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 
 import '../../../domain/chats/chat.dart';
@@ -16,20 +17,28 @@ part 'chats_watcher_event.dart';
 
 part 'chats_watcher_state.dart';
 
-/// The user's chats, and which of them have messages the user has not read
-/// on this phone.
+/// The user's chats: which of them have messages the user has not read on
+/// this phone, which are with someone the user blocked, and which end with a
+/// message that stays out of sight.
 class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
   final IChatRepository _chatRepository;
   final ICurrentUserSession _session;
   final IChatReads? _reads;
+  final IBlockList? _blocks;
 
   StreamSubscription<Either<ChatFailure, KtList<Chat>>>? _chatsSubscription;
   StreamSubscription<ChatReads>? _readsSubscription;
+  StreamSubscription<Blocks>? _blocksSubscription;
   ChatReads? _readsNow;
 
-  ChatsWatcherBloc(this._chatRepository, this._session, {IChatReads? reads})
-    : _reads = reads,
-      super(const ChatsWatcherState.initial()) {
+  ChatsWatcherBloc(
+    this._chatRepository,
+    this._session, {
+    IChatReads? reads,
+    IBlockList? blocks,
+  }) : _reads = reads,
+       _blocks = blocks,
+       super(const ChatsWatcherState.initial()) {
     on<ChatsWatcherEvent>((event, emit) {
       switch (event) {
         case ChatsWatchAllStarted():
@@ -38,9 +47,12 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
             (failureOrFriendRequests) =>
                 add(ChatsWatcherEvent.chatsReceived(failureOrFriendRequests)),
           );
-          _readsSubscription ??= _reads?.watch().listen(
-            (reads) => add(ChatsWatcherEvent.readsChanged(reads)),
-          );
+          _readsSubscription ??= _reads?.watch().listen((reads) {
+            if (!isClosed) add(ChatsWatcherEvent.readsChanged(reads));
+          });
+          _blocksSubscription ??= _blocks?.blocksChanges.listen((_) {
+            if (!isClosed) add(const ChatsWatcherEvent.blocksChanged());
+          });
         case ChatsReceived():
           final userId = _session.current?.id ?? '';
           emit(
@@ -63,42 +75,67 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
 
                 friendsThatCurrentUserHasChatsTo =
                     friendsThatCurrentUserHasChatsTo.toSet().toList();
-                return ChatsWatcherState.loadSuccess(
-                  chats,
-                  friendsThatCurrentUserHasChatsTo,
-                  unreadChatIds: _unreadIn(chats),
-                );
+                return _loaded(chats, friendsThatCurrentUserHasChatsTo);
               },
             ),
           );
         case ChatsReadsChanged(:final reads):
           _readsNow = reads;
-          if (state case ChatsWatcherLoadSuccess(
-            :final chats,
-            :final friendsThatCurrentUserHasChatsTo,
-          )) {
-            emit(
-              ChatsWatcherState.loadSuccess(
-                chats,
-                friendsThatCurrentUserHasChatsTo,
-                unreadChatIds: _unreadIn(chats),
-              ),
-            );
-          }
+          _refresh(emit);
+        case ChatsBlocksChanged():
+          _refresh(emit);
       }
     });
   }
 
-  /// The ids of [chats] with messages the user has not read. None until it
-  /// is known how far the user has read.
-  Set<String> _unreadIn(KtList<Chat> chats) {
-    final reads = _readsNow;
+  void _refresh(Emitter<ChatsWatcherState> emit) {
+    if (state case ChatsWatcherLoadSuccess(
+      :final chats,
+      :final friendsThatCurrentUserHasChatsTo,
+    )) {
+      emit(_loaded(chats, friendsThatCurrentUserHasChatsTo));
+    }
+  }
+
+  /// [chats] with what stands out in each: unread, blocked, or a last message
+  /// that stays hidden. A hidden message, or a blocked person, never makes a
+  /// chat unread.
+  ChatsWatcherLoadSuccess _loaded(
+    KtList<Chat> chats,
+    KtList<UniqueId> friendsThatCurrentUserHasChatsTo,
+  ) {
     final userId = _session.current?.id;
-    if (reads == null || userId == null) return const {};
-    return {
-      for (final chat in chats.iter)
-        if (reads.isUnread(chat, userId)) chat.id.getOrCrash(),
-    };
+    final reads = _readsNow;
+    final blocks = _blocks?.blocks ?? const Blocks();
+    final unread = <String>{};
+    final blocked = <String>{};
+    final hiddenPreview = <String>{};
+    for (final chat in chats.iter) {
+      final id = chat.id.getOrCrash();
+      final withBlocked = chat.participantsList.getOrCrash().iter.any(
+        (participant) =>
+            participant.value1.getOrCrash() != userId &&
+            blocks.isBlocked(participant.value1),
+      );
+      final last = chat.lastMessage;
+      final lastHidden = blocks.hides(last.senderId, last.lastUpdatedAt);
+      if (withBlocked) blocked.add(id);
+      if (lastHidden) hiddenPreview.add(id);
+      if (reads != null &&
+          userId != null &&
+          !withBlocked &&
+          !lastHidden &&
+          reads.isUnread(chat, userId)) {
+        unread.add(id);
+      }
+    }
+    return ChatsWatcherLoadSuccess(
+      chats,
+      friendsThatCurrentUserHasChatsTo,
+      unreadChatIds: unread,
+      blockedChatIds: blocked,
+      hiddenPreviewChatIds: hiddenPreview,
+    );
   }
 
   Future<void> refreshSubscription() async {
@@ -118,6 +155,7 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
   Future<void> close() async {
     await _chatsSubscription?.cancel();
     await _readsSubscription?.cancel();
+    await _blocksSubscription?.cancel();
     return super.close();
   }
 }

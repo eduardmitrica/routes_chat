@@ -146,4 +146,47 @@ void main() {
       );
     });
   });
+
+  group('in a group', () {
+    String groups() => _block(rules, '/groups/{groupId}');
+    String typing() => _block(groups(), '/typing/{userId}');
+    String reads() => _block(groups(), '/reads/{userId}');
+
+    test('typing and reads live inside the group', () {
+      expect(typing(), isNotEmpty);
+      expect(reads(), isNotEmpty);
+    });
+
+    test('hold the same fields as in a chat', () {
+      expect(typing(), contains("hasOnly(['typingAt'])"));
+      expect(typing(), contains('typingAt == request.time'));
+      for (final field in ['messageId', 'messageSentAt', 'readAt']) {
+        expect(reads(), contains("'$field'"));
+      }
+      expect(reads(), contains('groups/\$(groupId)/messages/'));
+    });
+
+    test('only members read them, and each writes only their own', () {
+      for (final block in [typing(), reads()]) {
+        expect(
+          block,
+          contains(
+            'allow read: if signedIn() && '
+            'request.auth.uid in groupNow().memberIds;',
+          ),
+        );
+        expect(block, contains('request.auth.uid == userId'));
+        expect(block, contains('userId in groupNow().memberIds'));
+      }
+    });
+
+    test('watching a group reads its typing and reads collections', () {
+      expect(repository, contains("_perPerson(groupId, 'typing', 'typingAt')"));
+      expect(
+        repository,
+        contains("_perPerson(groupId, 'reads', 'messageSentAt')"),
+      );
+      expect(repository, contains('conversationDocument('));
+    });
+  });
 }

@@ -354,9 +354,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
   void _typed(String text) {
     final presence = _presence;
     final chatId = state.chatId;
-    // Typing in groups comes later; the server has no rules for it yet.
-    if (_inGroup ||
-        presence == null ||
+    if (presence == null ||
         chatId == null ||
         !(_privacy?.privacy.shareTyping ?? false)) {
       return;

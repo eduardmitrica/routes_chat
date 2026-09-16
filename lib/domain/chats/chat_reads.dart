@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../core/value_objects.dart';
 import 'chat.dart';
+import 'messages/message.dart';
 
 /// How far the user has read each chat on this phone.
 ///
@@ -26,12 +27,18 @@ final class ChatReads extends Equatable {
 
   /// Whether [chat] ends with a message from someone else, sent after what
   /// [userId] has read there.
-  bool isUnread(Chat chat, String userId) {
-    final last = chat.lastMessage;
-    final sentAt = last.lastUpdatedAt;
-    return sentAt != null &&
+  bool isUnread(Chat chat, String userId) =>
+      endsUnread(chat.id.getOrCrash(), chat.lastMessage, userId);
+
+  /// Whether the conversation [conversationId], a chat or a group, ends with
+  /// [last] from someone other than [userId], sent after what they have read
+  /// there. Nothing to read when there is no [last].
+  bool endsUnread(String conversationId, Message? last, String userId) {
+    final sentAt = last?.lastUpdatedAt;
+    return last != null &&
+        sentAt != null &&
         last.senderId.getOrCrash() != userId &&
-        sentAt.isAfter(readUpToIn(chat.id.getOrCrash()));
+        sentAt.isAfter(readUpToIn(conversationId));
   }
 
   @override

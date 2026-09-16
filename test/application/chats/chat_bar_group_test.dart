@@ -89,10 +89,12 @@ void main() {
     expect(requests.accepted, isEmpty);
   });
 
-  test('typing is not shared in a group yet', () async {
+  test('typing is shared in the group, as in a chat', () async {
     bloc.add(const ChatBarEvent.messageContentChanged('Sal'));
     await pumpEventQueue();
 
-    expect(presence.calls.where((call) => call.startsWith('typing')), isEmpty);
+    expect(presence.calls.where((call) => call.startsWith('typing')), [
+      'typing group-00000000-0000-4000-8000-000000000000',
+    ]);
   });
 }

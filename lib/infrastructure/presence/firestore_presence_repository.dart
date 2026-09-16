@@ -6,12 +6,15 @@ import '../../domain/core/value_objects.dart';
 import '../../domain/presence/presence.dart';
 import '../../domain/presence/presence_repository_interface.dart';
 import '../../domain/shared/user/current_user_session_interface.dart';
+import '../core/firestore_helpers.dart';
 
 /// Typing in `chats/{chatId}/typing/{uid}`, how far each person has read in
-/// `chats/{chatId}/reads/{uid}`, and presence in `presence/{uid}`.
+/// `chats/{chatId}/reads/{uid}`, and presence in `presence/{uid}`. A group
+/// keeps its typing and reads the same way under `groups/{groupId}`.
 ///
-/// firestore.rules let a chat's participants see who types and reads in it,
-/// and only friends see each other's presence. Typing and presence hold a
+/// firestore.rules let a chat's participants and a group's members see who
+/// types and reads in it, and only friends see each other's presence. Typing
+/// and presence hold a
 /// server time and nothing else a client could use to say more than "now". A
 /// read marker also names the message read, with its send time, never what
 /// it says.
@@ -22,7 +25,7 @@ class FirestorePresenceRepository implements IPresenceRepository {
   const FirestorePresenceRepository(this._firestore, this._session);
 
   DocumentReference<Map<String, dynamic>> _typing(String chatId, String uid) =>
-      _firestore.collection('chats').doc(chatId).collection('typing').doc(uid);
+      _firestore.conversationDocument(chatId).collection('typing').doc(uid);
 
   DocumentReference<Map<String, dynamic>> _presence(String uid) =>
       _firestore.collection('presence').doc(uid);
@@ -30,7 +33,7 @@ class FirestorePresenceRepository implements IPresenceRepository {
   DocumentReference<Map<String, dynamic>> _readMarker(
     String chatId,
     String uid,
-  ) => _firestore.collection('chats').doc(chatId).collection('reads').doc(uid);
+  ) => _firestore.conversationDocument(chatId).collection('reads').doc(uid);
 
   /// Runs [write] for the signed-in user, logging only the kind of failure.
   Future<void> _bestEffort(
@@ -131,8 +134,7 @@ class FirestorePresenceRepository implements IPresenceRepository {
         final id = messageId.getOrCrash();
         // The rules require the message's own send time, to the microsecond.
         final message = await _firestore
-            .collection('chats')
-            .doc(chat)
+            .conversationDocument(chat)
             .collection('messages')
             .doc(id)
             .get();
@@ -167,13 +169,58 @@ class FirestorePresenceRepository implements IPresenceRepository {
             .collection('chats')
             .where('participantIds', arrayContains: uid)
             .get();
+        final groups = await _firestore
+            .collection('groups')
+            .where('memberIds', arrayContains: uid)
+            .get();
+        final ids = [
+          for (final chat in chats.docs) chat.id,
+          for (final group in groups.docs) group.id,
+        ];
         // A batch holds at most 500 writes.
-        for (var start = 0; start < chats.docs.length; start += 400) {
+        for (var start = 0; start < ids.length; start += 400) {
           final batch = _firestore.batch();
-          for (final chat in chats.docs.skip(start).take(400)) {
-            batch.delete(_readMarker(chat.id, uid));
+          for (final id in ids.skip(start).take(400)) {
+            batch.delete(_readMarker(id, uid));
           }
           await batch.commit();
         }
       });
+
+  /// The [field] timestamp of each document in the group's [collection], by
+  /// user id, leaving out the signed-in user's own.
+  Stream<Map<String, DateTime>> _perPerson(
+    UniqueId groupId,
+    String collection,
+    String field,
+  ) {
+    final uid = _session.current?.id;
+    if (uid == null) return const Stream.empty();
+    return _firestore
+        .conversationDocument(groupId.getOrCrash())
+        .collection(collection)
+        .snapshots()
+        .takeUntil(_session.ended)
+        .map(
+          (snapshot) => {
+            for (final document in snapshot.docs)
+              if (document.data()[field] case final Timestamp time
+                  when document.id != uid)
+                document.id: time.toDate(),
+          },
+        )
+        // Taken out of the group, or signed out: show nothing rather than
+        // fail.
+        .handleError((Object error) {
+          debugPrint('Group $collection not watched: ${error.runtimeType}');
+        });
+  }
+
+  @override
+  Stream<Map<String, DateTime>> watchTypingInGroup(UniqueId groupId) =>
+      _perPerson(groupId, 'typing', 'typingAt');
+
+  @override
+  Stream<Map<String, DateTime>> watchReadsInGroup(UniqueId groupId) =>
+      _perPerson(groupId, 'reads', 'messageSentAt');
 }

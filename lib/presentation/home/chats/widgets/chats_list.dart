@@ -23,8 +23,8 @@ class ChatsList extends StatelessWidget {
   /// happened in them.
   final List<Group> groups;
 
-  /// The ids of the chats with messages the user has not read, which stand
-  /// out.
+  /// The ids of the chats and groups with messages the user has not read,
+  /// which stand out.
   final Set<String> unreadChatIds;
 
   /// The ids of the chats with someone the user blocked.
@@ -74,6 +74,7 @@ class ChatsList extends StatelessWidget {
                     key: ValueKey(group.id.getOrCrash()),
                     group: group,
                     users: state.users,
+                    unread: unreadChatIds.contains(group.id.getOrCrash()),
                   ),
                   _ => const SizedBox.shrink(),
                 },
@@ -154,8 +155,14 @@ class ChatsList extends StatelessWidget {
 class _GroupTile extends StatelessWidget {
   final Group group;
   final KtList<User> users;
+  final bool unread;
 
-  const _GroupTile({super.key, required this.group, required this.users});
+  const _GroupTile({
+    super.key,
+    required this.group,
+    required this.users,
+    this.unread = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -186,12 +193,18 @@ class _GroupTile extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
+      titleTextStyle: theme.textTheme.titleMedium?.copyWith(
+        fontWeight: unread ? FontWeight.w700 : null,
+      ),
       subtitleTextStyle: theme.textTheme.bodyMedium?.copyWith(
-        color: theme.colorScheme.onSurfaceVariant,
+        color: unread
+            ? theme.colorScheme.onSurface
+            : theme.colorScheme.onSurfaceVariant,
+        fontWeight: unread ? FontWeight.w600 : null,
       ),
       trailing: _ChatListTrailing(
         time: at == null ? null : chatListTime(at, DateTime.now()),
-        unread: false,
+        unread: unread,
       ),
       onTap: () => Navigator.of(context).push(GroupChatPage.route(group.id)),
     );

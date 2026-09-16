@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:routes_chat/domain/groups/group.dart';
+import 'package:routes_chat/infrastructure/encryption/chat_keyring.dart';
 import 'package:routes_chat/infrastructure/groups/firestore_group_repository.dart';
 
 /// The block of `match <path> {` in [rules], up to its matching brace.
@@ -86,6 +87,28 @@ void main() {
       _flat(_block(rules, '/sharedKeys/{userId}')),
       contains('allow get: if signedIn() && request.auth.uid == userId;'),
     );
+  });
+
+  test('copied history is read only by its person, once they joined', () {
+    final copies = _flat(
+      _block(_block(rules, '/history/{userId}'), '/messages/{messageId}'),
+    );
+    expect(
+      copies,
+      contains(
+        'allow read: if signedIn() && request.auth.uid == userId && '
+        'userId in groupNow().memberIds;',
+      ),
+    );
+    // Under the history generation, which no real generation is.
+    expect(
+      copies,
+      contains(
+        'isEncryptedContent(request.resource.data.content, '
+        '${ChatKeyring.historyGeneration})',
+      ),
+    );
+    expect(copies, contains('original().serverTimeStamp >= grant().since'));
   });
 
   test('the group size matches the app\'s', () {

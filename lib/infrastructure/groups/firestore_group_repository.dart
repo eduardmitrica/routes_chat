@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cryptography/cryptography.dart' show SecretKey;
 import 'package:dartz/dartz.dart';
 import 'package:flutter/foundation.dart';
 import 'package:kt_dart/collection.dart';
@@ -18,6 +19,7 @@ import '../chats/chat_data_transfer_object.dart';
 import '../chats/messages/message_payloads.dart';
 import '../encryption/chat_cipher.dart';
 import '../encryption/chat_keyring.dart';
+import 'group_history_copies.dart';
 
 /// Groups in `groups/{groupId}`. See docs/e2ee.md and firestore.rules.
 ///
@@ -48,7 +50,16 @@ class FirestoreGroupRepository implements IGroupRepository {
   final ChatKeyring _keyring;
   final ChatCipher _cipher;
 
-  const FirestoreGroupRepository(
+  /// A group's history copied for the user, for a last message they cannot
+  /// open.
+  late final _copies = GroupHistoryCopies(
+    _firestore,
+    _session,
+    _keyring,
+    _cipher,
+  );
+
+  FirestoreGroupRepository(
     this._firestore,
     this._session,
     this._keyring,
@@ -178,8 +189,13 @@ class FirestoreGroupRepository implements IGroupRepository {
             exception is! FormatException) {
           rethrow;
         }
-        text = ChatCipher.unreadableMessageText;
-        readable = false;
+        final copied = await _copies.payloadOf(
+          groupId,
+          stored.id!,
+          stored.senderId,
+        );
+        text = copied?.summary ?? ChatCipher.unreadableMessageText;
+        readable = copied != null;
       }
     }
     return Message(
@@ -272,6 +288,8 @@ class FirestoreGroupRepository implements IGroupRepository {
       return left(const GroupTooBig());
     }
     final generations = KeyGeneration.mapFromJson(data['keyGenerations']);
+    final window = history.window;
+    final since = window == null ? null : DateTime.now().subtract(window);
     // One person a write, as the rules require, each with their history in
     // the same write: once invited, a friend's phone joins at once, and
     // should find it there.
@@ -283,6 +301,9 @@ class FirestoreGroupRepository implements IGroupRepository {
         person,
         history == HistoryShare.all ? generations : const {},
       );
+      final historyKey = since == null
+          ? null
+          : await _keyring.newHistoryKey(groupId.getOrCrash(), person);
       final batch = _firestore.batch();
       if (shared.isNotEmpty) {
         batch.set(ref.collection('sharedKeys').doc(person), {
@@ -290,14 +311,118 @@ class FirestoreGroupRepository implements IGroupRepository {
           'generations': shared,
         });
       }
+      if (historyKey != null && since != null) {
+        batch.set(ref.collection('history').doc(person), {
+          'sharedBy': userId,
+          'since': Timestamp.fromDate(since),
+          'key': historyKey.$2,
+        });
+      }
       batch.update(ref, {
         'invitedIds': FieldValue.arrayUnion([person]),
         FieldPath(['invitedBy', person]): userId,
       });
       await batch.commit();
+      if (historyKey != null && since != null) {
+        await _copyHistory(ref, person, historyKey.$1, since, generations);
+      }
     }
     return right(unit);
   });
+
+  /// How many copies go in one batch; Firestore takes at most 500 writes.
+  static const _copiesPerBatch = 400;
+
+  /// Copies every message of the group sent since [since] that the user can
+  /// read, encrypted again under [key] for [person] alone, into
+  /// `history/{person}/messages`. A message the user cannot read, or one
+  /// that was deleted, is not copied. Each copy keeps its message's id,
+  /// sender and time, which the rules check against the message.
+  ///
+  /// A copy that fails is left out: the person added reads that message as
+  /// unreadable, and nobody else is affected.
+  Future<void> _copyHistory(
+    DocumentReference<Map<String, dynamic>> ref,
+    String person,
+    SecretKey key,
+    DateTime since,
+    Map<int, KeyGeneration> generations,
+  ) async {
+    final groupId = ref.id;
+    try {
+      final originals = await ref
+          .collection('messages')
+          .where(
+            'serverTimeStamp',
+            isGreaterThanOrEqualTo: Timestamp.fromDate(since),
+          )
+          .orderBy('serverTimeStamp')
+          .get();
+      var batch = _firestore.batch();
+      var inBatch = 0;
+      for (final original in originals.docs) {
+        final data = original.data();
+        final content = data['content'];
+        final sentAt = data['serverTimeStamp'];
+        final senderId = data['senderId'];
+        if (content == null || sentAt is! Timestamp || senderId is! String) {
+          continue;
+        }
+        final MessagePayload payload;
+        try {
+          final encrypted = EncryptedContent.fromJson(content);
+          payload = await _cipher.decrypt(
+            encrypted,
+            chatKey: await _keyring.chatKey(
+              groupId,
+              encrypted.keyGeneration,
+              generations,
+            ),
+            chatId: groupId,
+            messageId: original.id,
+            senderId: senderId,
+          );
+        } on Exception catch (exception) {
+          if (exception is UnreadableCiphertext ||
+              exception is FormatException) {
+            continue;
+          }
+          rethrow;
+        }
+        batch.set(
+          ref
+              .collection('history')
+              .doc(person)
+              .collection('messages')
+              .doc(original.id),
+          {
+            'senderId': senderId,
+            'imageUrls': const <String>[],
+            'reactions': const <String>[],
+            'isEdited': data['isEdited'] ?? false,
+            'serverTimeStamp': sentAt,
+            'content': (await _cipher.encrypt(
+              payload,
+              chatKey: key,
+              chatId: groupId,
+              keyGeneration: ChatKeyring.historyGeneration,
+              messageId: original.id,
+              senderId: senderId,
+            )).toJson(),
+          },
+        );
+        if (++inBatch == _copiesPerBatch) {
+          await batch.commit();
+          batch = _firestore.batch();
+          inBatch = 0;
+        }
+      }
+      if (inBatch > 0) await batch.commit();
+    } on Exception catch (exception) {
+      // The invitation stands; only the copied history is incomplete.
+      debugPrint('Group history not copied: ${exception.runtimeType}');
+    }
+  }
 
   @override
   Future<Either<GroupFailure, Unit>> remove(

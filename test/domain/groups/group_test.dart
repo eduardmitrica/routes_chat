@@ -146,6 +146,15 @@ void _managingGroups() {
     });
   });
 
+  group('history for someone added', () {
+    test('copies a day or a week, and nothing for the other choices', () {
+      expect(HistoryShare.day.window, const Duration(hours: 24));
+      expect(HistoryShare.week.window, const Duration(days: 7));
+      expect(HistoryShare.none.window, isNull);
+      expect(HistoryShare.all.window, isNull);
+    });
+  });
+
   group('the group key', () {
     test('is replaced once people join or leave', () {
       const everyone = ['uid-alice', 'uid-bob'];

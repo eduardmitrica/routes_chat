@@ -256,6 +256,31 @@ class ChatKeyring {
     return shared;
   }
 
+  /// The generation number a group's copied history is encrypted under. Real
+  /// generations start at 1, so a copy can never pass for a message.
+  static const historyGeneration = 0;
+
+  /// A new key for the history of [groupId] copied for [recipientId], and the
+  /// key sealed to them as generation [historyGeneration].
+  ///
+  /// Throws [ParticipantWithoutKeys] if [recipientId] has no published key.
+  Future<(SecretKey, Map<String, Object>)> newHistoryKey(
+    String groupId,
+    String recipientId,
+  ) async {
+    final (publicKey, keyVersion) = await _publishedKeys(recipientId);
+    final key = _cipher.newChatKey();
+    final sealed = await _cipher.seal(
+      key,
+      recipientPublicKey: publicKey,
+      recipientKeyVersion: keyVersion,
+      chatId: groupId,
+      keyGeneration: historyGeneration,
+      recipientId: recipientId,
+    );
+    return (key, sealed.toJson());
+  }
+
   Future<NewKeyGeneration> _newGeneration(
     String chatId,
     List<String> participantIds,
@@ -359,6 +384,14 @@ class ChatKeyring {
     int number,
   ) async {
     try {
+      // The key of a copied history is kept with the copy's grant.
+      if (number == historyGeneration) {
+        final grant = (await _chatDocument(
+          groupId,
+        ).collection('history').doc(userId).get()).data();
+        final sealed = grant?['key'];
+        return sealed is Map ? SealedChatKey.fromJson(sealed) : null;
+      }
       final data = (await _chatDocument(
         groupId,
       ).collection('sharedKeys').doc(userId).get()).data();

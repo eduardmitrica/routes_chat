@@ -7,6 +7,7 @@ import '../../core/value_objects.dart';
 import 'package:routes_chat/domain/chats/messages/message_quote.dart';
 import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
 import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
+import 'package:routes_chat/domain/groups/group_event.dart';
 
 part 'message.freezed.dart';
 
@@ -42,5 +43,9 @@ abstract class Message with _$Message {
     /// The generation of the chat's key it was encrypted under. It grows each
     /// time a participant resets their keys.
     @Default(1) int keyGeneration,
+
+    /// In a group, something that happened rather than something said: it
+    /// has no [content], and shows as a line in the chat.
+    GroupEvent? event,
   }) = _Message;
 }

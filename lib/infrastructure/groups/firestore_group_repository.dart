@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cryptography/cryptography.dart' show SecretKey;
@@ -12,13 +13,16 @@ import '../../domain/chats/messages/message_changes.dart';
 import '../../domain/chats/messages/value_objects.dart';
 import '../../domain/core/value_objects.dart';
 import '../../domain/groups/group.dart';
+import '../../domain/groups/group_event.dart';
 import '../../domain/groups/group_failure.dart';
+import '../../domain/groups/group_profile.dart';
 import '../../domain/groups/group_repository_interface.dart';
 import '../../domain/shared/user/current_user_session_interface.dart';
 import '../chats/chat_data_transfer_object.dart';
 import '../chats/messages/message_payloads.dart';
 import '../encryption/chat_cipher.dart';
 import '../encryption/chat_keyring.dart';
+import '../chats/messages/image_tools.dart';
 import 'group_history_copies.dart';
 
 /// Groups in `groups/{groupId}`. See docs/e2ee.md and firestore.rules.
@@ -39,6 +43,7 @@ class FirestoreGroupRepository implements IGroupRepository {
     'invitedBy',
     'adminIds',
     'onlyAdminsAdd',
+    'profile',
     'keyGenerations',
     'currentKeyGeneration',
     'lastMessage',
@@ -49,6 +54,7 @@ class FirestoreGroupRepository implements IGroupRepository {
   final ICurrentUserSession _session;
   final ChatKeyring _keyring;
   final ChatCipher _cipher;
+  final ImageTools _images;
 
   /// A group's history copied for the user, for a last message they cannot
   /// open.
@@ -64,6 +70,7 @@ class FirestoreGroupRepository implements IGroupRepository {
     this._session,
     this._keyring,
     this._cipher,
+    this._images,
   );
 
   CollectionReference<Map<String, dynamic>> get _groups =>
@@ -135,8 +142,15 @@ class FirestoreGroupRepository implements IGroupRepository {
         );
       }
 
+      final profile = await _profileFrom(
+        document.reference,
+        data,
+        generations,
+        joined,
+      );
       return Group(
         id: UniqueId.fromUniqueString(document.id),
+        profile: profile,
         memberIds: _ids(data['memberIds']),
         invitedIds: _ids(data['invitedIds']),
         invitedBy: (data['invitedBy'] as Map).cast<String, String>(),
@@ -159,6 +173,97 @@ class FirestoreGroupRepository implements IGroupRepository {
   }
 
   static List<String> _ids(Object? json) => (json as List).cast<String>();
+
+  /// The group's name and photo, when this phone can open them. Invited
+  /// people hold the key too, so an invitation shows the name.
+  ///
+  /// A member who can open them under an earlier generation than the current
+  /// one encrypts them again under it, so someone who joined since, who holds
+  /// only the newer keys, sees them too.
+  Future<GroupProfile?> _profileFrom(
+    DocumentReference<Map<String, dynamic>> ref,
+    Map<String, dynamic> data,
+    Map<int, KeyGeneration> generations,
+    bool joined,
+  ) async {
+    final stored = data['profile'];
+    if (stored == null) return null;
+    try {
+      final content = EncryptedContent.fromJson(stored);
+      final profile = await _cipher.decryptGroupProfile(
+        content,
+        groupKey: await _keyring.chatKey(
+          ref.id,
+          content.keyGeneration,
+          generations,
+        ),
+        groupId: ref.id,
+      );
+      final current = data['currentKeyGeneration'] as int;
+      if (joined && content.keyGeneration < current) {
+        unawaited(
+          _writeProfile(ref, profile, current, generations).catchError(
+            (Object error) => debugPrint(
+              'Group profile not moved to the current key: '
+              '${error.runtimeType}',
+            ),
+          ),
+        );
+      }
+      return profile;
+    } on Exception catch (exception) {
+      if (exception is UnreadableCiphertext || exception is FormatException) {
+        return null;
+      }
+      rethrow;
+    }
+  }
+
+  /// [profile] encrypted under generation [generation], as stored.
+  Future<Map<String, Object>> _encryptedProfile(
+    String groupId,
+    GroupProfile profile,
+    int generation,
+    Map<int, KeyGeneration> generations,
+  ) async => (await _cipher.encryptGroupProfile(
+    profile,
+    groupKey: await _keyring.chatKey(groupId, generation, generations),
+    groupId: groupId,
+    keyGeneration: generation,
+  )).toJson();
+
+  Future<void> _writeProfile(
+    DocumentReference<Map<String, dynamic>> ref,
+    GroupProfile profile,
+    int generation,
+    Map<int, KeyGeneration> generations,
+  ) async => ref.update({
+    'profile': await _encryptedProfile(
+      ref.id,
+      profile,
+      generation,
+      generations,
+    ),
+  });
+
+  /// Adds to [batch] the event of [type], caused by [byId], in the messages of
+  /// [ref]. It is written with the change it describes, which the rules check
+  /// it against.
+  static void _event(
+    WriteBatch batch,
+    DocumentReference<Map<String, dynamic>> ref,
+    String byId,
+    GroupEventType type, {
+    String? subjectId,
+    bool? on,
+  }) => batch.set(ref.collection('messages').doc(UniqueId().getOrCrash()), {
+    'kind': 'event',
+    'type': type.stored,
+    'senderId': byId,
+    'subjectId': ?subjectId,
+    'on': ?on,
+    'serverTimeStamp': FieldValue.serverTimestamp(),
+  });
 
   /// The stored last message, decrypted for the preview. One that does not
   /// decrypt reads [ChatCipher.unreadableMessageText].
@@ -212,7 +317,10 @@ class FirestoreGroupRepository implements IGroupRepository {
   }
 
   @override
-  Future<Either<GroupFailure, UniqueId>> create(List<UniqueId> invitees) async {
+  Future<Either<GroupFailure, UniqueId>> create(
+    List<UniqueId> invitees, {
+    String name = '',
+  }) async {
     final userId = _session.current?.id;
     if (userId == null) return left(const GroupInsufficientPermissions());
     final invited = {for (final invitee in invitees) invitee.getOrCrash()}
@@ -227,18 +335,30 @@ class FirestoreGroupRepository implements IGroupRepository {
         userId,
         ...invited,
       ]);
-      await _groups.doc(groupId).set({
-        'memberIds': [userId],
-        'invitedIds': invited.toList(),
-        'invitedBy': {for (final id in invited) id: userId},
-        'adminIds': [userId],
-        'keyGenerations': const KeyGenerationsConverter().toJson({
-          firstGeneration.number: firstGeneration.stored,
-        }),
-        'currentKeyGeneration': firstGeneration.number,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
       _keyring.remember(groupId, firstGeneration);
+      final ref = _groups.doc(groupId);
+      final profileName = groupNameOf(name) ?? '';
+      final batch = _firestore.batch()
+        ..set(ref, {
+          'memberIds': [userId],
+          'invitedIds': invited.toList(),
+          'invitedBy': {for (final id in invited) id: userId},
+          'adminIds': [userId],
+          'keyGenerations': const KeyGenerationsConverter().toJson({
+            firstGeneration.number: firstGeneration.stored,
+          }),
+          'currentKeyGeneration': firstGeneration.number,
+          if (profileName.isNotEmpty)
+            'profile': (await _cipher.encryptGroupProfile(
+              GroupProfile(name: profileName),
+              groupKey: firstGeneration.key,
+              groupId: groupId,
+              keyGeneration: firstGeneration.number,
+            )).toJson(),
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      _event(batch, ref, userId, GroupEventType.created);
+      await batch.commit();
       return right(UniqueId.fromUniqueString(groupId));
     } on Exception catch (exception) {
       return left(_failureFor(exception));
@@ -262,11 +382,16 @@ class FirestoreGroupRepository implements IGroupRepository {
     final userId = _session.current?.id;
     if (userId == null) return left(const GroupInsufficientPermissions());
     try {
-      await _groups.doc(groupId.getOrCrash()).update(<Object, Object?>{
-        if (join) 'memberIds': FieldValue.arrayUnion([userId]),
-        'invitedIds': FieldValue.arrayRemove([userId]),
-        FieldPath(['invitedBy', userId]): FieldValue.delete(),
-      });
+      final ref = _groups.doc(groupId.getOrCrash());
+      final batch = _firestore.batch()
+        ..update(ref, <Object, Object?>{
+          if (join) 'memberIds': FieldValue.arrayUnion([userId]),
+          'invitedIds': FieldValue.arrayRemove([userId]),
+          FieldPath(['invitedBy', userId]): FieldValue.delete(),
+        });
+      // Turning a group down tells nobody, so only joining is an event.
+      if (join) _event(batch, ref, userId, GroupEventType.joined);
+      await batch.commit();
       return right(unit);
     } on Exception catch (exception) {
       return left(_failureFor(exception));
@@ -322,6 +447,7 @@ class FirestoreGroupRepository implements IGroupRepository {
         'invitedIds': FieldValue.arrayUnion([person]),
         FieldPath(['invitedBy', person]): userId,
       });
+      _event(batch, ref, userId, GroupEventType.added, subjectId: person);
       await batch.commit();
       if (historyKey != null && since != null) {
         await _copyHistory(ref, person, historyKey.$1, since, generations);
@@ -430,12 +556,15 @@ class FirestoreGroupRepository implements IGroupRepository {
     UniqueId userId,
   ) => _forMember(groupId, (me, ref, data) async {
     final id = userId.getOrCrash();
-    await ref.update({
-      'memberIds': FieldValue.arrayRemove([id]),
-      'invitedIds': FieldValue.arrayRemove([id]),
-      'adminIds': FieldValue.arrayRemove([id]),
-      FieldPath(['invitedBy', id]): FieldValue.delete(),
-    });
+    final batch = _firestore.batch()
+      ..update(ref, {
+        'memberIds': FieldValue.arrayRemove([id]),
+        'invitedIds': FieldValue.arrayRemove([id]),
+        'adminIds': FieldValue.arrayRemove([id]),
+        FieldPath(['invitedBy', id]): FieldValue.delete(),
+      });
+    _event(batch, ref, me, GroupEventType.removed, subjectId: id);
+    await batch.commit();
     return right(unit);
   });
 
@@ -455,10 +584,13 @@ class FirestoreGroupRepository implements IGroupRepository {
           invitedBy: const {},
           adminIds: _ids(data['adminIds']),
         );
-        await ref.update({
-          'memberIds': FieldValue.arrayRemove([me]),
-          'adminIds': group.adminsAfterLeaving(me),
-        });
+        final batch = _firestore.batch()
+          ..update(ref, {
+            'memberIds': FieldValue.arrayRemove([me]),
+            'adminIds': group.adminsAfterLeaving(me),
+          });
+        _event(batch, ref, me, GroupEventType.left);
+        await batch.commit();
         return right(unit);
       });
 
@@ -469,11 +601,20 @@ class FirestoreGroupRepository implements IGroupRepository {
     required bool admin,
   }) => _forMember(groupId, (me, ref, data) async {
     final id = userId.getOrCrash();
-    await ref.update({
-      'adminIds': admin
-          ? FieldValue.arrayUnion([id])
-          : FieldValue.arrayRemove([id]),
-    });
+    final batch = _firestore.batch()
+      ..update(ref, {
+        'adminIds': admin
+            ? FieldValue.arrayUnion([id])
+            : FieldValue.arrayRemove([id]),
+      });
+    _event(
+      batch,
+      ref,
+      me,
+      admin ? GroupEventType.adminAdded : GroupEventType.adminRemoved,
+      subjectId: id,
+    );
+    await batch.commit();
     return right(unit);
   });
 
@@ -482,9 +623,62 @@ class FirestoreGroupRepository implements IGroupRepository {
     UniqueId groupId, {
     required bool onlyAdmins,
   }) => _forMember(groupId, (me, ref, data) async {
-    await ref.update({'onlyAdminsAdd': onlyAdmins});
+    final batch = _firestore.batch()
+      ..update(ref, {'onlyAdminsAdd': onlyAdmins});
+    _event(batch, ref, me, GroupEventType.onlyAdminsAdd, on: onlyAdmins);
+    await batch.commit();
     return right(unit);
   });
+
+  /// The most a group photo may take, after making it small.
+  static const maxPhotoBytes = 45000;
+
+  @override
+  Future<Either<GroupFailure, Unit>> setProfile(
+    UniqueId groupId, {
+    required String name,
+    String? photoPath,
+    bool removePhoto = false,
+  }) => _forMember(groupId, (me, ref, data) async {
+    final newName = groupNameOf(name);
+    if (newName == null) return left(const GroupUnexpected());
+    final generations = KeyGeneration.mapFromJson(data['keyGenerations']);
+    final current = data['currentKeyGeneration'] as int;
+    final before =
+        await _profileFrom(ref, data, generations, false) ??
+        const GroupProfile();
+    final photo = removePhoto
+        ? null
+        : photoPath != null
+        ? await _smallPhoto(photoPath)
+        : before.photo;
+    final after = GroupProfile(name: newName, photo: photo);
+    final renamed = after.name != before.name;
+    final photoChanged = removePhoto ? before.photo != null : photoPath != null;
+    if (!renamed && !photoChanged) return right(unit);
+    final batch = _firestore.batch()
+      ..update(ref, {
+        'profile': await _encryptedProfile(ref.id, after, current, generations),
+      });
+    if (renamed) _event(batch, ref, me, GroupEventType.renamed);
+    if (photoChanged) _event(batch, ref, me, GroupEventType.photoChanged);
+    await batch.commit();
+    return right(unit);
+  });
+
+  /// The image at [path] as a small JPEG for a group photo.
+  Future<List<int>> _smallPhoto(String path) async {
+    final original = await File(path).readAsBytes();
+    for (final quality in [80, 65, 50]) {
+      final small = await _images.toJpeg(
+        original,
+        side: GroupProfile.photoSide,
+        quality: quality,
+      );
+      if (small.length <= maxPhotoBytes) return small;
+    }
+    throw const FormatException('The photo is too large even when small');
+  }
 
   /// Runs [change] on [groupId] as it is now, for the signed-in user. What
   /// they may change is the rules' to decide; a refusal is

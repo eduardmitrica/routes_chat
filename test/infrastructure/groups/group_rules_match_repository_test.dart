@@ -135,4 +135,25 @@ void main() {
       isNot(contains("collection('chats')")),
     );
   });
+
+  test('an event holds exactly the fields the repository writes', () {
+    final listed = RegExp(
+      r'function eventFields\(\) \{ return \[([^\]]*)\]',
+    ).firstMatch(groups)?.group(1);
+    expect(listed, isNotNull);
+    final source = File(
+      'lib/infrastructure/groups/firestore_group_repository.dart',
+    ).readAsStringSync();
+    final start = source.indexOf('static void _event(');
+    expect(start, isNot(-1));
+    final written = source.substring(start, source.indexOf('});', start));
+    expect(
+      RegExp("'([^']+)'").allMatches(listed!).map((m) => m.group(1)).toSet(),
+      RegExp(
+        r"'(\w+)': \??",
+      ).allMatches(written).map((m) => m.group(1)).toSet(),
+    );
+    // Content messages are told apart from events by having no kind.
+    expect(groups, contains("!('kind' in request.resource.data)"));
+  });
 }

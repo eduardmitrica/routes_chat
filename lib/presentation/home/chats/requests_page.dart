@@ -11,6 +11,7 @@ import 'package:routes_chat/domain/shared/user/current_user_session_interface.da
 import 'package:routes_chat/injection.dart';
 
 import 'widgets/chats_list.dart';
+import '../groups/widgets/group_avatar.dart';
 
 /// What waits for the user to decide: first messages from people who are not
 /// friends, and groups someone who is not a friend added them to.
@@ -177,14 +178,11 @@ class _GroupInvitations extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          Icon(
-                            Icons.groups_rounded,
-                            color: theme.colorScheme.primary,
-                          ),
+                          GroupAvatar(group: group, radius: 18),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
-                              groupTitleOf([
+                              group.titleWith([
                                 for (final id in group.everyone)
                                   if (id != myId) names[id] ?? '…',
                               ]),

@@ -17,7 +17,9 @@ import 'package:routes_chat/injection.dart';
 import 'package:routes_chat/presentation/core/theme/app_theme.dart';
 
 import '../home_page.dart';
+import 'edit_group_profile_page.dart';
 import 'new_group_page.dart';
+import 'widgets/group_avatar.dart';
 
 /// Who is in a group, who manages it, and what the user may change: adding
 /// people, taking them out, admins, and leaving.
@@ -206,13 +208,16 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 24),
         children: [
+          const SizedBox(height: 8),
+          Center(child: GroupAvatar(group: group, radius: 48)),
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
             child: Text(
-              groupTitleOf([
+              group.titleWith([
                 for (final id in group.everyone)
                   if (id != me) nameOf(id),
               ]),
+              textAlign: TextAlign.center,
               style: theme.textTheme.titleLarge,
             ),
           ),
@@ -226,12 +231,23 @@ class _GroupInfoPageState extends State<GroupInfoPage> {
                 if (group.invitedIds.isNotEmpty)
                   '${group.invitedIds.length} invited',
               ].join(', '),
+              textAlign: TextAlign.center,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          Center(
+            child: TextButton.icon(
+              onPressed: () => unawaited(
+                Navigator.of(
+                  context,
+                ).push(EditGroupProfilePage.route(group, bloc)),
+              ),
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('Edit name and photo'),
+            ),
+          ),
           if (group.canAdd(me))
             ListTile(
               leading: const Icon(Icons.person_add_alt_1_outlined),

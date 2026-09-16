@@ -27,6 +27,7 @@ import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/infrastructure/chats/messages/attachment_store.dart';
 import 'package:routes_chat/infrastructure/core/firestore_helpers.dart';
 import 'package:routes_chat/domain/groups/group.dart';
+import 'package:routes_chat/domain/groups/group_event.dart';
 import 'package:routes_chat/infrastructure/groups/group_history_copies.dart';
 
 /// A chat's messages, encrypted on the way in and decrypted on the way out.
@@ -156,6 +157,10 @@ class MessageRepository implements IMessageRepository {
     String chatId,
     Map<String, (MessagePayload, bool)> decrypted,
   ) async {
+    final data = document.data();
+    if (data != null && data['kind'] == 'event') {
+      return _eventFrom(document.id, data);
+    }
     final MessageDataTransferObject message;
     final EncryptedContent? content;
     try {
@@ -181,6 +186,32 @@ class MessageRepository implements IMessageRepository {
       replyTo: quoteIn(payload),
       attachments: attachmentsIn(payload),
       isReadable: readable,
+    );
+  }
+
+  /// A group's event as a row of its chat: no content, nothing to decrypt.
+  /// Null for one of a type this version of the app does not know.
+  static Message? _eventFrom(String id, Map<String, dynamic> data) {
+    final type = GroupEventType.fromStored(data['type']);
+    final byId = data['senderId'];
+    if (type == null || byId is! String) return null;
+    final subjectId = data['subjectId'];
+    final on = data['on'];
+    final sentAt = data['serverTimeStamp'];
+    return Message(
+      id: UniqueId.fromUniqueString(id),
+      senderId: UniqueId.fromUniqueString(byId),
+      imageUrls: const KtList.empty(),
+      content: Content(''),
+      // Just written on this phone, before the server dated it.
+      lastUpdatedAt: sentAt is Timestamp ? sentAt.toDate() : DateTime.now(),
+      isEdited: false,
+      event: GroupEvent(
+        type: type,
+        byId: byId,
+        subjectId: subjectId is String ? subjectId : null,
+        on: on is bool ? on : null,
+      ),
     );
   }
 

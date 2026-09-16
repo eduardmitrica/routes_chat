@@ -12,7 +12,10 @@ class _Groups implements IGroupRepository {
   GroupFailure? failure;
 
   @override
-  Future<Either<GroupFailure, UniqueId>> create(List<UniqueId> invitees) async {
+  Future<Either<GroupFailure, UniqueId>> create(
+    List<UniqueId> invitees, {
+    String name = '',
+  }) async {
     created.add([for (final id in invitees) id.getOrCrash()]);
     final failure = this.failure;
     return failure == null

@@ -45,6 +45,16 @@ class _Groups implements IGroupRepository {
   }) => _answer('only admins add $onlyAdmins');
 
   @override
+  Future<Either<GroupFailure, Unit>> setProfile(
+    UniqueId groupId, {
+    required String name,
+    String? photoPath,
+    bool removePhoto = false,
+  }) => _answer(
+    'profile $name ${photoPath ?? '-'} ${removePhoto ? 'removed' : 'kept'}',
+  );
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -104,5 +114,18 @@ void main() {
     gate.complete();
     await pumpEventQueue();
     expect(bloc.state.busy, isEmpty);
+  });
+
+  test('saving the name and photo says so, so the editor can close', () async {
+    await send(
+      const GroupActorEvent.profileSaved(name: 'Drumeție', photoPath: 'p.jpg'),
+    );
+    expect(groups.calls, ['profile Drumeție p.jpg kept']);
+    expect(bloc.state.profilesSaved, 1);
+
+    groups.failure = const GroupUnexpected();
+    await send(const GroupActorEvent.profileSaved(name: 'Alt nume'));
+    expect(bloc.state.profilesSaved, 1);
+    expect(bloc.state.failures, 1);
   });
 }

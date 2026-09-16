@@ -157,6 +157,21 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
   friend's would make the newcomer's phone join by itself. All admins are
   equal; a group always keeps one, and when its only admin leaves, whoever
   has been a member longest becomes one.
+- **A group's name and photo** are its `profile`, encrypted with the
+  group's key: AES-256-GCM over JSON `{name, photo?}` (the photo a JPEG of at
+  most 256 pixels a side, in base64), purpose `routes_chat/v1/group-profile`
+  and associated data `[groupId, generation]`, stored as
+  `{v: 1, e, nonce, cipherText, mac}`. Any member may set it, only under the
+  group's current generation. When a member's app finds it under an older
+  generation, it encrypts it again under the current one, so people who
+  joined later can read it.
+- **Group events** ("Ana added Radu") are message documents with no content:
+  `{kind: 'event', type, senderId, subjectId?, on?, serverTimeStamp}`. They
+  name who did what to whom, which the group document already shows in
+  plaintext (members, admins, whether only admins add); they never hold the
+  new name. Each is written in the same batch as its change, and the rules
+  accept one only if that change really happens in that write, made by its
+  sender. Versions of the app from before events leave these documents out.
 - **The safety number** of two people is worked out from both public keys,
   so they can check that the keys they hold are each other's and not ones put
   in their place by the server. Each side's half is `SHA-512` of

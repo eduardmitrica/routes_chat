@@ -9,6 +9,7 @@ import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/injection.dart';
 import 'package:routes_chat/presentation/home/chats/widgets/chat_page.dart';
 import 'package:routes_chat/presentation/home/groups/group_chat_page.dart';
+import 'package:routes_chat/presentation/home/groups/widgets/group_avatar.dart';
 
 import 'chat_list_time.dart';
 
@@ -168,13 +169,9 @@ class _GroupTile extends StatelessWidget {
     final lastSender = last?.senderId.getOrCrash();
     final at = group.lastActivityAt;
     return ListTile(
-      leading: CircleAvatar(
-        backgroundColor: theme.colorScheme.secondaryContainer,
-        foregroundColor: theme.colorScheme.onSecondaryContainer,
-        child: const Icon(Icons.groups_rounded),
-      ),
+      leading: GroupAvatar(group: group),
       title: Text(
-        groupTitleOf([
+        group.titleWith([
           for (final id in group.everyone)
             if (id != myId) names[id] ?? '…',
         ]),

@@ -311,6 +311,7 @@ void configureDependencies() {
         getIt<ICurrentUserSession>(),
         getIt<ChatKeyring>(),
         getIt<ChatCipher>(),
+        getIt<ImageTools>(),
       ),
     )
     ..registerLazySingleton<GroupsWatcherBloc>(

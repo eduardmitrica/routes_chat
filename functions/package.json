@@ -1,7 +1,7 @@
 {
   "name": "routes-chat-functions",
   "private": true,
-  "description": "Cloud Functions for routes_chat: push notifications for new messages.",
+  "description": "Cloud Functions for routes_chat: push notifications, and cleaning up deleted groups.",
   "main": "index.js",
   "engines": {
     "node": ">=20"

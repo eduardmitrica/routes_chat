@@ -573,7 +573,8 @@ class FirestoreGroupRepository implements IGroupRepository {
       _forMember(groupId, (me, ref, data) async {
         final members = _ids(data['memberIds']);
         if (members.length == 1) {
-          // The last member: the group goes with them.
+          // The last member: the group goes with them, and the function
+          // cleanUpDeletedGroup deletes everything it kept.
           await ref.delete();
           return right(unit);
         }

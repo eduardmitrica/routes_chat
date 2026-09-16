@@ -34,6 +34,7 @@ The project has no `(default)` database.
 | `users/{uid}/fcmTokens/{token}` | `platform`, `updatedAt` | The owner |
 | `presence/{uid}` | `state` (`online`/`offline`), `lastSeenAt` (server time) | The owner and their friends (accepted friend request); never listed |
 | `chats/{pairId}/typing/{uid}` | `typingAt` (server time) | The two people; each writes only their own |
+| `groups/{groupId}/typing/{uid}`, `groups/{groupId}/reads/{uid}` | The same fields as in a chat; a read marker's message is one of the group's | Members only; each writes only their own while a member, and deletes it any time |
 | `chats/{pairId}/reads/{uid}` | `messageId`, `messageSentAt` (that message's send time, which the rules check), `readAt` (server time). Only while the user shares read receipts | The two people; each writes and deletes only their own |
 | `groups/{groupId}` | `memberIds`, `invitedIds`, `invitedBy` (who added each invited person), `adminIds`, `onlyAdminsAdd`, `profile` (the name and photo, encrypted under the current generation; any member sets it), `keyGenerations` sealed to members and the invited, `currentKeyGeneration`, the encrypted `lastMessage`, `createdAt` (server time). The id is `group-` and a random UUID | Members and the invited; only the invited person moves themselves to members or leaves the invited |
 | `groups/{groupId}/sharedKeys/{uid}` | `sharedBy`, `generations`: earlier generations of the group key sealed to someone added with the group's history, written with their invitation | Only that person |
@@ -150,6 +151,12 @@ The full design is [docs/e2ee.md](../e2ee.md). What every change must keep:
 - `functions/index.js` has `notifyNewMessage`, a Firestore trigger on
   `chats/{chatId}/messages/{messageId}` in the named database. The database id
   is a parameter read from `functions/.env`.
+- `notifyNewGroupMessage` (on `groups/{groupId}/messages/{messageId}`) tells
+  the other members "New message in a group", skipping events and anyone who
+  blocked the sender; `notifyGroupInvitation` (on writes to `groups/{groupId}`)
+  tells each newly invited person who added them. Neither sends text or the
+  encrypted group name. Data `{type: 'groupMessage' | 'groupInvitation',
+  groupId}`, read by `appNotificationFrom`.
 - `functions/notify.js` holds the pure helpers (recipients, payload, dead
   tokens), tested with `npm test` (`node --test`). CI runs them as the
   "functions test" job.

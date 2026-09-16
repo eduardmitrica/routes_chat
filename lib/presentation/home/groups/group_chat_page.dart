@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/application/chats/chat_bar/chat_bar_bloc.dart';
 import 'package:routes_chat/application/chats/messages/messages_watcher/messages_watcher_bloc.dart';
+import 'package:routes_chat/application/groups/group_activity_bloc.dart';
 import 'package:routes_chat/application/groups/groups_watcher_bloc.dart';
 import 'package:routes_chat/application/shared/users_watcher/users_watcher_bloc.dart';
 import 'package:routes_chat/domain/chats/messages/media_failure.dart';
@@ -14,6 +15,7 @@ import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/groups/group.dart';
+import 'package:routes_chat/domain/groups/group_activity.dart';
 import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 import 'package:routes_chat/injection.dart';
 
@@ -30,9 +32,9 @@ import 'package:routes_chat/domain/groups/group_event.dart';
 
 /// A group's messages and the box to write in.
 ///
-/// Groups start with text and replies. Photos, reactions, editing and
-/// deleting, typing and "Seen" come to groups later, so this page offers none
-/// of them.
+/// Text and replies, who is typing, and who has seen the user's newest
+/// message. Photos, reactions, editing and deleting come to groups later, so
+/// this page offers none of them.
 class GroupChatPage extends StatefulWidget {
   static const groupChatPageRoute = '/home/groups/chat';
 
@@ -59,12 +61,14 @@ class GroupChatPage extends StatefulWidget {
   State<GroupChatPage> createState() => _GroupChatPageState();
 }
 
-class _GroupChatPageState extends State<GroupChatPage> {
+class _GroupChatPageState extends State<GroupChatPage>
+    with WidgetsBindingObserver {
   /// How close to the oldest loaded message, in pixels, the next page loads.
   static const _loadOlderWithin = 800.0;
 
   final _chatBar = getIt<ChatBarBloc>();
   final _groups = getIt<GroupsWatcherBloc>();
+  final _activity = getIt<GroupActivityBloc>();
   final _scrollController = ScrollController();
   final _composerFocus = FocusNode();
   final String? _myId = getIt<ICurrentUserSession>().current?.id;
@@ -75,20 +79,40 @@ class _GroupChatPageState extends State<GroupChatPage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _chatBar.add(ChatBarEvent.startedInGroup(widget.groupId));
+    _activity.add(GroupActivityEvent.started(widget.groupId));
     OpenChat.opened(widget.groupId);
     _scrollController.addListener(_loadOlderIfNearTop);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     OpenChat.closed(widget.groupId);
+    unawaited(_activity.close());
     _scrollController
       ..removeListener(_loadOlderIfNearTop)
       ..dispose();
     _composerFocus.dispose();
     unawaited(_chatBar.close());
     super.dispose();
+  }
+
+  /// Back on screen with the group open: what it shows is read now.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _reportShown();
+  }
+
+  /// Says the group shows messages up to the newest loaded, while the app is
+  /// on screen.
+  void _reportShown([MessagesWatcherState? state]) {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
+    final newest = (state ?? context.read<MessagesWatcherBloc>().state).messages
+        .lastOrNull();
+    if (newest != null) _activity.add(GroupActivityEvent.messagesShown(newest));
   }
 
   void _loadOlderIfNearTop() {
@@ -105,12 +129,20 @@ class _GroupChatPageState extends State<GroupChatPage> {
     (group) => group.id.getOrCrash() == widget.groupId.getOrCrash(),
   );
 
-  /// Looks up the names of everyone in [group] once, and again when someone
-  /// new is in it.
+  /// Looks up the names of everyone in [group], and of everyone the loaded
+  /// messages name, such as someone who has left since; again when someone
+  /// new appears.
   void _lookUpNames(Group group) {
-    final everyone = group.everyone.toSet();
+    final everyone = {
+      ...group.everyone,
+      for (final message
+          in context.read<MessagesWatcherBloc>().state.messages.iter) ...[
+        message.senderId.getOrCrash(),
+        ?message.event?.subjectId,
+      ],
+    };
     if (everyone.difference(_lookedUp).isEmpty) return;
-    _lookedUp = everyone;
+    _lookedUp = {..._lookedUp, ...everyone};
     context.read<UsersWatcherBloc>().add(
       UsersWatcherEvent.watchStarted(
         everyone.map(UniqueId.fromUniqueString).toImmutableList(),
@@ -211,14 +243,36 @@ class _GroupChatPageState extends State<GroupChatPage> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   if (group != null)
-                    Text(
-                      [
-                        members == 1 ? '1 member' : '$members members',
-                        if (invited > 0) '$invited invited',
-                      ].join(', '),
-                      style: theme.textTheme.labelMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
+                    BlocBuilder<GroupActivityBloc, GroupActivityState>(
+                      bloc: _activity,
+                      buildWhen: (previous, current) =>
+                          previous.typingIds != current.typingIds,
+                      builder: (context, activity) {
+                        final typing = describeGroupTyping([
+                          for (final id in activity.typingIds)
+                            if (group.memberIds.contains(id))
+                              names[id] ?? 'Someone',
+                        ]);
+                        return Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            typing ??
+                                [
+                                  members == 1
+                                      ? '1 member'
+                                      : '$members members',
+                                  if (invited > 0) '$invited invited',
+                                ].join(', '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              color: typing != null
+                                  ? theme.colorScheme.primary
+                                  : theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                 ],
               ),
@@ -232,10 +286,14 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Widget _messages(Map<String, String> names) {
     return BlocConsumer<MessagesWatcherBloc, MessagesWatcherState>(
       listenWhen: (previous, current) => previous.messages != current.messages,
-      // A new page may still not fill the screen.
-      listener: (context, _) => WidgetsBinding.instance.addPostFrameCallback(
-        (_) => _loadOlderIfNearTop(),
-      ),
+      listener: (context, state) {
+        _reportShown(state);
+        if (_group(_groups.state) case final group?) _lookUpNames(group);
+        // A new page may still not fill the screen.
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _loadOlderIfNearTop(),
+        );
+      },
       builder: (context, state) => switch (state.status) {
         MessagesStatus.initial ||
         MessagesStatus.loading => const MessagesSkeleton(),
@@ -263,6 +321,18 @@ class _GroupChatPageState extends State<GroupChatPage> {
             if (items.isEmpty && outgoing.isEmpty) {
               return const _NoMessagesYet();
             }
+            // "Seen by" goes under the newest message when the user sent
+            // it, and nothing of theirs is still on its way below it.
+            final newest = state.messages.lastOrNull(
+              (message) => message.event == null,
+            );
+            final seenCandidateId =
+                outgoing.isEmpty &&
+                    newest != null &&
+                    !newest.isDeleted &&
+                    newest.senderId.getOrCrash() == _myId
+                ? newest.id.getOrCrash()
+                : null;
             return ListView.builder(
               controller: _scrollController,
               reverse: true,
@@ -280,7 +350,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 if (itemIndex < 0) return const MessagesSkeleton.older();
                 final item = items[itemIndex];
                 final previous = itemIndex > 0 ? items[itemIndex - 1] : null;
-                return _row(item, previous, names);
+                return _row(
+                  item,
+                  previous,
+                  names,
+                  seenCandidateId: seenCandidateId,
+                );
               },
             );
           },
@@ -292,8 +367,9 @@ class _GroupChatPageState extends State<GroupChatPage> {
   Widget _row(
     ChatTimelineItem item,
     ChatTimelineItem? previous,
-    Map<String, String> names,
-  ) => switch (item) {
+    Map<String, String> names, {
+    String? seenCandidateId,
+  }) => switch (item) {
     MessageItem(:final message) when message.event != null => _Notice(
       describeGroupEvent(
         message.event!,
@@ -301,6 +377,23 @@ class _GroupChatPageState extends State<GroupChatPage> {
         myId: _myId ?? '',
       ),
     ),
+    MessageItem(:final message)
+        when message.id.getOrCrash() == seenCandidateId &&
+            message.lastUpdatedAt != null =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _messageRow(message, showName: false, names: names),
+          _SeenByLabel(
+            activity: _activity,
+            groups: _groups,
+            groupId: widget.groupId,
+            sentAt: message.lastUpdatedAt!,
+            nameOf: (id) => names[id] ?? 'Someone',
+          ),
+        ],
+      ),
     MessageItem(:final message) => _messageRow(
       message,
       // A name over the first of each run of someone else's messages; an
@@ -501,6 +594,65 @@ class _Notice extends StatelessWidget {
           color: theme.colorScheme.onSurfaceVariant,
         ),
       ),
+    );
+  }
+}
+
+/// "Seen by …" under the user's newest message, naming the members who have
+/// read it, as far as the user shares read receipts.
+class _SeenByLabel extends StatelessWidget {
+  final GroupActivityBloc activity;
+  final GroupsWatcherBloc groups;
+  final UniqueId groupId;
+
+  /// When the message was sent.
+  final DateTime sentAt;
+  final String Function(String userId) nameOf;
+
+  const _SeenByLabel({
+    required this.activity,
+    required this.groups,
+    required this.groupId,
+    required this.sentAt,
+    required this.nameOf,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return BlocBuilder<GroupActivityBloc, GroupActivityState>(
+      bloc: activity,
+      buildWhen: (previous, current) => previous.readUpTo != current.readUpTo,
+      builder: (context, state) {
+        final group = groups.state.joined.find(
+          (group) => group.id.getOrCrash() == groupId.getOrCrash(),
+        );
+        // Someone who left since is no longer counted.
+        final members = group?.memberIds ?? const <String>[];
+        final seenBy = [
+          for (final id in state.seenBy(sentAt))
+            if (members.contains(id)) nameOf(id),
+        ];
+        final label = describeGroupSeen(
+          seenBy,
+          othersInGroup: members.length - 1,
+        );
+        return Semantics(
+          liveRegion: true,
+          child: label == null
+              ? const SizedBox.shrink()
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 2, 18, 4),
+                  child: Text(
+                    label,
+                    textAlign: TextAlign.end,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+        );
+      },
     );
   }
 }

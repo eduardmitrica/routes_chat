@@ -13,6 +13,7 @@ import 'package:routes_chat/domain/shared/user/user_repository_interface.dart';
 import 'package:routes_chat/presentation/home/chats/open_chat.dart';
 import 'package:routes_chat/presentation/home/chats/requests_page.dart';
 import 'package:routes_chat/presentation/home/chats/widgets/chat_page.dart';
+import 'package:routes_chat/presentation/home/groups/group_chat_page.dart';
 import 'package:routes_chat/application/authentication/authentication_bloc.dart';
 import 'package:routes_chat/application/user/user_form/user_form_bloc.dart';
 import 'package:routes_chat/presentation/home/profile/profile_page.dart';
@@ -116,7 +117,33 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           context,
         ).popUntil(ModalRoute.withName(HomePage.homePageRoute));
         setState(() => _currentTabIndex = 3);
+      case GroupMessageNotification(:final groupId):
+        _openGroup(groupId);
+      case GroupInvitationNotification(:final groupId):
+        // Added by a friend, the user is in it already; otherwise the
+        // invitation waits in the requests, or never arrives from someone
+        // blocked.
+        final joined = getIt<GroupsWatcherBloc>().state.joined.any(
+          (group) => group.id.getOrCrash() == groupId.getOrCrash(),
+        );
+        if (joined) {
+          _openGroup(groupId);
+        } else {
+          Navigator.of(
+            context,
+          ).popUntil(ModalRoute.withName(HomePage.homePageRoute));
+          setState(() => _currentTabIndex = 0);
+          unawaited(Navigator.of(context).push(RequestsPage.route()));
+        }
     }
+  }
+
+  void _openGroup(UniqueId groupId) {
+    if (OpenChat.id == groupId.getOrCrash()) return;
+    final navigator = Navigator.of(context)
+      ..popUntil(ModalRoute.withName(HomePage.homePageRoute));
+    setState(() => _currentTabIndex = 0);
+    unawaited(navigator.push(GroupChatPage.route(groupId)));
   }
 
   Future<void> _openChat(UniqueId chatId) async {
@@ -165,6 +192,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ) when OpenChat.id == chatId.getOrCrash()) {
       return;
     }
+    if (notification case GroupMessageNotification(
+      :final groupId,
+    ) when OpenChat.id == groupId.getOrCrash()) {
+      return;
+    }
     final messenger = ScaffoldMessenger.of(context);
     final (icon, text) = switch (notification) {
       MessageNotification(:final senderName) => (
@@ -178,6 +210,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       FriendRequestNotification(:final senderName) => (
         Icons.person_add_alt_outlined,
         '$senderName sent you a friend request',
+      ),
+      GroupMessageNotification(:final senderName) => (
+        Icons.forum_outlined,
+        '$senderName wrote in a group',
+      ),
+      GroupInvitationNotification(:final senderName) => (
+        Icons.group_add_outlined,
+        '$senderName added you to a group',
       ),
     };
     messenger

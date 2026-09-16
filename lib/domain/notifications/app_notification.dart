@@ -36,6 +36,32 @@ final class MessageRequestNotification extends AppNotification {
   List<Object?> get props => [chatId, senderName];
 }
 
+/// A new message in the group [groupId].
+final class GroupMessageNotification extends AppNotification {
+  final UniqueId groupId;
+
+  const GroupMessageNotification({
+    required this.groupId,
+    required String senderName,
+  }) : super(senderName);
+
+  @override
+  List<Object?> get props => [groupId, senderName];
+}
+
+/// The user was added to the group [groupId], by [senderName].
+final class GroupInvitationNotification extends AppNotification {
+  final UniqueId groupId;
+
+  const GroupInvitationNotification({
+    required this.groupId,
+    required String senderName,
+  }) : super(senderName);
+
+  @override
+  List<Object?> get props => [groupId, senderName];
+}
+
 /// A new friend request.
 final class FriendRequestNotification extends AppNotification {
   const FriendRequestNotification({required String senderName})

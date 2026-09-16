@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:rxdart/rxdart.dart';
 
 import '../../domain/core/value_objects.dart';
+import '../../domain/groups/group.dart';
 import '../../domain/notifications/app_notification.dart';
 
 /// The notification [data] and [title] from functions/notify.js as the app
@@ -18,6 +19,13 @@ AppNotification? appNotificationFrom(
   switch (data['type']) {
     case 'friendRequest':
       return FriendRequestNotification(senderName: senderName);
+    case 'groupMessage' || 'groupInvitation':
+      final groupId = data['groupId'];
+      if (groupId is! String || !isGroupIdString(groupId)) return null;
+      final id = UniqueId.fromUniqueString(groupId);
+      return data['type'] == 'groupMessage'
+          ? GroupMessageNotification(groupId: id, senderName: senderName)
+          : GroupInvitationNotification(groupId: id, senderName: senderName);
     case 'message' || 'messageRequest' || null:
       final chatId = data['chatId'];
       if (chatId is! String || chatId.isEmpty) return null;

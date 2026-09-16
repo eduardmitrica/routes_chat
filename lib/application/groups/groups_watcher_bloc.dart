@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kt_dart/collection.dart';
 
+import '../../domain/chats/chat_reads.dart';
 import '../../domain/core/value_objects.dart';
 import '../../domain/friend_requests/failures.dart';
 import '../../domain/friend_requests/friend_request.dart';
@@ -76,6 +77,13 @@ final class _BlocksChanged extends GroupsWatcherEvent {
   const _BlocksChanged();
 }
 
+final class _ReadsChanged extends GroupsWatcherEvent {
+  final ChatReads reads;
+  const _ReadsChanged(this.reads);
+  @override
+  List<Object?> get props => [reads];
+}
+
 final class _SignedOut extends GroupsWatcherEvent {
   const _SignedOut();
 }
@@ -97,12 +105,17 @@ final class GroupsWatcherState extends Equatable {
   /// The groups being joined or turned down right now.
   final Set<String> answering;
 
+  /// The ids of the groups whose newest message, from someone else, the user
+  /// has not read on this phone.
+  final Set<String> unreadIds;
+
   const GroupsWatcherState({
     this.joined = const KtList.empty(),
     this.invitations = const KtList.empty(),
     this.loaded = false,
     this.failure,
     this.answering = const {},
+    this.unreadIds = const {},
   });
 
   GroupsWatcherState copyWith({
@@ -112,16 +125,25 @@ final class GroupsWatcherState extends Equatable {
     GroupFailure? failure,
     bool clearFailure = false,
     Set<String>? answering,
+    Set<String>? unreadIds,
   }) => GroupsWatcherState(
     joined: joined ?? this.joined,
     invitations: invitations ?? this.invitations,
     loaded: loaded ?? this.loaded,
     failure: clearFailure ? null : failure ?? this.failure,
     answering: answering ?? this.answering,
+    unreadIds: unreadIds ?? this.unreadIds,
   );
 
   @override
-  List<Object?> get props => [joined, invitations, loaded, failure, answering];
+  List<Object?> get props => [
+    joined,
+    invitations,
+    loaded,
+    failure,
+    answering,
+    unreadIds,
+  ];
 
   /// Counts only: who is in which group stays out of logs.
   @override
@@ -141,6 +163,10 @@ class GroupsWatcherBloc extends Bloc<GroupsWatcherEvent, GroupsWatcherState> {
   final ICurrentUserSession _session;
   final IFriendRequestsRepository? _friendRequests;
   final IBlockList? _blocks;
+  final IChatReads? _reads;
+
+  StreamSubscription<ChatReads>? _readsWatch;
+  ChatReads? _readsNow;
 
   StreamSubscription<Either<GroupFailure, KtList<Group>>>? _joinedWatch;
   StreamSubscription<Either<GroupFailure, KtList<Group>>>? _invitationsWatch;
@@ -164,8 +190,10 @@ class GroupsWatcherBloc extends Bloc<GroupsWatcherEvent, GroupsWatcherState> {
     this._session, {
     IFriendRequestsRepository? friendRequests,
     IBlockList? blocks,
+    IChatReads? reads,
   }) : _friendRequests = friendRequests,
        _blocks = blocks,
+       _reads = reads,
        super(const GroupsWatcherState()) {
     if (friendRequests == null) _friendIds = const {};
     // One for the app: the next person to sign in starts from nothing.
@@ -206,6 +234,9 @@ class GroupsWatcherBloc extends Bloc<GroupsWatcherEvent, GroupsWatcherState> {
           _blocksWatch ??= _blocks?.blocksChanges.listen((_) {
             if (!isClosed) add(const _BlocksChanged());
           });
+          _readsWatch ??= _reads?.watch().listen((reads) {
+            if (!isClosed) add(_ReadsChanged(reads));
+          });
 
         case _JoinedReceived(:final failureOrGroups):
           emit(
@@ -215,9 +246,14 @@ class GroupsWatcherBloc extends Bloc<GroupsWatcherEvent, GroupsWatcherState> {
                 joined: groups,
                 loaded: true,
                 clearFailure: true,
+                unreadIds: _unreadIn(groups),
               ),
             ),
           );
+
+        case _ReadsChanged(:final reads):
+          _readsNow = reads;
+          emit(state.copyWith(unreadIds: _unreadIn(state.joined)));
 
         case _InvitationsReceived(:final failureOrGroups):
           failureOrGroups.fold(
@@ -232,6 +268,7 @@ class GroupsWatcherBloc extends Bloc<GroupsWatcherEvent, GroupsWatcherState> {
 
         case _BlocksChanged():
           _sortInvitations(emit);
+          emit(state.copyWith(unreadIds: _unreadIn(state.joined)));
 
         case _SignedOut():
           emit(const GroupsWatcherState());
@@ -243,6 +280,22 @@ class GroupsWatcherBloc extends Bloc<GroupsWatcherEvent, GroupsWatcherState> {
           await _answer(groupId, emit, _groups.decline);
       }
     });
+  }
+
+  /// The groups in [groups] ending with a message from someone else the user
+  /// has not read here. One from someone blocked never counts.
+  Set<String> _unreadIn(KtList<Group> groups) {
+    final userId = _session.current?.id;
+    final reads = _readsNow;
+    if (userId == null || reads == null) return const {};
+    final blocks = _blocks?.blocks ?? const Blocks();
+    return {
+      for (final group in groups.iter)
+        if (group.lastMessage case final last?
+            when !blocks.hides(last.senderId, last.lastUpdatedAt) &&
+                reads.endsUnread(group.id.getOrCrash(), last, userId))
+          group.id.getOrCrash(),
+    };
   }
 
   /// Splits the invitations: from a friend, joined by itself; from someone
@@ -305,6 +358,7 @@ class GroupsWatcherBloc extends Bloc<GroupsWatcherEvent, GroupsWatcherState> {
     await _invitationsWatch?.cancel();
     await _friendsWatch?.cancel();
     await _blocksWatch?.cancel();
+    await _readsWatch?.cancel();
     return super.close();
   }
 }

@@ -96,7 +96,10 @@ class _ChatsPageBodyState extends State<ChatsPageBody> {
                               context,
                             ).refreshSubscription,
                             groups: groups.joined.asList(),
-                            unreadChatIds: unreadChatIds,
+                            unreadChatIds: {
+                              ...unreadChatIds,
+                              ...groups.unreadIds,
+                            },
                             blockedChatIds: blockedChatIds,
                             hiddenPreviewChatIds: hiddenPreviewChatIds,
                           ),

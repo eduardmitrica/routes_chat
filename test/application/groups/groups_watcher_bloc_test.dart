@@ -4,6 +4,9 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/application/groups/groups_watcher_bloc.dart';
+import 'package:routes_chat/domain/chats/chat_reads.dart';
+import 'package:routes_chat/domain/chats/messages/message.dart';
+import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/friend_requests/failures.dart';
 import 'package:routes_chat/domain/friend_requests/friend_request.dart';
@@ -205,4 +208,104 @@ void main() {
     expect(bloc.state.loaded, isTrue);
     expect(bloc.state.joined.asList(), [joined]);
   });
+
+  group('unread', () {
+    late StreamController<ChatReads> reads;
+    late GroupsWatcherBloc withReads;
+    final noon = DateTime.utc(2026, 9, 17, 12);
+
+    Group joined(String id, {required String from, required int minute}) =>
+        Group(
+          id: UniqueId.fromUniqueString(id),
+          memberIds: ['uid-alice', from],
+          invitedIds: const [],
+          invitedBy: const {},
+          adminIds: [from],
+          lastMessage: Message(
+            id: UniqueId.fromUniqueString('m-$id'),
+            senderId: UniqueId.fromUniqueString(from),
+            imageUrls: const KtList.empty(),
+            content: Content('Salut'),
+            lastUpdatedAt: noon.add(Duration(minutes: minute)),
+            isEdited: false,
+          ),
+        );
+
+    setUp(() async {
+      reads = StreamController<ChatReads>.broadcast();
+      addTearDown(reads.close);
+      final session = signedInAlice();
+      addTearDown(session.end);
+      groups = _Groups();
+      withReads = GroupsWatcherBloc(
+        groups,
+        session,
+        blocks: blocks,
+        reads: _Reads(reads.stream),
+      );
+      addTearDown(withReads.close);
+      withReads.add(const GroupsWatcherEvent.started());
+      await pumpEventQueue();
+    });
+
+    test(
+      "a group ending with someone else's newer message stands out",
+      () async {
+        reads.add(
+          ChatReads(
+            since: noon,
+            readUpTo: {'group-b': noon.add(const Duration(minutes: 5))},
+          ),
+        );
+        groups.joined.add(
+          right(
+            KtList.of(
+              joined('group-a', from: 'uid-bob', minute: 2),
+              joined('group-b', from: 'uid-bob', minute: 4),
+              joined('group-c', from: 'uid-alice', minute: 6),
+            ),
+          ),
+        );
+        await pumpEventQueue();
+
+        expect(withReads.state.unreadIds, {'group-a'});
+      },
+    );
+
+    test('reading it, or blocking who wrote, clears it', () async {
+      reads.add(ChatReads(since: noon));
+      groups.joined.add(
+        right(KtList.of(joined('group-a', from: 'uid-bob', minute: 2))),
+      );
+      await pumpEventQueue();
+      expect(withReads.state.unreadIds, {'group-a'});
+
+      reads.add(
+        ChatReads(
+          since: noon,
+          readUpTo: {'group-a': noon.add(const Duration(minutes: 2))},
+        ),
+      );
+      await pumpEventQueue();
+      expect(withReads.state.unreadIds, isEmpty);
+
+      reads.add(ChatReads(since: noon));
+      await pumpEventQueue();
+      blocks.change(blocking('uid-bob', since: noon));
+      await pumpEventQueue();
+      expect(withReads.state.unreadIds, isEmpty);
+    });
+  });
+}
+
+class _Reads implements IChatReads {
+  final Stream<ChatReads> _stream;
+
+  _Reads(this._stream);
+
+  @override
+  Stream<ChatReads> watch() => _stream;
+
+  @override
+  Future<void> markRead(UniqueId chatId, DateTime sentAt) async {}
 }

@@ -1,4 +1,4 @@
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentWritten } = require("firebase-functions/v2/firestore");
 const { defineString } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const { initializeApp } = require("firebase-admin/app");
@@ -13,6 +13,10 @@ const {
   friendRequestNotificationFor,
   deadTokens,
   isBlocking,
+  groupMessageNotificationFor,
+  groupInvitationNotificationFor,
+  isWrittenMessage,
+  newlyInvited,
 } = require("./notify");
 
 initializeApp();
@@ -139,5 +143,64 @@ exports.notifyFriendRequest = onDocumentCreated(
       requestId,
     });
     await sendToUser(db, request.receiverId, payload, "Friend request", { requestId });
+  },
+);
+
+/**
+ * Notifies the other members of a group when someone writes in it. Events
+ * such as someone joining are not announced, and nobody hears from someone
+ * they blocked.
+ */
+exports.notifyNewGroupMessage = onDocumentCreated(
+  { document: "groups/{groupId}/messages/{messageId}", database: databaseId, region: REGION },
+  async (event) => {
+    const message = event.data && event.data.data();
+    if (!isWrittenMessage(message)) return;
+    const { groupId } = event.params;
+    const db = getFirestore(databaseId.value());
+
+    const group = await db.doc(`groups/${groupId}`).get();
+    // Only members read a group's messages; the invited are not told.
+    const recipients = [];
+    for (const uid of recipientsOf(group.get("memberIds"), message.senderId)) {
+      if (!(await hasBlocked(db, uid, message.senderId))) recipients.push(uid);
+    }
+    if (recipients.length === 0) return;
+
+    // senderId is pinned to the author's uid by the security rules.
+    const senderName = await usernameOf(db, message.senderId);
+    const payload = groupMessageNotificationFor({ senderName, groupId });
+    await Promise.all(
+      recipients.map((uid) => sendToUser(db, uid, payload, "Group message", { groupId })),
+    );
+  },
+);
+
+/**
+ * Tells people they were added to a group, naming who added them, unless
+ * they blocked that person.
+ */
+exports.notifyGroupInvitation = onDocumentWritten(
+  { document: "groups/{groupId}", database: databaseId, region: REGION },
+  async (event) => {
+    const before = event.data && event.data.before.data();
+    const after = event.data && event.data.after.data();
+    const invited = newlyInvited(before, after);
+    if (invited.length === 0) return;
+    const { groupId } = event.params;
+    const db = getFirestore(databaseId.value());
+
+    await Promise.all(
+      invited.map(async (uid) => {
+        // The rules pin who invited each person to the one who wrote it.
+        const adderId = after.invitedBy && after.invitedBy[uid];
+        if (!adderId || (await hasBlocked(db, uid, adderId))) return;
+        const payload = groupInvitationNotificationFor({
+          adderName: await usernameOf(db, adderId),
+          groupId,
+        });
+        await sendToUser(db, uid, payload, "Group invitation", { groupId });
+      }),
+    );
   },
 );

@@ -68,6 +68,7 @@ import 'application/chats/messages/message_actor/message_actor_bloc.dart';
 import 'domain/chats/messages/emoji_usage.dart';
 import 'infrastructure/chats/messages/emoji_preferences_store.dart';
 import 'domain/chats/chat_reads.dart';
+import 'application/groups/group_activity_bloc.dart';
 import 'application/groups/groups_watcher_bloc.dart';
 import 'application/groups/new_group_bloc.dart';
 import 'domain/groups/group_repository_interface.dart';
@@ -319,6 +320,15 @@ void configureDependencies() {
         getIt<IGroupRepository>(),
         getIt<ICurrentUserSession>(),
         friendRequests: getIt<IFriendRequestsRepository>(),
+        blocks: getIt<IBlockList>(),
+        reads: getIt<IChatReads>(),
+      ),
+    )
+    ..registerFactory<GroupActivityBloc>(
+      () => GroupActivityBloc(
+        getIt<IPresenceRepository>(),
+        getIt<IPrivacySettingsReader>(),
+        reads: getIt<IChatReads>(),
         blocks: getIt<IBlockList>(),
       ),
     )

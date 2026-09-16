@@ -53,4 +53,45 @@ void main() {
     expect(appNotificationFrom({'type': 'campaign'}), isNull);
     expect(appNotificationFrom({}), isNull);
   });
+
+  group('groups', () {
+    const groupId = 'group-00000000-0000-4000-8000-000000000000';
+
+    test('a group message opens the group', () {
+      expect(
+        appNotificationFrom({
+          'type': 'groupMessage',
+          'groupId': groupId,
+        }, title: 'ana'),
+        GroupMessageNotification(
+          groupId: UniqueId.fromUniqueString(groupId),
+          senderName: 'ana',
+        ),
+      );
+    });
+
+    test('being added names who added the user', () {
+      expect(
+        appNotificationFrom({
+          'type': 'groupInvitation',
+          'groupId': groupId,
+        }, title: 'ana'),
+        GroupInvitationNotification(
+          groupId: UniqueId.fromUniqueString(groupId),
+          senderName: 'ana',
+        ),
+      );
+    });
+
+    test('a group notification without a group id is ignored', () {
+      expect(appNotificationFrom({'type': 'groupMessage'}), isNull);
+      expect(
+        appNotificationFrom({
+          'type': 'groupMessage',
+          'groupId': 'uid-alice_uid-bob',
+        }),
+        isNull,
+      );
+    });
+  });
 }

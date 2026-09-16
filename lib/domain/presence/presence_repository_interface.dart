@@ -6,7 +6,8 @@ import 'presence.dart';
 /// Both are metadata about people, not content: they say when someone types
 /// or uses the app, never what. Writes never throw; they are best effort.
 abstract interface class IPresenceRepository {
-  /// Says the signed-in user is typing in [chatId] right now.
+  /// Says the signed-in user is typing in [chatId], a chat or a group, right
+  /// now.
   Future<void> startTyping(UniqueId chatId);
 
   /// Says the signed-in user stopped typing in [chatId].
@@ -38,6 +39,14 @@ abstract interface class IPresenceRepository {
   Stream<DateTime?> watchReadUpTo(UniqueId chatId, UniqueId userId);
 
   /// Deletes what others can see of how far the signed-in user has read, in
-  /// every chat.
+  /// every chat and group.
   Future<void> clearReads();
+
+  /// Who is typing in the group [groupId]: when each person last said so, by
+  /// the server's clock, by user id. Emits nothing it may not read.
+  Stream<Map<String, DateTime>> watchTypingInGroup(UniqueId groupId);
+
+  /// How far each person has read the group [groupId]: when the newest
+  /// message they read was sent, by user id. Emits nothing it may not read.
+  Stream<Map<String, DateTime>> watchReadsInGroup(UniqueId groupId);
 }

@@ -949,6 +949,39 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
+      // Who is typing in the group, as in a chat: one document per member,
+      // holding the server time they last typed and nothing else. Only
+      // members read it, and each writes only their own while a member.
+      // Anyone deletes their own, also after leaving.
+      match /typing/{userId} {
+        allow read: if signedIn() && request.auth.uid in groupNow().memberIds;
+        allow create, update: if signedIn() &&
+          request.auth.uid == userId &&
+          userId in groupNow().memberIds &&
+          request.resource.data.keys().hasOnly(['typingAt']) &&
+          request.resource.data.typingAt == request.time;
+        allow delete: if signedIn() && request.auth.uid == userId;
+      }
+
+      // How far each member has read the group, as in a chat: the newest
+      // message they read, when it was sent, and the server time they said
+      // so. Never what it says. Only members read it, and each writes only
+      // their own, about a message of this group.
+      match /reads/{userId} {
+        allow read: if signedIn() && request.auth.uid in groupNow().memberIds;
+        allow create, update: if signedIn() &&
+          request.auth.uid == userId &&
+          userId in groupNow().memberIds &&
+          request.resource.data.keys().hasOnly(['messageId', 'messageSentAt',
+                                                'readAt']) &&
+          request.resource.data.readAt == request.time &&
+          request.resource.data.messageId is string &&
+          request.resource.data.messageSentAt == get(
+            /databases/$(database)/documents/groups/$(groupId)/messages/$(request.resource.data.messageId)
+          ).data.serverTimeStamp;
+        allow delete: if signedIn() && request.auth.uid == userId;
+      }
+
       // Earlier generations of the group's key, sealed to someone added with
       // the group's history (FirestoreGroupRepository.addPeople). Written in
       // the same batch as their invitation, by whoever invites them.

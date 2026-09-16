@@ -7,6 +7,10 @@ const {
   notificationFor,
   friendRequestNotificationFor,
   deadTokens,
+  groupMessageNotificationFor,
+  groupInvitationNotificationFor,
+  isWrittenMessage,
+  newlyInvited,
 } = require("./notify");
 
 test("everyone in the chat except the sender is notified", () => {
@@ -97,4 +101,34 @@ test("a message request says who, never what, and opens the requests", () => {
     body: "Sent you a message request",
   });
   assert.deepEqual(payload.data, { type: "messageRequest", chatId: "alice_bob" });
+});
+
+test("a group message says who wrote, never what or which group", () => {
+  const payload = groupMessageNotificationFor({ senderName: "ana", groupId: "group-1" });
+
+  assert.deepEqual(payload.notification, { title: "ana", body: "New message in a group" });
+  assert.deepEqual(payload.data, { type: "groupMessage", groupId: "group-1" });
+  assert.deepEqual(payload.android.notification, { tag: "group-1", channelId: CHANNELS.messages });
+  assert.equal(groupMessageNotificationFor({ groupId: "group-1" }).notification.title, "Someone");
+});
+
+test("being added to a group names who added you", () => {
+  const payload = groupInvitationNotificationFor({ adderName: "ana", groupId: "group-1" });
+
+  assert.deepEqual(payload.notification, { title: "ana", body: "Added you to a group" });
+  assert.deepEqual(payload.data, { type: "groupInvitation", groupId: "group-1" });
+});
+
+test("events in a group are not announced as messages", () => {
+  assert.equal(isWrittenMessage({ senderId: "ana", content: {} }), true);
+  assert.equal(isWrittenMessage({ kind: "event", type: "joined", senderId: "ana" }), false);
+  assert.equal(isWrittenMessage(undefined), false);
+});
+
+test("only people invited by this write are told", () => {
+  assert.deepEqual(newlyInvited(undefined, { invitedIds: ["bob", "carol"] }), ["bob", "carol"]);
+  assert.deepEqual(newlyInvited({ invitedIds: ["bob"] }, { invitedIds: ["bob", "dan"] }), ["dan"]);
+  // Joining takes someone out of the invited, which tells nobody.
+  assert.deepEqual(newlyInvited({ invitedIds: ["bob"] }, { invitedIds: [] }), []);
+  assert.deepEqual(newlyInvited({ invitedIds: ["bob"] }, undefined), []);
 });

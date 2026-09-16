@@ -63,6 +63,44 @@ function friendRequestNotificationFor({ senderName, requestId }) {
   };
 }
 
+/**
+ * The push message for a new message in a group. Like a chat's, it says who
+ * wrote and nothing more; not even the group's name, which is encrypted.
+ * Tapping it opens the group.
+ */
+function groupMessageNotificationFor({ senderName, groupId }) {
+  return {
+    notification: { title: senderName || "Someone", body: "New message in a group" },
+    data: { type: "groupMessage", groupId },
+    android: { notification: { tag: groupId, channelId: CHANNELS.messages } },
+    apns: { payload: { aps: { "thread-id": groupId } } },
+  };
+}
+
+/** The push message for being added to a group, naming who added them. */
+function groupInvitationNotificationFor({ adderName, groupId }) {
+  return {
+    notification: { title: adderName || "Someone", body: "Added you to a group" },
+    data: { type: "groupInvitation", groupId },
+    android: { notification: { tag: groupId, channelId: CHANNELS.messages } },
+    apns: { payload: { aps: { "thread-id": groupId } } },
+  };
+}
+
+/**
+ * Whether a document in a group's messages is something someone wrote. Events
+ * ("Ana added Radu") are messages with a kind, and announce nothing.
+ */
+function isWrittenMessage(message) {
+  return Boolean(message) && message.kind === undefined;
+}
+
+/** The people invited in [after] who were not in [before], a group before and after a write. */
+function newlyInvited(before, after) {
+  const earlier = new Set((before && before.invitedIds) || []);
+  return ((after && after.invitedIds) || []).filter((uid) => !earlier.has(uid));
+}
+
 // FCM errors that mean a token will never work again. Other errors (quota,
 // internal) are transient and must not cost the user their registration.
 const PERMANENTLY_INVALID = new Set([
@@ -99,4 +137,8 @@ module.exports = {
   friendRequestNotificationFor,
   deadTokens,
   isBlocking,
+  groupMessageNotificationFor,
+  groupInvitationNotificationFor,
+  isWrittenMessage,
+  newlyInvited,
 };

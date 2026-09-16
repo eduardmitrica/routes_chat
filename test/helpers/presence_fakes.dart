@@ -59,10 +59,29 @@ class FakePresence implements IPresenceRepository {
   @override
   Future<void> clearReads() async => calls.add('cleared reads');
 
+  final groupTyping = StreamController<Map<String, DateTime>>.broadcast();
+  final groupReads = StreamController<Map<String, DateTime>>.broadcast();
+  var groupTypingWatches = 0;
+  var groupReadWatches = 0;
+
+  @override
+  Stream<Map<String, DateTime>> watchTypingInGroup(UniqueId groupId) {
+    groupTypingWatches++;
+    return groupTyping.stream;
+  }
+
+  @override
+  Stream<Map<String, DateTime>> watchReadsInGroup(UniqueId groupId) {
+    groupReadWatches++;
+    return groupReads.stream;
+  }
+
   Future<void> close() async {
     await typing.close();
     await presence.close();
     await reads.close();
+    await groupTyping.close();
+    await groupReads.close();
   }
 }
 

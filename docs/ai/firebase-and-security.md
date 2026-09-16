@@ -157,6 +157,11 @@ The full design is [docs/e2ee.md](../e2ee.md). What every change must keep:
   tells each newly invited person who added them. Neither sends text or the
   encrypted group name. Data `{type: 'groupMessage' | 'groupInvitation',
   groupId}`, read by `appNotificationFrom`.
+- `cleanUpDeletedGroup` (on deleting `groups/{groupId}`, which the last
+  member's leaving does) deletes everything under the group with
+  `recursiveDelete`: messages and events, `sharedKeys`, `history` and its
+  copies, `typing`, `reads`. Nobody could read them without the group. The id
+  must be a group's (`functions/cleanup.js`), and it retries on failure.
 - `functions/notify.js` holds the pure helpers (recipients, payload, dead
   tokens), tested with `npm test` (`node --test`). CI runs them as the
   "functions test" job.

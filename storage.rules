@@ -32,6 +32,29 @@ service firebase.storage {
         resource.metadata.uploader == request.auth.uid;
     }
 
+    // Photos and GIFs sent in groups, encrypted on the phone like a chat's
+    // (docs/e2ee.md). Storage rules cannot read the app's named Firestore
+    // database, so they cannot check who is in a group. Instead each file
+    // has a random (version 4) UUID for a name, which nobody can guess and
+    // nobody can list, and holds only ciphertext whose key travels inside
+    // the group's encrypted messages. Anyone signed in may fetch a file by
+    // its exact name or add one under a group's id, named by themselves as
+    // uploader; only the uploader deletes it, and a file never changes. The
+    // size limit is MediaLimits.maxStoredBytes; a test checks it.
+    match /group_media/{groupId}/{fileName} {
+      allow get: if request.auth != null &&
+        groupId.matches('group-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}') &&
+        fileName.matches('[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}');
+      allow create: if request.auth != null &&
+        groupId.matches('group-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}') &&
+        fileName.matches('[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}') &&
+        request.resource.size <= 15728668 &&
+        request.resource.contentType == 'application/octet-stream' &&
+        request.resource.metadata.uploader == request.auth.uid;
+      allow delete: if request.auth != null &&
+        resource.metadata.uploader == request.auth.uid;
+    }
+
     // Each user's profile photo: anyone signed in can view it (shown in
     // chats/friends lists), only the owner can upload/replace it.
     match /user_images/{fileName} {

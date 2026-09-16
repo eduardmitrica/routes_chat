@@ -44,6 +44,13 @@ class UniqueId extends ValueObject<String> {
     return UniqueId._(right(const Uuid().v1()));
   }
 
+  /// A random (version 4) UUID, which nobody can guess from when or where it
+  /// was made, unlike [UniqueId.new]. For names that must stay private, such
+  /// as a group's stored photos.
+  factory UniqueId.random() {
+    return UniqueId._(right(const Uuid().v4()));
+  }
+
   factory UniqueId.fromUniqueString(String uniqueId) {
     return UniqueId._(right(uniqueId));
   }

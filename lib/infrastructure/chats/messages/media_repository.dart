@@ -49,7 +49,8 @@ class MediaRepository implements IMediaRepository {
         final (width, height) = await _images.sizeOf(file);
         return right(
           MediaDraft(
-            id: UniqueId(),
+            // Random, since a group's files are protected by their names.
+            id: UniqueId.random(),
             kind: AttachmentKind.gif,
             bytes: file,
             width: width,
@@ -69,7 +70,7 @@ class MediaRepository implements IMediaRepository {
       final (width, height) = await _images.sizeOf(photo);
       return right(
         MediaDraft(
-          id: UniqueId(),
+          id: UniqueId.random(),
           kind: AttachmentKind.photo,
           bytes: photo,
           width: width,

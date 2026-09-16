@@ -89,12 +89,16 @@ void main() {
     await pumpEventQueue();
   }
 
-  Future<void> open(List<Message> page, {bool reachesStart = true}) async {
+  Future<void> open(
+    List<Message> page, {
+    bool reachesStart = true,
+    String chatId = 'chat',
+  }) async {
     messages = _Messages();
     bloc = MessagesWatcherBloc(messages);
     addTearDown(bloc.close);
     bloc.add(
-      MessagesWatcherEvent.watchStarted(UniqueId.fromUniqueString('chat')),
+      MessagesWatcherEvent.watchStarted(UniqueId.fromUniqueString(chatId)),
     );
     await pumpEventQueue();
     await showLatest(page, reachesStart: reachesStart);
@@ -114,6 +118,17 @@ void main() {
       bloc.state.messages.first((message) => message.id == _message(number).id);
 
   group('reactions', () {
+    test('show in a group too', () async {
+      await open([
+        _message(1),
+      ], chatId: 'group-00000000-0000-4000-8000-000000000000');
+
+      await react([_reaction(1, 'bob', '❤️')]);
+
+      expect(messages.reactionsWatchedSince, isNotEmpty);
+      expect(shown(1).reactions.asList(), [_reaction(1, 'bob', '❤️')]);
+    });
+
     test('each message shows with the reactions to it', () async {
       await open([_message(1), _message(2)]);
 

@@ -53,6 +53,38 @@ service cloud.firestore {
          (content.v == 2 && content.cipherText.size() <= 48000));
     }
 
+    // Must match MessageDataTransferObject.deletedFields; a test checks it.
+    function deletedFields() {
+      return ['senderId', 'serverTimeStamp', 'deleted'];
+    }
+
+    // An edit of a message, in a chat or a group, replaces its encrypted
+    // content, under the key generation it was sent with, and marks it
+    // edited. The app offers editing for 15 minutes after sending; the rest
+    // of the 20 is time to finish an edit started near the end, or for a
+    // phone whose clock runs behind (messageEditSaveWindow in the app).
+    function isMessageEdit() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['content', 'isEdited']) &&
+        request.resource.data.isEdited == true &&
+        request.time <
+          resource.data.serverTimeStamp + duration.value(20, 'm') &&
+        request.resource.data.content.v == 2 &&
+        isEncryptedContent(request.resource.data.content,
+                           resource.data.content.e);
+    }
+
+    // Deleting a message erases its encrypted content, and with it the keys
+    // of its photos. Who sent it and when stay, so a reply to it still has
+    // something to point at.
+    function isMessageDeletion() {
+      return request.resource.data.keys().hasOnly(deletedFields()) &&
+        request.resource.data.deleted == true &&
+        request.resource.data.senderId == resource.data.senderId &&
+        request.resource.data.serverTimeStamp ==
+          resource.data.serverTimeStamp;
+    }
+
     // The chat key sealed to one participant (SealedChatKey in the app):
     // base64 of a 32-byte ephemeral X25519 public key, a 12-byte nonce, the
     // 32-byte encrypted key and a 16-byte tag, and the version of the
@@ -476,46 +508,13 @@ service cloud.firestore {
           isOwnEncryptedMessage(request.resource.data, messageFields(),
                                 chatAfter().currentKeyGeneration);
 
-        // Must match MessageDataTransferObject.deletedFields; a test checks
-        // it.
-        function deletedFields() {
-          return ['senderId', 'serverTimeStamp', 'deleted'];
-        }
-
-        // An edit replaces the encrypted content, under the key generation
-        // the message was sent with, and marks the message edited. The app
-        // offers editing for 15 minutes after sending; the rest of the 20 is
-        // time to finish an edit started near the end, or for a phone whose
-        // clock runs behind (messageEditSaveWindow in the app).
-        function isEdit() {
-          return request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['content', 'isEdited']) &&
-            request.resource.data.isEdited == true &&
-            request.time <
-              resource.data.serverTimeStamp + duration.value(20, 'm') &&
-            request.resource.data.content.v == 2 &&
-            isEncryptedContent(request.resource.data.content,
-                               resource.data.content.e);
-        }
-
-        // Deleting a message erases its encrypted content, and with it the
-        // keys of its photos. Who sent it and when stay, so a reply to it
-        // still has something to point at.
-        function isDeletion() {
-          return request.resource.data.keys().hasOnly(deletedFields()) &&
-            request.resource.data.deleted == true &&
-            request.resource.data.senderId == resource.data.senderId &&
-            request.resource.data.serverTimeStamp ==
-              resource.data.serverTimeStamp;
-        }
-
         // Only the sender changes a message, by editing or deleting it, and a
         // deleted message stays deleted.
         allow update: if signedIn() &&
           request.auth.uid in chatId.split('_') &&
           resource.data.senderId == request.auth.uid &&
           resource.data.get('deleted', false) == false &&
-          (isEdit() || isDeletion());
+          (isMessageEdit() || isMessageDeletion());
       }
 
       // Who is typing in the chat: one document per participant, holding the
@@ -789,6 +788,23 @@ service cloud.firestore {
                                 resource.data.currentKeyGeneration);
       }
 
+      // The sender edits or deletes the group's last message: its copy
+      // changes with the message in the same write, and stays the same apart
+      // from the id it carries. As in a chat.
+      function followsGroupLastMessage() {
+        let before = resource.data.lastMessage;
+        let after = request.resource.data.lastMessage;
+        let message = getAfter(
+          /databases/$(database)/documents/groups/$(groupId)/messages/$(before.id)
+        ).data;
+        return request.auth.uid in resource.data.memberIds &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['lastMessage']) &&
+          before.senderId == request.auth.uid &&
+          after.id == before.id &&
+          after.diff(message).affectedKeys().hasOnly(['id']);
+      }
+
       // A member whose keys were reset adds the next generation of the
       // group's key, sealed to everyone in the group. Earlier generations
       // never change.
@@ -851,7 +867,7 @@ service cloud.firestore {
         (joinsByInvitation() || turnsDownInvitation() ||
          setsLastMessage() || addsNextGroupKeyGeneration() ||
          addsSomeone() || removesSomeone() || leaves() || setsAdmins() ||
-         setsOnlyAdminsAdd() || setsProfile());
+         setsOnlyAdminsAdd() || setsProfile() || followsGroupLastMessage());
 
       // The last member leaving takes the group with them.
       allow delete: if signedIn() &&
@@ -945,8 +961,59 @@ service cloud.firestore {
            isOwnEncryptedMessage(request.resource.data, messageFields(),
                                  groupAfter().currentKeyGeneration)) ||
           isEvent(request.resource.data);
-        // Editing and deleting group messages come later.
-        allow update, delete: if false;
+        // Only the sender changes a message, by editing or deleting it, while
+        // a member; a deleted message stays deleted, and events never change.
+        allow update: if signedIn() &&
+          request.auth.uid in groupNow().memberIds &&
+          resource.data.senderId == request.auth.uid &&
+          !('kind' in resource.data) &&
+          resource.data.get('deleted', false) == false &&
+          (isMessageEdit() || isMessageDeletion());
+        allow delete: if false;
+      }
+
+      // Reactions to the group's messages, as in a chat: one document per
+      // person per message, "<message id>_<user id>", the emoji encrypted
+      // under the group's current key generation and always the same length.
+      // Only members read them and each writes only their own, to a message
+      // that is not deleted and not an event; the message's sender also
+      // removes the others' when deleting it. Anyone removes their own, also
+      // after leaving.
+      match /reactions/{reactionId} {
+        function groupMessageWithId(id) {
+          return get(
+            /databases/$(database)/documents/groups/$(groupId)/messages/$(id)
+          ).data;
+        }
+
+        function isEncryptedGroupReaction(content) {
+          return content.keys().hasOnly(['v', 'e', 'nonce', 'cipherText', 'mac']) &&
+            content.v == 1 &&
+            content.e == groupNow().currentKeyGeneration &&
+            content.nonce is string && content.nonce.size() == 16 &&
+            content.mac is string && content.mac.size() == 24 &&
+            content.cipherText is string && content.cipherText.size() == 172;
+        }
+
+        allow read: if signedIn() && request.auth.uid in groupNow().memberIds;
+        allow create, update: if signedIn() &&
+          request.auth.uid in groupNow().memberIds &&
+          request.resource.data.keys().hasOnly(['messageId', 'userId',
+                                                'messageSentAt', 'content']) &&
+          request.resource.data.userId == request.auth.uid &&
+          reactionId ==
+            request.resource.data.messageId + '_' + request.auth.uid &&
+          isEncryptedGroupReaction(request.resource.data.content) &&
+          !('kind' in groupMessageWithId(request.resource.data.messageId)) &&
+          groupMessageWithId(request.resource.data.messageId)
+            .get('deleted', false) == false &&
+          request.resource.data.messageSentAt ==
+            groupMessageWithId(request.resource.data.messageId).serverTimeStamp;
+        allow delete: if signedIn() &&
+          (reactionId.split('_')[1] == request.auth.uid ||
+           (request.auth.uid in groupNow().memberIds &&
+            groupMessageWithId(reactionId.split('_')[0]).senderId ==
+              request.auth.uid));
       }
 
       // Who is typing in the group, as in a chat: one document per member,

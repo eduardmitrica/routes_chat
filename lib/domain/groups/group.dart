@@ -113,8 +113,21 @@ enum HistoryShare {
   /// Only what is sent from when they are added.
   none,
 
+  /// What was sent in the last 24 hours, copied for them alone.
+  day,
+
+  /// What was sent in the last 7 days, copied for them alone.
+  week,
+
   /// Everything the person adding them can read.
-  all,
+  all;
+
+  /// How far back a copied history reaches; null when nothing is copied.
+  Duration? get window => switch (this) {
+    HistoryShare.day => const Duration(hours: 24),
+    HistoryShare.week => const Duration(days: 7),
+    HistoryShare.none || HistoryShare.all => null,
+  };
 }
 
 /// Whether a group's current key has to be replaced before anyone writes:

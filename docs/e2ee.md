@@ -142,7 +142,17 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
   or everything the adder can read, in which case every earlier generation
   the adder can open is sealed to the newcomer and stored in
   `groups/{groupId}/sharedKeys/{uid}`, readable only by them and written in
-  the same batch as the invitation. Each write invites one person and must
+  the same batch as the invitation. The last 24 hours or 7 days cannot be
+  shared that way, since a key opens everything sent under it, so those are
+  copied instead: the adder's phone makes a new history key, seals it to the
+  newcomer as generation 0 (which no real generation is) in
+  `groups/{groupId}/history/{uid}` with the time the window starts, then
+  decrypts each message of the window it can read and encrypts its payload
+  again under the history key into `history/{uid}/messages/{messageId}`,
+  keeping the message's id, sender and time. The newcomer's app opens a copy
+  wherever the original does not open for them. The rules check that each
+  copy matches a real message from the window, but not what it says: the
+  newcomer trusts whoever added them for the copied text. Each write invites one person and must
   record the writer as who invited them, since an invitation recorded as a
   friend's would make the newcomer's phone join by itself. All admins are
   equal; a group always keeps one, and when its only admin leaves, whoever

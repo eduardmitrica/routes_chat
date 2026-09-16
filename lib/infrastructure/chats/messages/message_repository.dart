@@ -26,6 +26,8 @@ import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/infrastructure/chats/messages/attachment_store.dart';
 import 'package:routes_chat/infrastructure/core/firestore_helpers.dart';
+import 'package:routes_chat/domain/groups/group.dart';
+import 'package:routes_chat/infrastructure/groups/group_history_copies.dart';
 
 /// A chat's messages, encrypted on the way in and decrypted on the way out.
 /// See docs/e2ee.md.
@@ -50,7 +52,15 @@ class MessageRepository implements IMessageRepository {
   final ChatCipher _cipher;
   final AttachmentStore _attachments;
 
-  const MessageRepository(
+  /// A group's history copied for the user, for messages they cannot open.
+  late final _copies = GroupHistoryCopies(
+    _firestore,
+    _session,
+    _keyring,
+    _cipher,
+  );
+
+  MessageRepository(
     this._firestore,
     this._session,
     this._keyring,
@@ -190,6 +200,14 @@ class MessageRepository implements IMessageRepository {
       );
       return (payload, true);
     } on UnreadableCiphertext {
+      if (isGroupIdString(chatId)) {
+        final copied = await _copies.payloadOf(
+          chatId,
+          messageId,
+          message.senderId,
+        );
+        if (copied != null) return (copied, true);
+      }
       return (const MessagePayload(ChatCipher.unreadableMessageText), false);
     }
   }

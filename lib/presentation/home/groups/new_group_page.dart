@@ -262,7 +262,11 @@ extension on _NewGroupPageState {
   String _buttonText(NewGroupState state) {
     final count = state.chosen.length;
     if (_adding) {
-      if (state.creating) return 'Adding…';
+      if (state.creating) {
+        return _history.window == null
+            ? 'Adding…'
+            : 'Adding, and copying earlier messages…';
+      }
       if (count == 0) return 'Choose who to add';
       return count == 1 ? 'Add 1 person' : 'Add $count people';
     }
@@ -279,11 +283,29 @@ class _HistoryChoice extends StatelessWidget {
 
   const _HistoryChoice({required this.value, required this.onChanged});
 
+  static const _labels = {
+    HistoryShare.none: (
+      'From now on',
+      'Only what is sent after they are added.',
+    ),
+    HistoryShare.day: (
+      'The last 24 hours',
+      'A copy of what was sent in the last day, for them alone.',
+    ),
+    HistoryShare.week: (
+      'The last 7 days',
+      'A copy of what was sent in the last week, for them alone.',
+    ),
+    HistoryShare.all: ('Everything', 'Every earlier message you can read.'),
+  };
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final onChanged = this.onChanged;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'What they can read',
@@ -291,27 +313,26 @@ class _HistoryChoice extends StatelessWidget {
             color: theme.colorScheme.primary,
           ),
         ),
-        const SizedBox(height: 8),
-        SegmentedButton<HistoryShare>(
-          segments: const [
-            ButtonSegment(value: HistoryShare.none, label: Text('From now on')),
-            ButtonSegment(
-              value: HistoryShare.all,
-              label: Text('Everything before too'),
-            ),
-          ],
-          selected: {value},
-          onSelectionChanged: onChanged == null
-              ? null
-              : (selected) => onChanged!(selected.single),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          value == HistoryShare.none
-              ? 'They see only what is sent after they are added.'
-              : 'They can read every earlier message you can read.',
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        RadioGroup<HistoryShare>(
+          groupValue: value,
+          onChanged: (choice) {
+            if (choice != null) onChanged?.call(choice);
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final MapEntry(key: choice, value: (title, subtitle))
+                  in _labels.entries)
+                RadioListTile<HistoryShare>(
+                  value: choice,
+                  enabled: onChanged != null,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  visualDensity: VisualDensity.compact,
+                  title: Text(title),
+                  subtitle: choice == value ? Text(subtitle) : null,
+                ),
+            ],
           ),
         ),
       ],

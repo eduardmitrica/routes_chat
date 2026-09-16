@@ -23,6 +23,16 @@ void main() {
     );
   });
 
+  test('a message request notification opens the requests', () {
+    expect(
+      appNotificationFrom({
+        'type': 'messageRequest',
+        'chatId': 'uid-alice_uid-bob',
+      }, title: 'eduard'),
+      MessageRequestNotification(chatId: chatId, senderName: 'eduard'),
+    );
+  });
+
   test('a friend request notification', () {
     expect(
       appNotificationFrom({'type': 'friendRequest'}, title: 'eduard'),
@@ -39,6 +49,7 @@ void main() {
 
   test('anything else is not understood', () {
     expect(appNotificationFrom({'type': 'message'}), isNull);
+    expect(appNotificationFrom({'type': 'messageRequest'}), isNull);
     expect(appNotificationFrom({'type': 'campaign'}), isNull);
     expect(appNotificationFrom({}), isNull);
   });

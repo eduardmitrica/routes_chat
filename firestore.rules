@@ -70,6 +70,34 @@ service cloud.firestore {
           request.resource.data.updatedAt == request.time;
       }
 
+      // What this user decided about a chat from someone who is not their
+      // friend: accepted into their chats, or deleted for now (a later
+      // message brings it back as a request). Private to them: the sender is
+      // never told. The id is the chat's.
+      match /chatRequests/{chatId} {
+        allow read, delete: if signedIn() && request.auth.uid == userId;
+        allow create, update: if signedIn() &&
+          request.auth.uid == userId &&
+          request.auth.uid in chatId.split('_') &&
+          request.resource.data.keys().hasOnly(['state', 'at']) &&
+          request.resource.data.state in ['accepted', 'deleted'] &&
+          request.resource.data.at == request.time;
+      }
+
+      // This user's messaging settings, private to them: whether people who
+      // are not their friends may reach them at all. The notification
+      // functions read it with the Admin SDK, so a message that may not
+      // reach them never rings.
+      match /settings/{document} {
+        allow read: if signedIn() && request.auth.uid == userId;
+        allow create, update: if signedIn() &&
+          request.auth.uid == userId &&
+          document == 'messaging' &&
+          request.resource.data.keys().hasOnly(['allowFromAnyone']) &&
+          request.resource.data.allowFromAnyone is bool;
+        allow delete: if false;
+      }
+
       // The people this user blocked, one document each, private to the
       // owner: a block is silent, and the blocked person cannot tell. While
       // someone is blocked, blockedSince is the server time the block started;

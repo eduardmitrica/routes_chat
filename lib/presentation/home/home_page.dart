@@ -11,6 +11,7 @@ import 'package:routes_chat/domain/shared/user/current_user_session_interface.da
 import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/domain/shared/user/user_repository_interface.dart';
 import 'package:routes_chat/presentation/home/chats/open_chat.dart';
+import 'package:routes_chat/presentation/home/chats/requests_page.dart';
 import 'package:routes_chat/presentation/home/chats/widgets/chat_page.dart';
 import 'package:routes_chat/application/authentication/authentication_bloc.dart';
 import 'package:routes_chat/application/user/user_form/user_form_bloc.dart';
@@ -21,6 +22,7 @@ import 'package:routes_chat/presentation/sign_in/sign_in_page.dart';
 import '../../application/friend_requests/friend_request_actor/friend_request_actor_bloc.dart';
 import '../../application/chats/outbox/message_outbox.dart';
 import '../../application/safety/block_list_bloc.dart';
+import '../../application/chats/message_requests/message_requests_bloc.dart';
 import '../../injection.dart';
 import 'chats/chats_page.dart';
 import 'friend_requests/friend_requests_page.dart';
@@ -53,6 +55,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     unawaited(_outbox.resume());
     // Who the user blocked, for every screen that keeps them out of sight.
     getIt<BlockListBloc>().add(const BlockListEvent.started());
+    // What the user decided about chats from people who are not friends.
+    getIt<MessageRequestsBloc>().add(const MessageRequestsEvent.started());
     WidgetsBinding.instance.addObserver(this);
     _presence.appResumed();
     _opened = _notifications.opened.listen(_open);
@@ -98,6 +102,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     switch (notification) {
       case MessageNotification(:final chatId):
         unawaited(_openChat(chatId));
+      case MessageRequestNotification():
+        Navigator.of(
+          context,
+        ).popUntil(ModalRoute.withName(HomePage.homePageRoute));
+        setState(() => _currentTabIndex = 0);
+        unawaited(Navigator.of(context).push(RequestsPage.route()));
       case FriendRequestNotification():
         Navigator.of(
           context,
@@ -157,6 +167,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       MessageNotification(:final senderName) => (
         Icons.chat_bubble_outline_rounded,
         '$senderName sent you a message',
+      ),
+      MessageRequestNotification(:final senderName) => (
+        Icons.mark_email_unread_outlined,
+        '$senderName sent you a message request',
       ),
       FriendRequestNotification(:final senderName) => (
         Icons.person_add_alt_outlined,

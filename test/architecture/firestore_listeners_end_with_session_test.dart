@@ -25,8 +25,11 @@ void main() {
       for (var index = 0; index < lines.length; index++) {
         if (!lines[index].contains('.snapshots()')) continue;
         listeners++;
+        // Usually on the next line; on the same one when the call is short
+        // enough for the formatter to keep it there.
         final next = index + 1 < lines.length ? lines[index + 1].trim() : '';
-        if (next != '.takeUntil(_session.ended)') {
+        const bound = '.takeUntil(_session.ended)';
+        if (next != bound && !lines[index].contains(bound)) {
           offenders.add(
             '${file.path.replaceAll(r'\', '/')}:${index + 1}: '
             '${lines[index].trim()}',

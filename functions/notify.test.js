@@ -76,3 +76,25 @@ test("an unblocked person, or no block at all, is announced as usual", () => {
   assert.equal(isBlocking({}), false);
   assert.equal(isBlocking(undefined), false);
 });
+
+const { messageKindFor, messageRequestNotificationFor } = require("./notify");
+
+test("a friend's message, or one in an accepted chat, is an ordinary message", () => {
+  assert.equal(messageKindFor({ isFriend: true, accepted: false, allowFromAnyone: false }), "message");
+  assert.equal(messageKindFor({ isFriend: false, accepted: true, allowFromAnyone: false }), "message");
+});
+
+test("anyone else's message is a request, unless the user takes none", () => {
+  assert.equal(messageKindFor({ isFriend: false, accepted: false, allowFromAnyone: true }), "request");
+  assert.equal(messageKindFor({ isFriend: false, accepted: false, allowFromAnyone: false }), "none");
+});
+
+test("a message request says who, never what, and opens the requests", () => {
+  const payload = messageRequestNotificationFor({ senderName: "eduard", chatId: "alice_bob" });
+
+  assert.deepEqual(payload.notification, {
+    title: "eduard",
+    body: "Sent you a message request",
+  });
+  assert.deepEqual(payload.data, { type: "messageRequest", chatId: "alice_bob" });
+});

@@ -25,6 +25,8 @@ import '../chats/widgets/messages_skeleton.dart';
 import '../chats/widgets/outgoing_message_bubble.dart';
 import '../chats/widgets/swipe_to_reply.dart';
 import 'group_info_page.dart';
+import 'widgets/group_avatar.dart';
+import 'package:routes_chat/domain/groups/group_event.dart';
 
 /// A group's messages and the box to write in.
 ///
@@ -194,25 +196,33 @@ class _GroupChatPageState extends State<GroupChatPage> {
       title: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: group == null ? null : openInfo,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            Text(
-              group == null ? 'Group' : groupTitleOf(others),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            if (group != null)
-              Text(
-                [
-                  members == 1 ? '1 member' : '$members members',
-                  if (invited > 0) '$invited invited',
-                ].join(', '),
-                style: theme.textTheme.labelMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+            GroupAvatar(group: group, radius: 18),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    group == null ? 'Group' : group.titleWith(others),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (group != null)
+                    Text(
+                      [
+                        members == 1 ? '1 member' : '$members members',
+                        if (invited > 0) '$invited invited',
+                      ].join(', '),
+                      style: theme.textTheme.labelMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                ],
               ),
+            ),
           ],
         ),
       ),
@@ -284,12 +294,21 @@ class _GroupChatPageState extends State<GroupChatPage> {
     ChatTimelineItem? previous,
     Map<String, String> names,
   ) => switch (item) {
+    MessageItem(:final message) when message.event != null => _Notice(
+      describeGroupEvent(
+        message.event!,
+        nameOf: (id) => names[id] ?? 'Someone',
+        myId: _myId ?? '',
+      ),
+    ),
     MessageItem(:final message) => _messageRow(
       message,
-      // A name over the first of each run of someone else's messages.
+      // A name over the first of each run of someone else's messages; an
+      // event between two starts a new run.
       showName:
           message.senderId.getOrCrash() != _myId &&
           !(previous is MessageItem &&
+              previous.message.event == null &&
               previous.message.senderId == message.senderId),
       names: names,
     ),

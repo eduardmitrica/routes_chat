@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
 import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
+import '../../domain/groups/group_profile.dart';
 
 /// A chat's encryption failed. See the subclasses.
 abstract base class ChatEncryptionException implements Exception {
@@ -650,6 +651,74 @@ class ChatCipher {
       return content.version == 1
           ? MessagePayload(plaintext)
           : MessagePayload.fromJson(jsonDecode(plaintext));
+    } on FormatException {
+      throw const UnreadableCiphertext();
+    }
+  }
+
+  static const _groupProfilePurpose = 'routes_chat/v1/group-profile';
+
+  /// Encrypts a group's name and, as a JPEG, its photo, under generation
+  /// [keyGeneration] of the group's key: JSON `{name, photo?}`, the photo in
+  /// base64. The associated data ties it to the group and the generation.
+  Future<EncryptedContent> encryptGroupProfile(
+    GroupProfile profile, {
+    required SecretKey groupKey,
+    required String groupId,
+    required int keyGeneration,
+  }) async {
+    final box = await _aead.encrypt(
+      utf8.encode(
+        jsonEncode({
+          'name': profile.name,
+          if (profile.photo case final photo?) 'photo': base64Encode(photo),
+        }),
+      ),
+      secretKey: groupKey,
+      aad: _associatedData(_groupProfilePurpose, [groupId, '$keyGeneration']),
+    );
+    return EncryptedContent(
+      version: 1,
+      keyGeneration: keyGeneration,
+      nonce: Uint8List.fromList(box.nonce),
+      cipherText: Uint8List.fromList(box.cipherText),
+      mac: Uint8List.fromList(box.mac.bytes),
+    );
+  }
+
+  /// The name and photo [encryptGroupProfile] encrypted.
+  ///
+  /// Throws [UnreadableCiphertext] if [groupKey] is wrong, [content] belongs
+  /// to another group or generation, or was altered.
+  Future<GroupProfile> decryptGroupProfile(
+    EncryptedContent content, {
+    required SecretKey groupKey,
+    required String groupId,
+  }) async {
+    if (content.version != 1) throw const UnreadableCiphertext();
+    final bytes = await _decrypt(
+      SecretBox(
+        content.cipherText,
+        nonce: content.nonce,
+        mac: Mac(content.mac),
+      ),
+      groupKey,
+      _associatedData(_groupProfilePurpose, [
+        groupId,
+        '${content.keyGeneration}',
+      ]),
+    );
+    try {
+      final json = jsonDecode(utf8.decode(bytes));
+      final name = json is Map ? json['name'] : null;
+      final photo = json is Map ? json['photo'] : null;
+      if (name is! String || (photo != null && photo is! String)) {
+        throw const UnreadableCiphertext();
+      }
+      return GroupProfile(
+        name: name,
+        photo: photo is String ? base64Decode(photo) : null,
+      );
     } on FormatException {
       throw const UnreadableCiphertext();
     }

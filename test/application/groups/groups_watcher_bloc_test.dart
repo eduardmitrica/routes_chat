@@ -50,8 +50,10 @@ class _Groups implements IGroupRepository {
   }
 
   @override
-  Future<Either<GroupFailure, UniqueId>> create(List<UniqueId> invitees) =>
-      throw UnimplementedError();
+  Future<Either<GroupFailure, UniqueId>> create(
+    List<UniqueId> invitees, {
+    String name = '',
+  }) => throw UnimplementedError();
 
   void invite(List<Group> groups) =>
       invitations.add(right(groups.toImmutableList()));

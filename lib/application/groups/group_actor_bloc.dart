@@ -26,6 +26,14 @@ sealed class GroupActorEvent extends Equatable {
   const factory GroupActorEvent.onlyAdminsAddSet(bool onlyAdmins) =
       GroupOnlyAdminsAddSet;
 
+  /// A member names the group [name], and gives it the photo at [photoPath],
+  /// or takes its photo away.
+  const factory GroupActorEvent.profileSaved({
+    required String name,
+    String? photoPath,
+    bool removePhoto,
+  }) = GroupProfileSaved;
+
   @override
   List<Object?> get props => const [];
 }
@@ -56,6 +64,19 @@ final class GroupOnlyAdminsAddSet extends GroupActorEvent {
   List<Object?> get props => [onlyAdmins];
 }
 
+final class GroupProfileSaved extends GroupActorEvent {
+  final String name;
+  final String? photoPath;
+  final bool removePhoto;
+  const GroupProfileSaved({
+    required this.name,
+    this.photoPath,
+    this.removePhoto = false,
+  });
+  @override
+  List<Object?> get props => [name, photoPath, removePhoto];
+}
+
 final class GroupActorState extends Equatable {
   /// Whose change is on its way, by user id; "leave" and "onlyAdminsAdd"
   /// for those.
@@ -69,15 +90,19 @@ final class GroupActorState extends Equatable {
   /// The user has left the group.
   final bool left;
 
+  /// How many times the name and photo were saved, so a screen can close.
+  final int profilesSaved;
+
   const GroupActorState({
     this.busy = const {},
     this.lastFailure,
     this.failures = 0,
     this.left = false,
+    this.profilesSaved = 0,
   });
 
   @override
-  List<Object?> get props => [busy, lastFailure, failures, left];
+  List<Object?> get props => [busy, lastFailure, failures, left, profilesSaved];
 }
 
 /// Changes to one group: who is in it, who manages it, and leaving it. What
@@ -86,6 +111,7 @@ final class GroupActorState extends Equatable {
 class GroupActorBloc extends Bloc<GroupActorEvent, GroupActorState> {
   static const leaving = 'leave';
   static const settingOnlyAdminsAdd = 'onlyAdminsAdd';
+  static const savingProfile = 'profile';
 
   final IGroupRepository _groups;
   final UniqueId _groupId;
@@ -108,6 +134,22 @@ class GroupActorBloc extends Bloc<GroupActorEvent, GroupActorState> {
             emit,
             () => _groups.setAdmin(_groupId, userId, admin: admin),
           );
+        case GroupProfileSaved(
+          :final name,
+          :final photoPath,
+          :final removePhoto,
+        ):
+          final saved = await _run(
+            savingProfile,
+            emit,
+            () => _groups.setProfile(
+              _groupId,
+              name: name,
+              photoPath: photoPath,
+              removePhoto: removePhoto,
+            ),
+          );
+          if (saved) emit(_copy(profilesSaved: state.profilesSaved + 1));
         case GroupOnlyAdminsAddSet(:final onlyAdmins):
           await _run(
             settingOnlyAdminsAdd,
@@ -150,10 +192,12 @@ class GroupActorBloc extends Bloc<GroupActorEvent, GroupActorState> {
     GroupFailure? lastFailure,
     int? failures,
     bool? left,
+    int? profilesSaved,
   }) => GroupActorState(
     busy: busy ?? state.busy,
     lastFailure: lastFailure ?? state.lastFailure,
     failures: failures ?? state.failures,
     left: left ?? state.left,
+    profilesSaved: profilesSaved ?? state.profilesSaved,
   );
 }

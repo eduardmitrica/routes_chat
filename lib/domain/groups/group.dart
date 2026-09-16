@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../chats/messages/message.dart';
 import '../core/value_objects.dart';
+import 'group_profile.dart';
 
 /// A chat of up to [maxMembers] people, kept apart from one-to-one chats. See
 /// docs/e2ee.md.
@@ -32,6 +33,10 @@ final class Group extends Equatable {
   /// Whether only admins may add people; otherwise any member may.
   final bool onlyAdminsAdd;
 
+  /// Its name and photo, decrypted; null when it has none, or when this
+  /// phone cannot open them yet.
+  final GroupProfile? profile;
+
   /// The newest message, decrypted, or null before the first one.
   final Message? lastMessage;
 
@@ -44,6 +49,7 @@ final class Group extends Equatable {
     required this.invitedBy,
     required this.adminIds,
     this.onlyAdminsAdd = false,
+    this.profile,
     this.lastMessage,
     this.createdAt,
   });
@@ -84,6 +90,13 @@ final class Group extends Equatable {
     return admins;
   }
 
+  /// What the group is called: its name, or else the other people in it,
+  /// [otherNames].
+  String titleWith(List<String> otherNames) {
+    final name = profile?.name ?? '';
+    return name.isNotEmpty ? name : groupTitleOf(otherNames);
+  }
+
   /// How many more people fit.
   int get room => maxMembers - everyone.length;
 
@@ -98,6 +111,7 @@ final class Group extends Equatable {
     invitedBy,
     adminIds,
     onlyAdminsAdd,
+    profile,
     lastMessage,
     createdAt,
   ];

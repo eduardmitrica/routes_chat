@@ -35,11 +35,16 @@ class _Groups implements IGroupRepository {
   @override
   Future<Either<GroupFailure, Unit>> decline(UniqueId groupId) =>
       throw UnimplementedError();
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 UniqueId _id(String id) => UniqueId.fromUniqueString(id);
 
 void main() {
+  _addingPeople();
+
   late _Groups groups;
   late NewGroupBloc bloc;
 
@@ -97,4 +102,56 @@ void main() {
     expect(bloc.state.chosen, [_id('uid-bob')]);
     expect(bloc.state.canCreate, isTrue);
   });
+}
+
+class _AddingGroups implements IGroupRepository {
+  final added = <(String, List<String>, HistoryShare)>[];
+
+  @override
+  Future<Either<GroupFailure, Unit>> addPeople(
+    UniqueId groupId,
+    List<UniqueId> people, {
+    required HistoryShare history,
+  }) async {
+    added.add((
+      groupId.getOrCrash(),
+      [for (final person in people) person.getOrCrash()],
+      history,
+    ));
+    return right(unit);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+void _addingPeople() {
+  test(
+    'adds the people chosen, as many as fit, with the history chosen',
+    () async {
+      final groups = _AddingGroups();
+      final bloc = NewGroupBloc(groups, capacity: 2);
+      addTearDown(bloc.close);
+      for (final id in ['uid-bob', 'uid-carol', 'uid-dan']) {
+        bloc.add(NewGroupEvent.personToggled(UniqueId.fromUniqueString(id)));
+      }
+      await pumpEventQueue();
+      expect(bloc.state.chosen.length, 2);
+
+      bloc.add(
+        NewGroupEvent.addedTo(
+          UniqueId.fromUniqueString('group-1'),
+          history: HistoryShare.all,
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(groups.added, hasLength(1));
+      final (groupId, people, history) = groups.added.single;
+      expect(groupId, 'group-1');
+      expect(people, ['uid-bob', 'uid-carol']);
+      expect(history, HistoryShare.all);
+      expect(bloc.state.createdId, UniqueId.fromUniqueString('group-1'));
+    },
+  );
 }

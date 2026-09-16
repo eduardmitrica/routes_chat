@@ -29,6 +29,9 @@ final class Group extends Equatable {
   /// The members who may manage the group. All admins are equal.
   final List<String> adminIds;
 
+  /// Whether only admins may add people; otherwise any member may.
+  final bool onlyAdminsAdd;
+
   /// The newest message, decrypted, or null before the first one.
   final Message? lastMessage;
 
@@ -40,6 +43,7 @@ final class Group extends Equatable {
     required this.invitedIds,
     required this.invitedBy,
     required this.adminIds,
+    this.onlyAdminsAdd = false,
     this.lastMessage,
     this.createdAt,
   });
@@ -53,6 +57,36 @@ final class Group extends Equatable {
 
   bool isAdmin(String userId) => adminIds.contains(userId);
 
+  /// Whether [userId] may add people: a member, and an admin when only admins
+  /// may.
+  bool canAdd(String userId) =>
+      isMember(userId) && (!onlyAdminsAdd || isAdmin(userId));
+
+  /// Whether [by] may take [userId] out: admins take out anyone else, other
+  /// admins and whoever started the group included. Leaving is how someone
+  /// takes themselves out.
+  bool canRemove(String by, String userId) =>
+      isAdmin(by) && by != userId && everyone.contains(userId);
+
+  /// Whether [by] may make [userId] an admin, or stop them being one. There
+  /// is always at least one admin.
+  bool canSetAdmin(String by, String userId, {required bool admin}) =>
+      isAdmin(by) &&
+      isMember(userId) &&
+      (admin ? !isAdmin(userId) : isAdmin(userId) && adminIds.length > 1);
+
+  /// The admins once [userId] has left: the same without them, or, when they
+  /// were the only admin, whoever has been a member longest.
+  List<String> adminsAfterLeaving(String userId) {
+    final admins = [...adminIds]..remove(userId);
+    final members = [...memberIds]..remove(userId);
+    if (admins.isEmpty && members.isNotEmpty) return [members.first];
+    return admins;
+  }
+
+  /// How many more people fit.
+  int get room => maxMembers - everyone.length;
+
   /// When anything last happened: the newest message, or the group's start.
   DateTime? get lastActivityAt => lastMessage?.lastUpdatedAt ?? createdAt;
 
@@ -63,6 +97,7 @@ final class Group extends Equatable {
     invitedIds,
     invitedBy,
     adminIds,
+    onlyAdminsAdd,
     lastMessage,
     createdAt,
   ];
@@ -71,6 +106,24 @@ final class Group extends Equatable {
   @override
   String toString() =>
       'Group(${memberIds.length} members, ${invitedIds.length} invited)';
+}
+
+/// How much of a group's past someone added can read.
+enum HistoryShare {
+  /// Only what is sent from when they are added.
+  none,
+
+  /// Everything the person adding them can read.
+  all,
+}
+
+/// Whether a group's current key has to be replaced before anyone writes:
+/// it is sealed to someone no longer in the group, who could otherwise read
+/// what comes next, or not to someone who is, who could not.
+bool groupKeyOutOfDate(Iterable<String> sealedTo, Iterable<String> everyone) {
+  final sealed = sealedTo.toSet();
+  final people = everyone.toSet();
+  return sealed.length != people.length || !sealed.containsAll(people);
 }
 
 /// What a group's id starts with. A one-to-one chat's id is its two user ids

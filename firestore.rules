@@ -611,8 +611,8 @@ service cloud.firestore {
       // Must match FirestoreGroupRepository.fields; a test checks it.
       function groupFields() {
         return ['memberIds', 'invitedIds', 'invitedBy', 'adminIds',
-                'keyGenerations', 'currentKeyGeneration', 'lastMessage',
-                'createdAt'];
+                'onlyAdminsAdd', 'keyGenerations', 'currentKeyGeneration',
+                'lastMessage', 'createdAt'];
       }
 
       function groupNow() {
@@ -635,6 +635,89 @@ service cloud.firestore {
           generation.sealedKeys.keys().hasOnly(people) &&
           generation.sealedKeys.keys().hasAll(people) &&
           isSealedChatKey(generation.sealedKeys[request.auth.uid]);
+      }
+
+      // The update changes nothing but [fields].
+      function onlyChanges(fields) {
+        return request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(fields);
+      }
+
+      // The caller, a member allowed to add people (any member, or only admins
+      // when the group says so), invites one person not in the group yet, and
+      // is recorded as who invited them. One person a write: the rules cannot
+      // loop, and an invitation recorded as a friend's would make the invited
+      // person's phone join by itself.
+      function addsSomeone() {
+        let me = request.auth.uid;
+        let before = resource.data;
+        let after = request.resource.data;
+        let newcomer = after.invitedIds[after.invitedIds.size() - 1];
+        return me in before.memberIds &&
+          (!before.get('onlyAdminsAdd', false) || me in before.adminIds) &&
+          onlyChanges(['invitedIds', 'invitedBy']) &&
+          after.invitedIds == before.invitedIds.concat([newcomer]) &&
+          !(newcomer in before.invitedIds) &&
+          !(newcomer in before.memberIds) &&
+          before.memberIds.size() + after.invitedIds.size() <= 32 &&
+          after.invitedBy.diff(before.invitedBy).affectedKeys() ==
+            [newcomer].toSet() &&
+          after.invitedBy[newcomer] == me;
+      }
+
+      // An admin takes one other person out, joined or invited, along with
+      // their invitation and any admin role. Nobody is added; the admin
+      // taking them out remains one.
+      function removesSomeone() {
+        let me = request.auth.uid;
+        let before = resource.data;
+        let after = request.resource.data;
+        let gone = everyoneIn(before).toSet()
+          .difference(everyoneIn(after).toSet());
+        return me in before.adminIds &&
+          onlyChanges(['memberIds', 'invitedIds', 'invitedBy', 'adminIds']) &&
+          gone.size() == 1 &&
+          !(me in gone) &&
+          before.memberIds.hasAll(after.memberIds) &&
+          before.invitedIds.hasAll(after.invitedIds) &&
+          everyoneIn(after).size() == everyoneIn(before).size() - 1 &&
+          after.adminIds.toSet() == before.adminIds.toSet().difference(gone) &&
+          after.invitedBy.diff(before.invitedBy).addedKeys().size() == 0 &&
+          after.invitedBy.diff(before.invitedBy).changedKeys().size() == 0 &&
+          gone.hasAll(after.invitedBy.diff(before.invitedBy).removedKeys());
+      }
+
+      // The caller leaves. When they were the only admin, whoever has been a
+      // member longest becomes one, so a group always has an admin.
+      function leaves() {
+        let me = request.auth.uid;
+        let before = resource.data;
+        let after = request.resource.data;
+        let otherAdmins = before.adminIds.toSet().difference([me].toSet());
+        return me in before.memberIds &&
+          onlyChanges(['memberIds', 'adminIds']) &&
+          after.memberIds.size() == before.memberIds.size() - 1 &&
+          after.memberIds.toSet() ==
+            before.memberIds.toSet().difference([me].toSet()) &&
+          (otherAdmins.size() > 0
+            ? after.adminIds.toSet() == otherAdmins
+            : after.adminIds == [after.memberIds[0]]);
+      }
+
+      // An admin makes members admins, or stops them being admins. There is
+      // always at least one, and only members are admins.
+      function setsAdmins() {
+        return request.auth.uid in resource.data.adminIds &&
+          onlyChanges(['adminIds']) &&
+          request.resource.data.adminIds.size() > 0 &&
+          resource.data.memberIds.hasAll(request.resource.data.adminIds);
+      }
+
+      // An admin decides whether only admins may add people.
+      function setsOnlyAdminsAdd() {
+        return request.auth.uid in resource.data.adminIds &&
+          onlyChanges(['onlyAdminsAdd']) &&
+          request.resource.data.onlyAdminsAdd is bool;
       }
 
       // [me] is no longer invited, and nothing else about the invited changed.
@@ -734,15 +817,20 @@ service cloud.firestore {
         request.resource.data.keyGenerations.keys().hasOnly(['1']) &&
         isOwnGroupKeyGeneration(request.resource.data.keyGenerations['1'],
                                 everyoneIn(request.resource.data)) &&
+        (!('onlyAdminsAdd' in request.resource.data) ||
+         request.resource.data.onlyAdminsAdd is bool) &&
         request.resource.data.createdAt == request.time;
 
       allow update: if signedIn() &&
         request.resource.data.keys().hasOnly(groupFields()) &&
         (joinsByInvitation() || turnsDownInvitation() ||
-         setsLastMessage() || addsNextGroupKeyGeneration());
+         setsLastMessage() || addsNextGroupKeyGeneration() ||
+         addsSomeone() || removesSomeone() || leaves() || setsAdmins() ||
+         setsOnlyAdminsAdd());
 
-      // Leaving, removing people and deleting a group come later.
-      allow delete: if false;
+      // The last member leaving takes the group with them.
+      allow delete: if signedIn() &&
+        resource.data.memberIds == [request.auth.uid];
 
       match /messages/{messageId} {
         // The group as it will be once this write lands.
@@ -755,13 +843,38 @@ service cloud.firestore {
         // messages, until they join.
         allow read: if signedIn() && request.auth.uid in groupNow().memberIds;
         // Dated by the server, under the current generation, by a member.
+        // That generation must be sealed to exactly the people in the group:
+        // after someone joins or leaves, a member's phone adds the next one
+        // before anyone writes, so nobody who left reads what follows.
         allow create: if signedIn() &&
           request.auth.uid in groupAfter().memberIds &&
+          groupAfter().keyGenerations[string(groupAfter().currentKeyGeneration)]
+            .sealedKeys.keys().toSet() == everyoneIn(groupAfter()).toSet() &&
           request.resource.data.serverTimeStamp == request.time &&
           isOwnEncryptedMessage(request.resource.data, messageFields(),
                                 groupAfter().currentKeyGeneration);
         // Editing and deleting group messages come later.
         allow update, delete: if false;
+      }
+
+      // Earlier generations of the group's key, sealed to someone added with
+      // the group's history (FirestoreGroupRepository.addPeople). Written in
+      // the same batch as their invitation, by whoever invites them.
+      match /sharedKeys/{userId} {
+        function groupAfterInvite() {
+          return getAfter(/databases/$(database)/documents/groups/$(groupId))
+            .data;
+        }
+
+        // Only the person they are sealed to reads them.
+        allow get: if signedIn() && request.auth.uid == userId;
+        allow create, update: if signedIn() &&
+          request.resource.data.keys().hasOnly(['sharedBy', 'generations']) &&
+          request.resource.data.sharedBy == request.auth.uid &&
+          request.auth.uid in groupAfterInvite().memberIds &&
+          userId in groupAfterInvite().invitedIds &&
+          groupAfterInvite().invitedBy[userId] == request.auth.uid;
+        allow delete: if signedIn() && request.auth.uid == userId;
       }
     }
 

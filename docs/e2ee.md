@@ -132,6 +132,21 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
   is a friend, and no one else's phone may put someone in a group. Invited
   people hold the key from the start, so joining needs nobody else online,
   but the rules let only members read messages.
+- **When people join or leave a group**, its key is replaced: the first
+  member's phone to see that the current generation is sealed to other
+  people than are in the group adds the next one, sealed to exactly the
+  members and the invited, and the rules refuse any message until it exists.
+  Someone taken out, or who left, keeps the keys they had but gets no later
+  one; someone who leaves never makes the next key themselves. Whoever adds
+  someone chooses how much history they get: nothing before they were added,
+  or everything the adder can read, in which case every earlier generation
+  the adder can open is sealed to the newcomer and stored in
+  `groups/{groupId}/sharedKeys/{uid}`, readable only by them and written in
+  the same batch as the invitation. Each write invites one person and must
+  record the writer as who invited them, since an invitation recorded as a
+  friend's would make the newcomer's phone join by itself. All admins are
+  equal; a group always keeps one, and when its only admin leaves, whoever
+  has been a member longest becomes one.
 - **The safety number** of two people is worked out from both public keys,
   so they can check that the keys they hold are each other's and not ones put
   in their place by the server. Each side's half is `SHA-512` of

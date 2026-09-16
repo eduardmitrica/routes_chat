@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cryptography/cryptography.dart';
 
+import '../../domain/groups/group.dart';
 import '../../domain/shared/user/current_user_session_interface.dart';
 import '../core/firestore_helpers.dart';
 import '../core/single_flight.dart';
@@ -159,7 +160,7 @@ class ChatKeyring {
       if (data == null) return;
       final current = data['currentKeyGeneration'] as int;
       final generations = KeyGeneration.mapFromJson(data['keyGenerations']);
-      if (!await needsNewGeneration(generations, current)) return;
+      if (!await _needsNewGeneration(data, generations, current)) return;
 
       // Sealing reads the other participant's public key, so the generation
       // is made outside the transaction, which may run more than once.
@@ -191,6 +192,69 @@ class ChatKeyring {
           ...(data['memberIds'] as List).cast<String>(),
           ...(data['invitedIds'] as List).cast<String>(),
         ];
+
+  /// Whether the stored conversation [data] needs its next key generation:
+  /// the user's keys were reset, or, in a group, the current key is sealed to
+  /// other people than are in it. Only a member of a group makes one.
+  Future<bool> _needsNewGeneration(
+    Map<String, dynamic> data,
+    Map<int, KeyGeneration> generations,
+    int current,
+  ) async {
+    if (!data.containsKey('participantIds')) {
+      final userId = _signedInUserId();
+      if (!(data['memberIds'] as List).contains(userId)) return false;
+      if (groupKeyOutOfDate(
+        generations[current]?.sealedKeys.keys ?? const [],
+        _sealedTo(data),
+      )) {
+        return true;
+      }
+    }
+    return needsNewGeneration(generations, current);
+  }
+
+  /// Whether a group's stored [data] needs a new key generation that the
+  /// signed-in user, a member, would make.
+  Future<bool> groupNeedsNewGeneration(Map<String, dynamic> data) async {
+    final generations = KeyGeneration.mapFromJson(data['keyGenerations']);
+    return _needsNewGeneration(
+      data,
+      generations,
+      data['currentKeyGeneration'] as int,
+    );
+  }
+
+  /// Every generation of [groupId]'s key the signed-in user can open, sealed
+  /// to [recipientId], for someone added with its history. Generations the
+  /// user cannot open are left out: nobody shares what they cannot read.
+  ///
+  /// Throws [ParticipantWithoutKeys] if [recipientId] has no published key.
+  Future<Map<String, Object>> historyFor(
+    String groupId,
+    String recipientId,
+    Map<int, KeyGeneration> generations,
+  ) async {
+    final (publicKey, keyVersion) = await _publishedKeys(recipientId);
+    final shared = <String, Object>{};
+    for (final number in generations.keys) {
+      final SecretKey key;
+      try {
+        key = await chatKey(groupId, number, generations);
+      } on UnreadableCiphertext {
+        continue;
+      }
+      shared['$number'] = (await _cipher.seal(
+        key,
+        recipientPublicKey: publicKey,
+        recipientKeyVersion: keyVersion,
+        chatId: groupId,
+        keyGeneration: number,
+        recipientId: recipientId,
+      )).toJson();
+    }
+    return shared;
+  }
 
   Future<NewKeyGeneration> _newGeneration(
     String chatId,
@@ -238,7 +302,11 @@ class ChatKeyring {
     int number,
     Map<int, KeyGeneration> generations,
   ) async {
-    final sealed = generations[number]?.sealedKeys[userId];
+    final sealed =
+        generations[number]?.sealedKeys[userId] ??
+        (isGroupIdString(chatId)
+            ? await _sharedWith(userId, chatId, number)
+            : null);
     final own = await _ownUnlockedKeys(userId);
     // A key sealed to keys the user has since reset cannot open.
     if (sealed == null || sealed.recipientKeyVersion != own.keyVersion) {
@@ -281,6 +349,27 @@ class ChatKeyring {
     // Keys published before key resets existed carry no version: they are
     // the user's first.
     return (bytes, data?['keyVersion'] as int? ?? 1);
+  }
+
+  /// Generation [number] of [groupId]'s key as shared with [userId] when they
+  /// were added with the group's history, if it was.
+  Future<SealedChatKey?> _sharedWith(
+    String userId,
+    String groupId,
+    int number,
+  ) async {
+    try {
+      final data = (await _chatDocument(
+        groupId,
+      ).collection('sharedKeys').doc(userId).get()).data();
+      final sealed = (data?['generations'] as Map?)?['$number'];
+      return sealed is Map ? SealedChatKey.fromJson(sealed) : null;
+    } on FirebaseException catch (error) {
+      // Refused means nothing is shared with the user. Anything else, such as
+      // being offline, may pass, so it is not remembered as unreadable.
+      if (error.code == 'permission-denied') return null;
+      rethrow;
+    }
   }
 
   DocumentReference<Map<String, dynamic>> _chatDocument(String chatId) =>

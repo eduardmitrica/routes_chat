@@ -119,6 +119,20 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
   rather than read another way.
 - **Associated data** is each of those strings as UTF-8, prefixed with its
   length in bytes as a 32-bit big-endian integer.
+- **The safety number** of two people is worked out from both public keys,
+  so they can check that the keys they hold are each other's and not ones put
+  in their place by the server. Each side's half is `SHA-512` of
+  `0x00`, the version byte, their public key and their user id, hashed 5200
+  times more with the key appended each time; the first 30 bytes of the result
+  are read as six numbers of five digits. The two halves are joined, the
+  smaller first, so both phones show the same 60 digits. The QR code carries
+  `routes_chat/safety-number/v1/<60 digits>`, which the other phone compares
+  with its own; nothing secret is in it. The user's own half uses the public
+  key from the bundle on this device rather than the published copy, so a
+  swapped published key shows up as a number the other side does not see.
+  Whom the user verified is kept only on the phone, encrypted like drafts, so
+  the server never learns it; when a number is no longer the one that was
+  checked, the chat says so.
 - **Opened chat keys** stay in memory for the session only. A message that does
   not decrypt is shown as "This message could not be decrypted." rather than
   hiding the chat.
@@ -196,7 +210,9 @@ They also:
 - Reports. A report can share the last 5 messages of a chat in readable form, but only when its author ticks that, with a warning; they are stored in `reports`, which no app can read, for the project owner to review. The server cannot check them against the ciphertext, so they are the reporter's word.
 - Who someone blocked, from the server. A block (`users/{uid}/blocks/{uid}`) is private to the blocker and hidden from the blocked person, but the server sees it. What a blocked person sends is still stored, encrypted, and the blocker's app keeps it out of sight.
 - A malicious chat partner, who can read everything sent to them.
-- Replacing a user's public key through the server. A future improvement is
-  showing a safety number that two people can compare.
+- Replacing a user's public key through the server, unless the two people
+  compare their safety number. The app shows one per chat and warns when it
+  changes for someone who was verified, but it cannot tell a key reset from a
+  key that was swapped: only comparing can.
 - A weak passphrase, which makes the wrapped copy in Firestore guessable
   offline. Argon2id slows guessing down but cannot fix a short passphrase.

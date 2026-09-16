@@ -22,6 +22,12 @@ final class AppColors extends ThemeExtension<AppColors> {
   final Color skeleton;
   final Color skeletonShine;
 
+  /// A QR code and what it is printed on. The same in both themes on
+  /// purpose: cameras read dark on light, and a code that follows the theme
+  /// is a code that sometimes will not scan.
+  final Color code;
+  final Color onCode;
+
   const AppColors({
     required this.sentBubble,
     required this.onSentBubble,
@@ -32,6 +38,8 @@ final class AppColors extends ThemeExtension<AppColors> {
     required this.messageHighlight,
     required this.skeleton,
     required this.skeletonShine,
+    required this.code,
+    required this.onCode,
   });
 
   factory AppColors.fromScheme(ColorScheme scheme) {
@@ -53,6 +61,8 @@ final class AppColors extends ThemeExtension<AppColors> {
       skeletonShine: dark
           ? scheme.surfaceContainerHighest
           : scheme.surfaceContainerLowest,
+      code: const Color(0xFFFFFFFF),
+      onCode: const Color(0xFF000000),
     );
   }
 
@@ -70,6 +80,8 @@ final class AppColors extends ThemeExtension<AppColors> {
     Color? messageHighlight,
     Color? skeleton,
     Color? skeletonShine,
+    Color? code,
+    Color? onCode,
   }) => AppColors(
     sentBubble: sentBubble ?? this.sentBubble,
     onSentBubble: onSentBubble ?? this.onSentBubble,
@@ -80,6 +92,8 @@ final class AppColors extends ThemeExtension<AppColors> {
     messageHighlight: messageHighlight ?? this.messageHighlight,
     skeleton: skeleton ?? this.skeleton,
     skeletonShine: skeletonShine ?? this.skeletonShine,
+    code: code ?? this.code,
+    onCode: onCode ?? this.onCode,
   );
 
   @override
@@ -99,6 +113,9 @@ final class AppColors extends ThemeExtension<AppColors> {
       messageHighlight: mix(messageHighlight, other.messageHighlight),
       skeleton: mix(skeleton, other.skeleton),
       skeletonShine: mix(skeletonShine, other.skeletonShine),
+      // Never mixed: a half-faded code does not scan.
+      code: code,
+      onCode: onCode,
     );
   }
 }

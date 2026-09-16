@@ -11,6 +11,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../domain/encryption/encryption_failure.dart';
 import '../../domain/encryption/encryption_repository_interface.dart';
 import '../../domain/encryption/encryption_status.dart';
+import '../../domain/encryption/public_keys.dart';
 import '../../domain/encryption/value_objects.dart';
 import '../../domain/shared/user/current_user_session_interface.dart';
 import '../core/firestore_helpers.dart';
@@ -25,7 +26,7 @@ import 'user_key_manager.dart';
 /// It also hands the unlocked keys to [ChatKeyring], which opens chat keys
 /// with them.
 class FirebaseEncryptionRepository
-    implements IEncryptionRepository, UnlockedKeysSource {
+    implements IEncryptionRepository, UnlockedKeysSource, IPublicKeys {
   final FirebaseFirestore _firestore;
   final FlutterSecureStorage _secureStorage;
   final UserKeyManager _keys;
@@ -256,6 +257,40 @@ class FirebaseEncryptionRepository
       );
     } on WrongSecret {
       throw const EncryptionKeysLocked();
+    }
+  }
+
+  @override
+  Future<PublishedKey?> own() async {
+    final userId = _session.current?.id;
+    if (userId == null) return null;
+    try {
+      final bundle = await _loadBundle(userId);
+      return bundle == null
+          ? null
+          : PublishedKey(bundle.publicKey, bundle.keyVersion);
+    } on Exception catch (exception) {
+      debugPrint('Own public key unavailable: ${exception.runtimeType}');
+      return null;
+    }
+  }
+
+  @override
+  Future<PublishedKey?> of(String userId) async {
+    try {
+      final data = (await _firestore.publicKeyDocument(userId).get()).data();
+      final published = data?['publicKey'];
+      if (published is! String) return null;
+      return PublishedKey(
+        base64Decode(published),
+        data?['keyVersion'] as int? ?? 1,
+      );
+    } on FormatException {
+      debugPrint('Published public key not in the stored format');
+      return null;
+    } on Exception catch (exception) {
+      debugPrint('Public key unavailable: ${exception.runtimeType}');
+      return null;
     }
   }
 

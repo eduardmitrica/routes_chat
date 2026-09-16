@@ -10,6 +10,11 @@ them.
   converter for encrypted content threw on it, so the document was left out
   as malformed. A nullable field needs a converter of the nullable type
   (`OptionalEncryptedContentConverter`).
+- **A widget test of the safety number screen never finished.** Pumping
+  `SafetyNumberPage` and waiting (`pumpAndSettle`, or repeated `pump`) hangs
+  the test, while the same setup in a scratch test returns in half a second;
+  the cause was not found. Test its pieces instead - the bloc, and the dialog
+  or bar as its own widget - and check the screen itself on the emulator.
 - **"Superclass has no method named 'initState'" all over a file.**
   `package:dartz/dartz.dart` exports a `State` class. Import dartz with `show`
   in files that declare a `StatefulWidget`.

@@ -23,6 +23,59 @@ service cloud.firestore {
           duration.value(5, 'm');
     }
 
+    // Shared by one-to-one chats and groups.
+
+    // Must match what MessageDataTransferObject stores; a test checks it.
+    // A chat's lastMessage also carries the message's id. Older versions of
+    // the app also write repliedMessageId, always "Empty", which stays
+    // allowed so they keep working: a reply's link is now encrypted.
+    function messageFields() {
+      return ['senderId', 'imageUrls', 'reactions', 'content',
+              'repliedMessageId', 'isEdited', 'serverTimeStamp'];
+    }
+
+    // A message encrypted under generation [generation] of the chat key
+    // (EncryptedContent in the app): base64 of a 12-byte nonce, the
+    // ciphertext and a 16-byte tag. A message is at most 1000 UTF-16 code
+    // units. Version 1, which older versions of the app still write, holds
+    // the text alone: at most 3000 bytes of UTF-8, 4000 characters of
+    // base64. Version 2 holds, as JSON, the text, any quote and the list of
+    // attached photos and GIFs with their keys and small previews. Escapes
+    // take up to six bytes a code unit, and ten attachments with previews
+    // about 22000 bytes: at most 36000 bytes, 48000 characters.
+    function isEncryptedContent(content, generation) {
+      return content.keys().hasOnly(['v', 'e', 'nonce', 'cipherText', 'mac']) &&
+        content.e == generation &&
+        content.nonce is string && content.nonce.size() == 16 &&
+        content.mac is string && content.mac.size() == 24 &&
+        content.cipherText is string &&
+        ((content.v == 1 && content.cipherText.size() <= 4000) ||
+         (content.v == 2 && content.cipherText.size() <= 48000));
+    }
+
+    // The chat key sealed to one participant (SealedChatKey in the app):
+    // base64 of a 32-byte ephemeral X25519 public key, a 12-byte nonce, the
+    // 32-byte encrypted key and a 16-byte tag, and the version of the
+    // participant's keys it was sealed to.
+    function isSealedChatKey(sealed) {
+      return sealed.keys().hasOnly(['ephemeralPublicKey', 'nonce',
+                                    'cipherText', 'mac', 'keyVersion']) &&
+        sealed.ephemeralPublicKey is string &&
+        sealed.ephemeralPublicKey.size() == 44 &&
+        sealed.nonce is string && sealed.nonce.size() == 16 &&
+        sealed.cipherText is string && sealed.cipherText.size() == 44 &&
+        sealed.mac is string && sealed.mac.size() == 24 &&
+        sealed.keyVersion is int;
+    }
+
+    // A message the caller wrote under generation [generation], holding only
+    // the fields the app stores, with its text encrypted.
+    function isOwnEncryptedMessage(message, fields, generation) {
+      return message.keys().hasOnly(fields) &&
+        message.senderId == request.auth.uid &&
+        isEncryptedContent(message.content, generation);
+    }
+
     // The version of stored keys. Keys from before key resets existed carry
     // none: they are a user's first.
     function keyVersionOf(keys) {
@@ -302,49 +355,6 @@ service cloud.firestore {
                 'serverTimeStamp', 'keyGenerations', 'currentKeyGeneration'];
       }
 
-      // Must match what MessageDataTransferObject stores; a test checks it.
-      // A chat's lastMessage also carries the message's id. Older versions of
-      // the app also write repliedMessageId, always "Empty", which stays
-      // allowed so they keep working: a reply's link is now encrypted.
-      function messageFields() {
-        return ['senderId', 'imageUrls', 'reactions', 'content',
-                'repliedMessageId', 'isEdited', 'serverTimeStamp'];
-      }
-
-      // A message encrypted under generation [generation] of the chat key
-      // (EncryptedContent in the app): base64 of a 12-byte nonce, the
-      // ciphertext and a 16-byte tag. A message is at most 1000 UTF-16 code
-      // units. Version 1, which older versions of the app still write, holds
-      // the text alone: at most 3000 bytes of UTF-8, 4000 characters of
-      // base64. Version 2 holds, as JSON, the text, any quote and the list of
-      // attached photos and GIFs with their keys and small previews. Escapes
-      // take up to six bytes a code unit, and ten attachments with previews
-      // about 22000 bytes: at most 36000 bytes, 48000 characters.
-      function isEncryptedContent(content, generation) {
-        return content.keys().hasOnly(['v', 'e', 'nonce', 'cipherText', 'mac']) &&
-          content.e == generation &&
-          content.nonce is string && content.nonce.size() == 16 &&
-          content.mac is string && content.mac.size() == 24 &&
-          content.cipherText is string &&
-          ((content.v == 1 && content.cipherText.size() <= 4000) ||
-           (content.v == 2 && content.cipherText.size() <= 48000));
-      }
-
-      // The chat key sealed to one participant (SealedChatKey in the app):
-      // base64 of a 32-byte ephemeral X25519 public key, a 12-byte nonce, the
-      // 32-byte encrypted key and a 16-byte tag, and the version of the
-      // participant's keys it was sealed to.
-      function isSealedChatKey(sealed) {
-        return sealed.keys().hasOnly(['ephemeralPublicKey', 'nonce',
-                                      'cipherText', 'mac', 'keyVersion']) &&
-          sealed.ephemeralPublicKey is string &&
-          sealed.ephemeralPublicKey.size() == 44 &&
-          sealed.nonce is string && sealed.nonce.size() == 16 &&
-          sealed.cipherText is string && sealed.cipherText.size() == 44 &&
-          sealed.mac is string && sealed.mac.size() == 24 &&
-          sealed.keyVersion is int;
-      }
-
       // A generation of the chat key the caller made (KeyGeneration in the
       // app), sealed to each of [participants] and nobody else.
       function isOwnKeyGeneration(generation, participants) {
@@ -353,14 +363,6 @@ service cloud.firestore {
           generation.sealedKeys.keys().hasOnly(participants) &&
           isSealedChatKey(generation.sealedKeys[participants[0]]) &&
           isSealedChatKey(generation.sealedKeys[participants[1]]);
-      }
-
-      // A message the caller wrote under generation [generation], holding only
-      // the fields the app stores, with its text encrypted.
-      function isOwnEncryptedMessage(message, fields, generation) {
-        return message.keys().hasOnly(fields) &&
-          message.senderId == request.auth.uid &&
-          isEncryptedContent(message.content, generation);
       }
 
       // The update adds exactly the next generation of the chat key, and
@@ -599,6 +601,167 @@ service cloud.firestore {
           (reactionId.split('_')[1] == request.auth.uid ||
            messageWithId(reactionId.split('_')[0]).senderId ==
              request.auth.uid);
+      }
+    }
+
+    // Groups: up to 32 people, kept apart from one-to-one chats so versions
+    // of the app from before groups never see them. See
+    // FirestoreGroupRepository and docs/e2ee.md.
+    match /groups/{groupId} {
+      // Must match FirestoreGroupRepository.fields; a test checks it.
+      function groupFields() {
+        return ['memberIds', 'invitedIds', 'invitedBy', 'adminIds',
+                'keyGenerations', 'currentKeyGeneration', 'lastMessage',
+                'createdAt'];
+      }
+
+      function groupNow() {
+        return get(/databases/$(database)/documents/groups/$(groupId)).data;
+      }
+
+      // Everyone the group's key is sealed to: members and the invited.
+      function everyoneIn(group) {
+        return group.memberIds.concat(group.invitedIds);
+      }
+
+      // A generation of the group's key the caller made, sealed to each of
+      // [people] and nobody else. Rules cannot loop over a list, so only the
+      // caller's own sealed key is checked for its shape: a malformed key for
+      // someone else only locks that person out, which the caller could do
+      // anyway by leaving them out.
+      function isOwnGroupKeyGeneration(generation, people) {
+        return generation.keys().hasOnly(['createdBy', 'sealedKeys']) &&
+          generation.createdBy == request.auth.uid &&
+          generation.sealedKeys.keys().hasOnly(people) &&
+          generation.sealedKeys.keys().hasAll(people) &&
+          isSealedChatKey(generation.sealedKeys[request.auth.uid]);
+      }
+
+      // [me] is no longer invited, and nothing else about the invited changed.
+      function leavesTheInvited(me, before, after) {
+        return !(me in after.invitedIds) &&
+          after.invitedIds.size() == before.invitedIds.size() - 1 &&
+          after.invitedIds.toSet() ==
+            before.invitedIds.toSet().difference([me].toSet()) &&
+          after.invitedBy.diff(before.invitedBy).affectedKeys() ==
+            [me].toSet() &&
+          !(me in after.invitedBy);
+      }
+
+      // The caller, who was invited, joins: they leave the invited and are
+      // added at the end of the members. Nothing else changes.
+      function joinsByInvitation() {
+        let me = request.auth.uid;
+        let before = resource.data;
+        let after = request.resource.data;
+        return me in before.invitedIds &&
+          after.diff(before).affectedKeys()
+            .hasOnly(['memberIds', 'invitedIds', 'invitedBy']) &&
+          after.memberIds == before.memberIds.concat([me]) &&
+          leavesTheInvited(me, before, after);
+      }
+
+      // The caller, who was invited, turns it down. Nothing else changes.
+      function turnsDownInvitation() {
+        let me = request.auth.uid;
+        let before = resource.data;
+        let after = request.resource.data;
+        return me in before.invitedIds &&
+          after.diff(before).affectedKeys()
+            .hasOnly(['invitedIds', 'invitedBy']) &&
+          leavesTheInvited(me, before, after);
+      }
+
+      // A member sent a message: the last message becomes it, under the
+      // current generation. Nothing else changes.
+      function setsLastMessage() {
+        return request.auth.uid in resource.data.memberIds &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['lastMessage']) &&
+          isOwnEncryptedMessage(request.resource.data.lastMessage,
+                                messageFields().concat(['id']),
+                                resource.data.currentKeyGeneration);
+      }
+
+      // A member whose keys were reset adds the next generation of the
+      // group's key, sealed to everyone in the group. Earlier generations
+      // never change.
+      function addsNextGroupKeyGeneration() {
+        let next = resource.data.currentKeyGeneration + 1;
+        let change = request.resource.data.keyGenerations
+          .diff(resource.data.keyGenerations);
+        return request.auth.uid in resource.data.memberIds &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['keyGenerations', 'currentKeyGeneration']) &&
+          request.resource.data.currentKeyGeneration == next &&
+          change.addedKeys() == [string(next)].toSet() &&
+          change.changedKeys().size() == 0 &&
+          change.removedKeys().size() == 0 &&
+          isOwnGroupKeyGeneration(
+            request.resource.data.keyGenerations[string(next)],
+            everyoneIn(resource.data));
+      }
+
+      // Members and the invited read the group. A list query must be scoped
+      // with `memberIds arrayContains <uid>` or `invitedIds arrayContains
+      // <uid>`, as FirestoreGroupRepository does.
+      allow get, list: if signedIn() &&
+        (request.auth.uid in resource.data.memberIds ||
+         request.auth.uid in resource.data.invitedIds);
+
+      // A group starts with the caller as its only member and admin, one to
+      // 31 people invited by them, and the first generation of its key sealed
+      // to all of them. Its id is "group-" and a random (version 4) UUID.
+      allow create: if signedIn() &&
+        groupId.matches(
+          'group-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}') &&
+        request.resource.data.keys().hasOnly(groupFields()) &&
+        request.resource.data.keys().hasAll(['memberIds', 'invitedIds',
+          'invitedBy', 'adminIds', 'keyGenerations', 'currentKeyGeneration',
+          'createdAt']) &&
+        request.resource.data.memberIds == [request.auth.uid] &&
+        request.resource.data.adminIds == [request.auth.uid] &&
+        request.resource.data.invitedIds.size() >= 1 &&
+        request.resource.data.invitedIds.size() <= 31 &&
+        request.resource.data.invitedIds.toSet().size() ==
+          request.resource.data.invitedIds.size() &&
+        !(request.auth.uid in request.resource.data.invitedIds) &&
+        request.resource.data.invitedBy.keys().toSet() ==
+          request.resource.data.invitedIds.toSet() &&
+        request.resource.data.invitedBy.values().toSet() ==
+          [request.auth.uid].toSet() &&
+        request.resource.data.currentKeyGeneration == 1 &&
+        request.resource.data.keyGenerations.keys().hasOnly(['1']) &&
+        isOwnGroupKeyGeneration(request.resource.data.keyGenerations['1'],
+                                everyoneIn(request.resource.data)) &&
+        request.resource.data.createdAt == request.time;
+
+      allow update: if signedIn() &&
+        request.resource.data.keys().hasOnly(groupFields()) &&
+        (joinsByInvitation() || turnsDownInvitation() ||
+         setsLastMessage() || addsNextGroupKeyGeneration());
+
+      // Leaving, removing people and deleting a group come later.
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        // The group as it will be once this write lands.
+        function groupAfter() {
+          return getAfter(/databases/$(database)/documents/groups/$(groupId))
+            .data;
+        }
+
+        // Only members read messages: the invited hold the key, not the
+        // messages, until they join.
+        allow read: if signedIn() && request.auth.uid in groupNow().memberIds;
+        // Dated by the server, under the current generation, by a member.
+        allow create: if signedIn() &&
+          request.auth.uid in groupAfter().memberIds &&
+          request.resource.data.serverTimeStamp == request.time &&
+          isOwnEncryptedMessage(request.resource.data, messageFields(),
+                                groupAfter().currentKeyGeneration);
+        // Editing and deleting group messages come later.
+        allow update, delete: if false;
       }
     }
 

@@ -68,6 +68,10 @@ import 'application/chats/messages/message_actor/message_actor_bloc.dart';
 import 'domain/chats/messages/emoji_usage.dart';
 import 'infrastructure/chats/messages/emoji_preferences_store.dart';
 import 'domain/chats/chat_reads.dart';
+import 'application/groups/groups_watcher_bloc.dart';
+import 'application/groups/new_group_bloc.dart';
+import 'domain/groups/group_repository_interface.dart';
+import 'infrastructure/groups/firestore_group_repository.dart';
 import 'application/encryption/safety_number/safety_number_bloc.dart';
 import 'domain/encryption/key_verifications.dart';
 import 'domain/encryption/public_keys.dart';
@@ -301,6 +305,25 @@ void configureDependencies() {
       ),
     )
     ..registerLazySingleton<IChatRequests>(() => getIt<MessageRequestsBloc>())
+    ..registerLazySingleton<IGroupRepository>(
+      () => FirestoreGroupRepository(
+        getIt<FirebaseFirestore>(),
+        getIt<ICurrentUserSession>(),
+        getIt<ChatKeyring>(),
+        getIt<ChatCipher>(),
+      ),
+    )
+    ..registerLazySingleton<GroupsWatcherBloc>(
+      () => GroupsWatcherBloc(
+        getIt<IGroupRepository>(),
+        getIt<ICurrentUserSession>(),
+        friendRequests: getIt<IFriendRequestsRepository>(),
+        blocks: getIt<IBlockList>(),
+      ),
+    )
+    ..registerFactory<NewGroupBloc>(
+      () => NewGroupBloc(getIt<IGroupRepository>()),
+    )
     ..registerLazySingleton<PresenceReporter>(
       () => PresenceReporter(
         getIt<IPresenceRepository>(),

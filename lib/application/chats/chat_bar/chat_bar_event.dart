@@ -4,6 +4,11 @@ sealed class ChatBarEvent extends Equatable {
   const ChatBarEvent();
 
   const factory ChatBarEvent.started(UniqueId otherUserId) = ChatBarStarted;
+
+  /// Writing in the group [groupId]: no typing is shared and nothing is
+  /// accepted or created, since the group exists already.
+  const factory ChatBarEvent.startedInGroup(UniqueId groupId) =
+      ChatBarStartedInGroup;
   const factory ChatBarEvent.messageContentChanged(String contentString) =
       MessageContentChanged;
   const factory ChatBarEvent.replyStarted(Message message) = ReplyStarted;
@@ -26,6 +31,13 @@ sealed class ChatBarEvent extends Equatable {
 }
 
 /// The user opened the chat with [otherUserId]: its draft comes back.
+final class ChatBarStartedInGroup extends ChatBarEvent {
+  final UniqueId groupId;
+  const ChatBarStartedInGroup(this.groupId);
+  @override
+  List<Object?> get props => [groupId];
+}
+
 final class ChatBarStarted extends ChatBarEvent {
   final UniqueId otherUserId;
   const ChatBarStarted(this.otherUserId);

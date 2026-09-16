@@ -4,6 +4,7 @@ import 'package:routes_chat/application/chats/chats_watcher/chats_watcher_bloc.d
 import 'package:routes_chat/application/shared/users_watcher/users_watcher_bloc.dart';
 import 'package:routes_chat/injection.dart';
 import 'package:routes_chat/presentation/home/chats/widgets/chats_page_body.dart';
+import 'package:routes_chat/presentation/home/groups/new_group_page.dart';
 
 class ChatsPage extends StatelessWidget {
   const ChatsPage({super.key});
@@ -20,7 +21,20 @@ class ChatsPage extends StatelessWidget {
         ),
       ],
       child: Scaffold(
-        appBar: AppBar(title: const Text('Chats')),
+        appBar: AppBar(
+          title: const Text('Chats'),
+          actions: [
+            Builder(
+              builder: (context) => IconButton(
+                tooltip: 'New group',
+                onPressed: () =>
+                    Navigator.of(context).push(NewGroupPage.route()),
+                icon: const Icon(Icons.group_add_outlined),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
+        ),
         body: const ChatsPageBody(),
       ),
     );

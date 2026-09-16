@@ -163,11 +163,7 @@ class ChatKeyring {
 
       // Sealing reads the other participant's public key, so the generation
       // is made outside the transaction, which may run more than once.
-      final next = await _newGeneration(
-        chatId,
-        (data['participantIds'] as List).cast<String>(),
-        current + 1,
-      );
+      final next = await _newGeneration(chatId, _sealedTo(data), current + 1);
       final added = await _firestore.runTransaction((transaction) async {
         final fresh = (await transaction.get(chatRef)).data();
         if (fresh == null || fresh['currentKeyGeneration'] != current) {
@@ -185,6 +181,16 @@ class ChatKeyring {
       }
     }
   }
+
+  /// Who a new generation of a stored conversation is sealed to: the two
+  /// people of a one-to-one chat, or everyone in a group, invited included.
+  static List<String> _sealedTo(Map<String, dynamic> data) =>
+      data.containsKey('participantIds')
+      ? (data['participantIds'] as List).cast<String>()
+      : [
+          ...(data['memberIds'] as List).cast<String>(),
+          ...(data['invitedIds'] as List).cast<String>(),
+        ];
 
   Future<NewKeyGeneration> _newGeneration(
     String chatId,
@@ -278,7 +284,7 @@ class ChatKeyring {
   }
 
   DocumentReference<Map<String, dynamic>> _chatDocument(String chatId) =>
-      _firestore.collection('chats').doc(chatId);
+      _firestore.conversationDocument(chatId);
 
   String _signedInUserId() =>
       _session.current?.id ?? (throw const EncryptionKeysLocked());

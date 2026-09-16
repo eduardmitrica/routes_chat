@@ -23,6 +23,7 @@ import '../../application/friend_requests/friend_request_actor/friend_request_ac
 import '../../application/chats/outbox/message_outbox.dart';
 import '../../application/safety/block_list_bloc.dart';
 import '../../application/chats/message_requests/message_requests_bloc.dart';
+import '../../application/groups/groups_watcher_bloc.dart';
 import '../../injection.dart';
 import 'chats/chats_page.dart';
 import 'friend_requests/friend_requests_page.dart';
@@ -57,6 +58,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     getIt<BlockListBloc>().add(const BlockListEvent.started());
     // What the user decided about chats from people who are not friends.
     getIt<MessageRequestsBloc>().add(const MessageRequestsEvent.started());
+    // The groups the user is in; invitations from friends join by themselves.
+    getIt<GroupsWatcherBloc>().add(const GroupsWatcherEvent.started());
     WidgetsBinding.instance.addObserver(this);
     _presence.appResumed();
     _opened = _notifications.opened.listen(_open);

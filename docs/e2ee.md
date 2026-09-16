@@ -119,6 +119,19 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
   rather than read another way.
 - **Associated data** is each of those strings as UTF-8, prefixed with its
   length in bytes as a 32-bit big-endian integer.
+- **Groups** (up to 32 people) work like a one-to-one chat with more
+  sealed keys: each generation of a group's key is sealed to every member and
+  to everyone invited, and messages, the last message and replies are
+  encrypted exactly as in a chat, with the group's id in the associated data.
+  A group's id is `group-` and a random UUID, and groups are kept in
+  `groups/{groupId}` so versions of the app from before groups never see
+  them. Whoever starts a group is its only member and admin; everyone they
+  add is invited, and joins only from their own phone: automatically when the
+  person who added them is a friend, otherwise by tapping Join. The security
+  rules cannot loop over a list, so they could not check that everyone added
+  is a friend, and no one else's phone may put someone in a group. Invited
+  people hold the key from the start, so joining needs nobody else online,
+  but the rules let only members read messages.
 - **The safety number** of two people is worked out from both public keys,
   so they can check that the keys they hold are each other's and not ones put
   in their place by the server. Each side's half is `SHA-512` of
@@ -210,6 +223,12 @@ They also:
 - Reports. A report can share the last 5 messages of a chat in readable form, but only when its author ticks that, with a warning; they are stored in `reports`, which no app can read, for the project owner to review. The server cannot check them against the ciphertext, so they are the reporter's word.
 - Who someone blocked, from the server. A block (`users/{uid}/blocks/{uid}`) is private to the blocker and hidden from the blocked person, but the server sees it. What a blocked person sends is still stored, encrypted, and the blocker's app keeps it out of sight.
 - A malicious chat partner, who can read everything sent to them.
+- In a group, someone invited who has not joined. They cannot read the
+  messages, but they can read the group itself, which holds the encrypted last
+  message and the key sealed to them, so a modified app could read that one
+  message. The rules also check the shape of only the creator's own sealed key
+  in a new group, since they cannot loop; a malformed key for someone else
+  only locks that person out.
 - Replacing a user's public key through the server, unless the two people
   compare their safety number. The app shows one per chat and warns when it
   changes for someone who was verified, but it cannot tell a key reset from a

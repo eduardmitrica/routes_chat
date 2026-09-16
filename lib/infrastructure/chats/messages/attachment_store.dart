@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import 'package:routes_chat/domain/groups/group.dart';
 import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 import 'package:routes_chat/infrastructure/encryption/chat_cipher.dart';
 
@@ -15,10 +16,14 @@ class AttachmentStore {
 
   const AttachmentStore(this._storage, this._cipher, this._session);
 
-  /// Where a file is stored. storage.rules lets only the chat's participants,
-  /// whose ids make up [chatId], read or add it.
+  /// Where a file is stored. storage.rules lets only a chat's participants,
+  /// whose ids make up [chatId], read or add it. A group's files are kept
+  /// apart, protected by their random names, since Storage cannot check who
+  /// is in a group.
   static String pathOf(String chatId, String attachmentId) =>
-      'chat_media/$chatId/$attachmentId';
+      isGroupIdString(chatId)
+      ? 'group_media/$chatId/$attachmentId'
+      : 'chat_media/$chatId/$attachmentId';
 
   /// What a message needs to show [draft] once it is uploaded: a new key of
   /// its own, its size and its preview. Nothing is uploaded yet.

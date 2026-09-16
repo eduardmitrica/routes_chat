@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { groupDocumentPath } = require("./cleanup");
+const { groupDocumentPath, groupMediaPrefix } = require("./cleanup");
 
 test("a deleted group's own document is what gets cleaned up", () => {
   assert.equal(
@@ -22,4 +22,13 @@ test("nothing that is not a group's id is ever cleaned up", () => {
   ]) {
     assert.equal(groupDocumentPath(id), null, String(id));
   }
+});
+
+test("a deleted group's files are found under its own folder only", () => {
+  assert.equal(
+    groupMediaPrefix("group-939f82c3-1193-4945-a635-89ed34d27a0a"),
+    "group_media/group-939f82c3-1193-4945-a635-89ed34d27a0a/",
+  );
+  assert.equal(groupMediaPrefix("alice_bob"), null);
+  assert.equal(groupMediaPrefix(""), null);
 });

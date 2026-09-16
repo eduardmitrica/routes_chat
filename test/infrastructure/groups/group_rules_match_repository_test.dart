@@ -156,4 +156,45 @@ void main() {
     // Content messages are told apart from events by having no kind.
     expect(groups, contains("!('kind' in request.resource.data)"));
   });
+
+  group('changing messages', () {
+    final messages = _flat(_block(groups, '/messages/{messageId}'));
+
+    test('the sender edits or deletes as in a chat, never an event', () {
+      expect(messages, contains('(isMessageEdit() || isMessageDeletion())'));
+      expect(messages, contains("!('kind' in resource.data)"));
+      expect(messages, contains('resource.data.senderId == request.auth.uid'));
+      expect(messages, contains('allow delete: if false;'));
+      expect(
+        _flat(_block(rules, '/chats/{chatId}')),
+        contains('(isMessageEdit() || isMessageDeletion())'),
+      );
+    });
+
+    test("the group's copy of its last message follows the change", () {
+      expect(groups, contains('followsGroupLastMessage()'));
+      expect(
+        File(
+          'lib/infrastructure/chats/messages/message_repository.dart',
+        ).readAsStringSync(),
+        contains("'lastMessage.\$key': value"),
+      );
+    });
+
+    test('reactions live in the group, for members, under its current key', () {
+      final reactions = _flat(_block(groups, '/reactions/{reactionId}'));
+      expect(reactions, isNotEmpty);
+      expect(
+        reactions,
+        contains(
+          'allow read: if signedIn() && request.auth.uid in groupNow().memberIds;',
+        ),
+      );
+      expect(
+        reactions,
+        contains('content.e == groupNow().currentKeyGeneration'),
+      );
+      expect(reactions, contains('content.cipherText.size() == 172'));
+    });
+  });
 }

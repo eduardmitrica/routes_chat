@@ -55,6 +55,9 @@ class _Groups implements IGroupRepository {
 
   void invite(List<Group> groups) =>
       invitations.add(right(groups.toImmutableList()));
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
 class _Friends implements IFriendRequestsRepository {

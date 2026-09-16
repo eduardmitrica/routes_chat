@@ -27,4 +27,38 @@ abstract interface class IGroupRepository {
 
   /// The user turns down [groupId]. Nobody is told.
   Future<Either<GroupFailure, Unit>> decline(UniqueId groupId);
+
+  /// Invites [people] to [groupId], who can read its past as [history] says.
+  /// Everyone's key is replaced before the next message, so they read what
+  /// comes next.
+  ///
+  /// Fails with [GroupTooBig] beyond [Group.maxMembers], and with
+  /// [GroupMemberWithoutKeys] if someone has not set up encryption.
+  Future<Either<GroupFailure, Unit>> addPeople(
+    UniqueId groupId,
+    List<UniqueId> people, {
+    required HistoryShare history,
+  });
+
+  /// An admin takes [userId] out of [groupId], joined or invited. They read
+  /// nothing sent after.
+  Future<Either<GroupFailure, Unit>> remove(UniqueId groupId, UniqueId userId);
+
+  /// The user leaves [groupId]. When they were its only admin, whoever has
+  /// been a member longest becomes one; when they were its last member, the
+  /// group is gone.
+  Future<Either<GroupFailure, Unit>> leave(UniqueId groupId);
+
+  /// An admin makes [userId] an admin of [groupId], or stops them being one.
+  Future<Either<GroupFailure, Unit>> setAdmin(
+    UniqueId groupId,
+    UniqueId userId, {
+    required bool admin,
+  });
+
+  /// An admin decides whether only admins may add people to [groupId].
+  Future<Either<GroupFailure, Unit>> setOnlyAdminsAdd(
+    UniqueId groupId, {
+    required bool onlyAdmins,
+  });
 }

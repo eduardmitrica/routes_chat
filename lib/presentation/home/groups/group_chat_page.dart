@@ -24,6 +24,7 @@ import '../chats/widgets/message_composer.dart';
 import '../chats/widgets/messages_skeleton.dart';
 import '../chats/widgets/outgoing_message_bubble.dart';
 import '../chats/widgets/swipe_to_reply.dart';
+import 'group_info_page.dart';
 
 /// A group's messages and the box to write in.
 ///
@@ -133,19 +134,31 @@ class _GroupChatPageState extends State<GroupChatPage> {
                 for (final user in users.users.iter)
                   user.id.getOrCrash(): user.username.getOrCrash(),
             };
+            // Taken out, or left from another phone: nothing more to read or
+            // write here.
+            final gone = groups.loaded && group == null;
             return Scaffold(
               appBar: _titleBar(group, names),
               body: SafeArea(
                 top: false,
                 child: Column(
                   children: [
-                    Expanded(child: _messages(names)),
-                    _Composer(
-                      chatBar: _chatBar,
-                      focusNode: _composerFocus,
-                      nameOf: (id) =>
-                          id == _myId ? 'yourself' : names[id] ?? 'someone',
+                    Expanded(
+                      child: gone
+                          ? const Center(
+                              child: _Notice(
+                                'You\'re no longer in this group.',
+                              ),
+                            )
+                          : _messages(names),
                     ),
+                    if (!gone)
+                      _Composer(
+                        chatBar: _chatBar,
+                        focusNode: _composerFocus,
+                        nameOf: (id) =>
+                            id == _myId ? 'yourself' : names[id] ?? 'someone',
+                      ),
                   ],
                 ),
               ),
@@ -165,27 +178,43 @@ class _GroupChatPageState extends State<GroupChatPage> {
     ];
     final invited = group?.invitedIds.length ?? 0;
     final members = group?.memberIds.length ?? 0;
+    void openInfo() => unawaited(
+      Navigator.of(context).push(GroupInfoPage.route(widget.groupId)),
+    );
     return AppBar(
-      title: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            group == null ? 'Group' : groupTitleOf(others),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+      actions: [
+        if (group != null)
+          IconButton(
+            tooltip: 'Group info',
+            onPressed: openInfo,
+            icon: const Icon(Icons.info_outline_rounded),
           ),
-          if (group != null)
+        const SizedBox(width: 4),
+      ],
+      title: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: group == null ? null : openInfo,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
             Text(
-              [
-                members == 1 ? '1 member' : '$members members',
-                if (invited > 0) '$invited invited',
-              ].join(', '),
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
+              group == null ? 'Group' : groupTitleOf(others),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-        ],
+            if (group != null)
+              Text(
+                [
+                  members == 1 ? '1 member' : '$members members',
+                  if (invited > 0) '$invited invited',
+                ].join(', '),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -264,10 +293,12 @@ class _GroupChatPageState extends State<GroupChatPage> {
               previous.message.senderId == message.senderId),
       names: names,
     ),
+    // From before the user was added and not shared with them, or sent
+    // under keys that were reset since.
     UnreadableMessagesItem(:final count) => _Notice(
       count == 1
-          ? '1 earlier message can\'t be read here.'
-          : '$count earlier messages can\'t be read here.',
+          ? '1 earlier message isn\'t readable for you.'
+          : '$count earlier messages aren\'t readable for you.',
     ),
     KeyResetItem() => const SizedBox.shrink(),
   };

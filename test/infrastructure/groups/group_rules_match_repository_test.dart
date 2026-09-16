@@ -65,6 +65,29 @@ void main() {
     );
   });
 
+  test('nobody writes before the key is sealed to exactly the group', () {
+    // Otherwise someone taken out could read what is sent next.
+    expect(
+      _flat(
+        _block(_block(rules, '/groups/{groupId}'), '/messages/{messageId}'),
+      ),
+      contains('sealedKeys.keys().toSet() == everyoneIn(groupAfter()).toSet()'),
+    );
+  });
+
+  test('an invitation is always recorded as its writer\'s', () {
+    // One recorded as a friend's would make the invited phone join by itself.
+    expect(groups, contains('after.invitedBy[newcomer] == me'));
+    expect(groups, contains('invitedBy.values().toSet() =='));
+  });
+
+  test('shared history is read only by the person it is sealed to', () {
+    expect(
+      _flat(_block(rules, '/sharedKeys/{userId}')),
+      contains('allow get: if signedIn() && request.auth.uid == userId;'),
+    );
+  });
+
   test('the group size matches the app\'s', () {
     // The creator is the one member; everyone else is invited.
     expect(groups, contains('invitedIds.size() <= ${Group.maxMembers - 1}'));

@@ -36,6 +36,7 @@ class FirestoreGroupRepository implements IGroupRepository {
     'invitedIds',
     'invitedBy',
     'adminIds',
+    'onlyAdminsAdd',
     'keyGenerations',
     'currentKeyGeneration',
     'lastMessage',
@@ -105,13 +106,13 @@ class FirestoreGroupRepository implements IGroupRepository {
     if (data == null) return null;
     try {
       final generations = KeyGeneration.mapFromJson(data['keyGenerations']);
-      final current = data['currentKeyGeneration'] as int;
       final createdAt = data['createdAt'];
       final last = data['lastMessage'];
 
-      if (joined && await _keyring.needsNewGeneration(generations, current)) {
-        // The user reset their keys: a generation they can open is added,
-        // as for a one-to-one chat. Not awaited; the list does not wait.
+      if (joined && await _keyring.groupNeedsNewGeneration(data)) {
+        // Someone joined or left, or the user reset their keys: a new
+        // generation sealed to everyone in the group now is added. Not
+        // awaited; the list does not wait.
         unawaited(
           _keyring
               .addGenerationIfNeeded(document.id)
@@ -129,6 +130,7 @@ class FirestoreGroupRepository implements IGroupRepository {
         invitedIds: _ids(data['invitedIds']),
         invitedBy: (data['invitedBy'] as Map).cast<String, String>(),
         adminIds: _ids(data['adminIds']),
+        onlyAdminsAdd: data['onlyAdminsAdd'] as bool? ?? false,
         createdAt: createdAt is Timestamp ? createdAt.toDate() : null,
         lastMessage: joined && last is Map
             ? await _lastMessage(
@@ -250,6 +252,134 @@ class FirestoreGroupRepository implements IGroupRepository {
         FieldPath(['invitedBy', userId]): FieldValue.delete(),
       });
       return right(unit);
+    } on Exception catch (exception) {
+      return left(_failureFor(exception));
+    }
+  }
+
+  @override
+  Future<Either<GroupFailure, Unit>> addPeople(
+    UniqueId groupId,
+    List<UniqueId> people, {
+    required HistoryShare history,
+  }) => _forMember(groupId, (userId, ref, data) async {
+    final everyone = {..._ids(data['memberIds']), ..._ids(data['invitedIds'])};
+    final added = {
+      for (final person in people) person.getOrCrash(),
+    }.difference(everyone);
+    if (added.isEmpty) return right(unit);
+    if (everyone.length + added.length > Group.maxMembers) {
+      return left(const GroupTooBig());
+    }
+    final generations = KeyGeneration.mapFromJson(data['keyGenerations']);
+    // One person a write, as the rules require, each with their history in
+    // the same write: once invited, a friend's phone joins at once, and
+    // should find it there.
+    for (final person in added) {
+      // Also fails for someone without keys, who cannot be added: the next
+      // key could not be sealed to them.
+      final shared = await _keyring.historyFor(
+        groupId.getOrCrash(),
+        person,
+        history == HistoryShare.all ? generations : const {},
+      );
+      final batch = _firestore.batch();
+      if (shared.isNotEmpty) {
+        batch.set(ref.collection('sharedKeys').doc(person), {
+          'sharedBy': userId,
+          'generations': shared,
+        });
+      }
+      batch.update(ref, {
+        'invitedIds': FieldValue.arrayUnion([person]),
+        FieldPath(['invitedBy', person]): userId,
+      });
+      await batch.commit();
+    }
+    return right(unit);
+  });
+
+  @override
+  Future<Either<GroupFailure, Unit>> remove(
+    UniqueId groupId,
+    UniqueId userId,
+  ) => _forMember(groupId, (me, ref, data) async {
+    final id = userId.getOrCrash();
+    await ref.update({
+      'memberIds': FieldValue.arrayRemove([id]),
+      'invitedIds': FieldValue.arrayRemove([id]),
+      'adminIds': FieldValue.arrayRemove([id]),
+      FieldPath(['invitedBy', id]): FieldValue.delete(),
+    });
+    return right(unit);
+  });
+
+  @override
+  Future<Either<GroupFailure, Unit>> leave(UniqueId groupId) =>
+      _forMember(groupId, (me, ref, data) async {
+        final members = _ids(data['memberIds']);
+        if (members.length == 1) {
+          // The last member: the group goes with them.
+          await ref.delete();
+          return right(unit);
+        }
+        final group = Group(
+          id: groupId,
+          memberIds: members,
+          invitedIds: _ids(data['invitedIds']),
+          invitedBy: const {},
+          adminIds: _ids(data['adminIds']),
+        );
+        await ref.update({
+          'memberIds': FieldValue.arrayRemove([me]),
+          'adminIds': group.adminsAfterLeaving(me),
+        });
+        return right(unit);
+      });
+
+  @override
+  Future<Either<GroupFailure, Unit>> setAdmin(
+    UniqueId groupId,
+    UniqueId userId, {
+    required bool admin,
+  }) => _forMember(groupId, (me, ref, data) async {
+    final id = userId.getOrCrash();
+    await ref.update({
+      'adminIds': admin
+          ? FieldValue.arrayUnion([id])
+          : FieldValue.arrayRemove([id]),
+    });
+    return right(unit);
+  });
+
+  @override
+  Future<Either<GroupFailure, Unit>> setOnlyAdminsAdd(
+    UniqueId groupId, {
+    required bool onlyAdmins,
+  }) => _forMember(groupId, (me, ref, data) async {
+    await ref.update({'onlyAdminsAdd': onlyAdmins});
+    return right(unit);
+  });
+
+  /// Runs [change] on [groupId] as it is now, for the signed-in user. What
+  /// they may change is the rules' to decide; a refusal is
+  /// [GroupInsufficientPermissions].
+  Future<Either<GroupFailure, Unit>> _forMember(
+    UniqueId groupId,
+    Future<Either<GroupFailure, Unit>> Function(
+      String userId,
+      DocumentReference<Map<String, dynamic>> ref,
+      Map<String, dynamic> data,
+    )
+    change,
+  ) async {
+    final userId = _session.current?.id;
+    if (userId == null) return left(const GroupInsufficientPermissions());
+    try {
+      final ref = _groups.doc(groupId.getOrCrash());
+      final data = (await ref.get()).data();
+      if (data == null) return left(const GroupInsufficientPermissions());
+      return await change(userId, ref, data);
     } on Exception catch (exception) {
       return left(_failureFor(exception));
     }

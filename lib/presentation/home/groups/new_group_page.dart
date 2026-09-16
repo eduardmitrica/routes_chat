@@ -7,6 +7,7 @@ import 'package:routes_chat/application/groups/new_group_bloc.dart';
 import 'package:routes_chat/application/shared/users_watcher/users_watcher_bloc.dart';
 import 'package:routes_chat/domain/groups/group.dart';
 import 'package:routes_chat/domain/groups/group_failure.dart';
+import 'package:routes_chat/domain/groups/group_repository_interface.dart';
 import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/domain/shared/user/user_repository_interface.dart';
 import 'package:routes_chat/domain/shared/user/value_objects.dart';
@@ -14,18 +15,25 @@ import 'package:routes_chat/injection.dart';
 
 import 'group_chat_page.dart';
 
-/// Choosing who is in a new group: friends, and anyone else by username.
-/// Friends join straight away; anyone else is asked first.
+/// Choosing who is in a new group, or who to add to [addTo]: friends, and
+/// anyone else by username. Friends join straight away; anyone else is asked
+/// first. Someone added to a group gets its history as the user chooses.
 class NewGroupPage extends StatefulWidget {
   static const newGroupPageRoute = '/home/groups/new';
 
-  const NewGroupPage({super.key});
+  /// The group people are added to; null for a new group.
+  final Group? addTo;
 
-  static Route<void> route() => MaterialPageRoute(
+  const NewGroupPage({super.key, this.addTo});
+
+  static Route<void> route({Group? addTo}) => MaterialPageRoute(
     settings: const RouteSettings(name: newGroupPageRoute),
     builder: (_) => MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => getIt<NewGroupBloc>()),
+        BlocProvider(
+          create: (_) =>
+              NewGroupBloc(getIt<IGroupRepository>(), capacity: addTo?.room),
+        ),
         BlocProvider(
           create: (_) =>
               getIt<FriendsWatcherBloc>()
@@ -33,7 +41,7 @@ class NewGroupPage extends StatefulWidget {
         ),
         BlocProvider(create: (_) => getIt<UsersWatcherBloc>()),
       ],
-      child: const NewGroupPage(),
+      child: NewGroupPage(addTo: addTo),
     ),
   );
 
@@ -47,6 +55,16 @@ class _NewGroupPageState extends State<NewGroupPage> {
   /// People found by username, who are not among the friends listed.
   final _found = <User>[];
   var _looking = false;
+
+  /// How much of the group's past people added can read. Nothing, unless the
+  /// user chooses otherwise.
+  var _history = HistoryShare.none;
+
+  bool get _adding => widget.addTo != null;
+
+  /// Whether [user] is in the group people are added to already.
+  bool _inGroup(User user) =>
+      widget.addTo?.everyone.contains(user.id.getOrCrash()) ?? false;
 
   @override
   void dispose() {
@@ -65,6 +83,10 @@ class _NewGroupPageState extends State<NewGroupPage> {
     if (!mounted) return;
     setState(() => _looking = false);
     found.fold((_) => _tell('No one goes by that username.'), (user) {
+      if (_inGroup(user)) {
+        _tell('${user.username.getOrCrash()} is in this group already.');
+        return;
+      }
       final bloc = context.read<NewGroupBloc>();
       if (!bloc.state.isChosen(user.id)) {
         bloc.add(NewGroupEvent.personToggled(user.id));
@@ -80,19 +102,23 @@ class _NewGroupPageState extends State<NewGroupPage> {
     ..hideCurrentSnackBar()
     ..showSnackBar(SnackBar(content: Text(text)));
 
-  String _failureText(GroupFailure failure, Map<String, String> names) =>
-      switch (failure) {
-        GroupMemberWithoutKeys(:final userId) =>
-          '${names[userId] ?? 'Someone you chose'} hasn\'t set up encryption '
-              'yet, so they can\'t be in a group.',
-        GroupTooBig() =>
-          'A group holds at most ${Group.maxMembers} people, you included.',
-        GroupInsufficientPermissions() =>
-          'The group couldn\'t be started. Try again.',
-        GroupUnexpected() =>
-          'The group couldn\'t be started. Check your connection and try '
-              'again.',
-      };
+  String _failureText(
+    GroupFailure failure,
+    Map<String, String> names,
+  ) => switch (failure) {
+    GroupMemberWithoutKeys(:final userId) =>
+      '${names[userId] ?? 'Someone you chose'} hasn\'t set up encryption '
+          'yet, so they can\'t be in a group.',
+    GroupTooBig() =>
+      'A group holds at most ${Group.maxMembers} people, you included.',
+    GroupInsufficientPermissions() =>
+      _adding
+          ? 'You can\'t add people to this group.'
+          : 'The group couldn\'t be started. Try again.',
+    GroupUnexpected() =>
+      '${_adding ? 'They couldn\'t be added' : 'The group couldn\'t be started'}. '
+          'Check your connection and try again.',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -111,9 +137,13 @@ class _NewGroupPageState extends State<NewGroupPage> {
       ],
       child: BlocBuilder<UsersWatcherBloc, UsersWatcherState>(
         builder: (context, users) {
-          final friends = users is UsersWatcherLoadSuccess
+          final allFriends = users is UsersWatcherLoadSuccess
               ? users.users.asList()
               : const <User>[];
+          final friends = [
+            for (final user in allFriends)
+              if (!_inGroup(user)) user,
+          ];
           final people = [
             ...friends,
             for (final user in _found)
@@ -129,7 +159,9 @@ class _NewGroupPageState extends State<NewGroupPage> {
                 previous.failures != current.failures,
             listener: (context, state) {
               final created = state.createdId;
-              if (created != null) {
+              if (created != null && _adding) {
+                Navigator.of(context).pop();
+              } else if (created != null) {
                 unawaited(
                   Navigator.of(
                     context,
@@ -140,7 +172,7 @@ class _NewGroupPageState extends State<NewGroupPage> {
               }
             },
             builder: (context, state) => Scaffold(
-              appBar: AppBar(title: const Text('New group')),
+              appBar: AppBar(title: Text(_adding ? 'Add people' : 'New group')),
               body: Column(
                 children: [
                   Expanded(
@@ -159,7 +191,11 @@ class _NewGroupPageState extends State<NewGroupPage> {
                             child: Center(child: CircularProgressIndicator()),
                           )
                         else if (friends.isEmpty)
-                          const _Muted('No friends yet.'),
+                          _Muted(
+                            allFriends.isNotEmpty
+                                ? 'Your friends are all in it already.'
+                                : 'No friends yet.',
+                          ),
                         for (final friend in friends)
                           _PersonTile(user: friend, state: state),
                         if (_found.any(
@@ -179,23 +215,36 @@ class _NewGroupPageState extends State<NewGroupPage> {
                     top: false,
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: FilledButton(
-                          onPressed: state.canCreate
-                              ? () => context.read<NewGroupBloc>().add(
-                                  const NewGroupEvent.created(),
-                                )
-                              : null,
-                          child: Text(
-                            state.creating
-                                ? 'Starting the group…'
-                                : state.chosen.isEmpty
-                                ? 'Choose who is in it'
-                                : 'Start group with ${state.chosen.length + 1} '
-                                      'people',
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_adding) ...[
+                            _HistoryChoice(
+                              value: _history,
+                              onChanged: state.creating
+                                  ? null
+                                  : (history) =>
+                                        setState(() => _history = history),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
+                          SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              onPressed: state.canCreate
+                                  ? () => context.read<NewGroupBloc>().add(
+                                      _adding
+                                          ? NewGroupEvent.addedTo(
+                                              widget.addTo!.id,
+                                              history: _history,
+                                            )
+                                          : const NewGroupEvent.created(),
+                                    )
+                                  : null,
+                              child: Text(_buttonText(state)),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
                   ),
@@ -205,6 +254,67 @@ class _NewGroupPageState extends State<NewGroupPage> {
           );
         },
       ),
+    );
+  }
+}
+
+extension on _NewGroupPageState {
+  String _buttonText(NewGroupState state) {
+    final count = state.chosen.length;
+    if (_adding) {
+      if (state.creating) return 'Adding…';
+      if (count == 0) return 'Choose who to add';
+      return count == 1 ? 'Add 1 person' : 'Add $count people';
+    }
+    if (state.creating) return 'Starting the group…';
+    if (count == 0) return 'Choose who is in it';
+    return 'Start group with ${count + 1} people';
+  }
+}
+
+/// How much of the group's past the people added can read.
+class _HistoryChoice extends StatelessWidget {
+  final HistoryShare value;
+  final ValueChanged<HistoryShare>? onChanged;
+
+  const _HistoryChoice({required this.value, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'What they can read',
+          style: theme.textTheme.titleSmall?.copyWith(
+            color: theme.colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SegmentedButton<HistoryShare>(
+          segments: const [
+            ButtonSegment(value: HistoryShare.none, label: Text('From now on')),
+            ButtonSegment(
+              value: HistoryShare.all,
+              label: Text('Everything before too'),
+            ),
+          ],
+          selected: {value},
+          onSelectionChanged: onChanged == null
+              ? null
+              : (selected) => onChanged!(selected.single),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          value == HistoryShare.none
+              ? 'They see only what is sent after they are added.'
+              : 'They can read every earlier message you can read.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -220,7 +330,11 @@ class _PersonTile extends StatelessWidget {
     final chosen = state.isChosen(user.id);
     return CheckboxListTile(
       value: chosen,
-      onChanged: (!chosen && state.isFull) || state.creating
+      onChanged:
+          (!chosen &&
+                  state.chosen.length >=
+                      context.read<NewGroupBloc>().capacity) ||
+              state.creating
           ? null
           : (_) => context.read<NewGroupBloc>().add(
               NewGroupEvent.personToggled(user.id),

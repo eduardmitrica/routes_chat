@@ -17,6 +17,9 @@ import 'package:routes_chat/application/chats/messages/message_actor/message_act
 import 'package:routes_chat/application/safety/block_list_bloc.dart';
 import 'package:routes_chat/application/safety/report_bloc.dart';
 import 'package:routes_chat/application/chats/message_requests/message_requests_bloc.dart';
+import 'package:routes_chat/application/encryption/safety_number/safety_number_bloc.dart';
+import 'package:routes_chat/domain/encryption/key_verifications.dart';
+import 'package:routes_chat/presentation/encryption/safety_number_page.dart';
 import 'package:routes_chat/domain/safety/safety_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message_changes.dart';
 import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
@@ -46,6 +49,7 @@ import 'media_failure_message.dart';
 import 'message_bubble.dart';
 import 'message_composer.dart';
 import 'message_request_bar.dart';
+import 'safety_number_changed_bar.dart';
 import 'messages_skeleton.dart';
 import 'open_link_dialog.dart';
 import 'outgoing_message_bubble.dart';
@@ -131,6 +135,7 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
   final _blockList = getIt<BlockListBloc>();
   final _requests = getIt<MessageRequestsBloc>();
   final _report = getIt<ReportBloc>();
+  final _safetyNumber = getIt<SafetyNumberBloc>();
   UniqueId? _chatId;
 
   Timer? _searchDebounce;
@@ -145,6 +150,8 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
     _scrollController.addListener(_loadOlderIfNearTop);
     // Brings back what the user wrote here and did not send.
     _chatBar.add(ChatBarEvent.started(widget.otherUser.id));
+    // The number that says whose keys these are.
+    _safetyNumber.add(SafetyNumberEvent.started(widget.otherUser.id));
     final myId = getIt<ICurrentUserSession>().current?.id;
     if (myId != null) {
       final chatId = compositeId([
@@ -176,15 +183,22 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
     unawaited(_activity.close());
     unawaited(_actor.close());
     unawaited(_report.close());
+    unawaited(_safetyNumber.close());
     if (_chatId case final chatId?) OpenChat.closed(chatId);
     super.dispose();
   }
 
   /// Accepted just now: what the chat shows counts as read from here on.
+  /// And when someone resets their keys with the chat open, the safety number
+  /// is worked out again, so a number that no longer matches is caught here
+  /// too, not only the next time the chat opens.
   @override
   void didUpdateWidget(covariant _ChatView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.isRequest && !widget.isRequest) _reportShown();
+    if (widget.chat?.keyResets.size != oldWidget.chat?.keyResets.size) {
+      _safetyNumber.add(const SafetyNumberEvent.refreshed());
+    }
   }
 
   MessagesWatcherBloc? get _messages =>
@@ -266,6 +280,16 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
     }
     if (mounted) Navigator.of(context).pop();
   }
+
+  /// The number for this chat, with the code to scan.
+  void _openSafetyNumber() => unawaited(
+    Navigator.of(context).push(
+      SafetyNumberPage.route(
+        bloc: _safetyNumber,
+        name: widget.otherUser.username.getOrCrash(),
+      ),
+    ),
+  );
 
   Future<void> _unblock() async {
     final name = widget.otherUser.username.getOrCrash();
@@ -922,6 +946,25 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
                           ],
                         ),
                 ),
+                // Once the number of someone the user checked is not the
+                // one they checked.
+                Offstage(
+                  offstage: _searchOpen,
+                  child: BlocBuilder<SafetyNumberBloc, SafetyNumberState>(
+                    bloc: _safetyNumber,
+                    buildWhen: (previous, current) =>
+                        previous.warns != current.warns,
+                    builder: (context, state) => state.warns
+                        ? SafetyNumberChangedBar(
+                            name: widget.otherUser.username.getOrCrash(),
+                            onCheck: _openSafetyNumber,
+                            onDismiss: () => _safetyNumber.add(
+                              const SafetyNumberEvent.warningSeen(),
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ),
                 // Hidden, not removed, so a half-typed message survives a
                 // search.
                 Offstage(
@@ -965,6 +1008,7 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
     title: _ChatTitle(
       name: widget.otherUser.username.getOrCrash(),
       activity: _activity,
+      safetyNumber: _safetyNumber,
     ),
     actions: [
       if (canSearch)
@@ -990,6 +1034,10 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
                     value: () => unawaited(_confirmBlock()),
                     child: const Text('Block'),
                   ),
+            PopupMenuItem(
+              value: _openSafetyNumber,
+              child: const Text('Safety number'),
+            ),
             PopupMenuItem(
               value: () => unawaited(_openReport()),
               child: const Text('Report'),
@@ -1523,8 +1571,13 @@ Future<void> _pickMedia(BuildContext context, ChatBarBloc chatBar) async {
 class _ChatTitle extends StatelessWidget {
   final String name;
   final ChatActivityBloc activity;
+  final SafetyNumberBloc safetyNumber;
 
-  const _ChatTitle({required this.name, required this.activity});
+  const _ChatTitle({
+    required this.name,
+    required this.activity,
+    required this.safetyNumber,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1537,7 +1590,38 @@ class _ChatTitle extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                BlocBuilder<SafetyNumberBloc, SafetyNumberState>(
+                  bloc: safetyNumber,
+                  buildWhen: (previous, current) =>
+                      previous.state != current.state,
+                  builder: (context, state) =>
+                      state.state == KeyVerificationState.verified
+                      ? Padding(
+                          padding: const EdgeInsets.only(left: 6),
+                          child: Tooltip(
+                            message: 'Verified on this phone',
+                            child: Icon(
+                              Icons.verified_user_rounded,
+                              size: 16,
+                              semanticLabel: 'Verified',
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
+            ),
             if (label != null)
               Semantics(
                 liveRegion: true,

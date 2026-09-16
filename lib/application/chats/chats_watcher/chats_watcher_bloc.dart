@@ -6,7 +6,10 @@ import 'package:dartz/dartz.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/domain/chats/chat_failure.dart';
 import 'package:routes_chat/domain/chats/chat_reads.dart';
+import 'package:routes_chat/domain/chats/chat_requests.dart';
 import 'package:routes_chat/domain/chats/chat_repository_interface.dart';
+import 'package:routes_chat/domain/friend_requests/friend_request.dart';
+import 'package:routes_chat/domain/friend_requests/friend_requests_repository_interface.dart';
 import 'package:routes_chat/domain/safety/blocks.dart';
 import 'package:routes_chat/domain/shared/user/current_user_session_interface.dart';
 
@@ -17,27 +20,36 @@ part 'chats_watcher_event.dart';
 
 part 'chats_watcher_state.dart';
 
-/// The user's chats: which of them have messages the user has not read on
-/// this phone, which are with someone the user blocked, and which end with a
-/// message that stays out of sight.
+/// The user's chats, and what stands out about each: unread, with someone
+/// blocked, a last message kept out of sight, or waiting to be accepted
+/// because it comes from someone who is not a friend.
 class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
   final IChatRepository _chatRepository;
   final ICurrentUserSession _session;
   final IChatReads? _reads;
   final IBlockList? _blocks;
+  final IChatRequests? _requests;
+  final IFriendRequestsRepository? _friendRequests;
 
   StreamSubscription<Either<ChatFailure, KtList<Chat>>>? _chatsSubscription;
   StreamSubscription<ChatReads>? _readsSubscription;
   StreamSubscription<Blocks>? _blocksSubscription;
+  StreamSubscription<ChatRequests>? _requestsSubscription;
+  StreamSubscription<Object>? _friendsSubscription;
   ChatReads? _readsNow;
+  var _friendIds = <String>{};
 
   ChatsWatcherBloc(
     this._chatRepository,
     this._session, {
     IChatReads? reads,
     IBlockList? blocks,
+    IChatRequests? requests,
+    IFriendRequestsRepository? friendRequests,
   }) : _reads = reads,
        _blocks = blocks,
+       _requests = requests,
+       _friendRequests = friendRequests,
        super(const ChatsWatcherState.initial()) {
     on<ChatsWatcherEvent>((event, emit) {
       switch (event) {
@@ -53,6 +65,19 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
           _blocksSubscription ??= _blocks?.blocksChanges.listen((_) {
             if (!isClosed) add(const ChatsWatcherEvent.blocksChanged());
           });
+          _requestsSubscription ??= _requests?.requestsChanges.listen((_) {
+            if (!isClosed) add(const ChatsWatcherEvent.requestsChanged());
+          });
+          _friendsSubscription ??= _friendRequests
+              ?.watchFriendsForCurrentUser()
+              .listen((failureOrFriends) {
+                if (isClosed) return;
+                failureOrFriends.fold(
+                  (_) {},
+                  (friends) =>
+                      add(ChatsWatcherEvent.friendsReceived(_idsIn(friends))),
+                );
+              });
         case ChatsReceived():
           final userId = _session.current?.id ?? '';
           emit(
@@ -84,8 +109,26 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
           _refresh(emit);
         case ChatsBlocksChanged():
           _refresh(emit);
+        case ChatsRequestsChanged():
+          _refresh(emit);
+        case ChatsFriendsReceived(:final friendIds):
+          _friendIds = {for (final id in friendIds.iter) id.getOrCrash()};
+          _refresh(emit);
       }
     });
+  }
+
+  /// The other person in each accepted friend request.
+  KtList<UniqueId> _idsIn(KtList<FriendRequest> friends) {
+    final userId = _session.current?.id;
+    return friends
+        .map(
+          (friend) => friend.senderId.getOrCrash() == userId
+              ? friend.receiverId
+              : friend.senderId,
+        )
+        .toSet()
+        .toList();
   }
 
   void _refresh(Emitter<ChatsWatcherState> emit) {
@@ -97,9 +140,8 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
     }
   }
 
-  /// [chats] with what stands out in each: unread, blocked, or a last message
-  /// that stays hidden. A hidden message, or a blocked person, never makes a
-  /// chat unread.
+  /// [chats] with what stands out in each. A hidden message, a blocked
+  /// person, or a chat waiting to be accepted never makes a chat unread.
   ChatsWatcherLoadSuccess _loaded(
     KtList<Chat> chats,
     KtList<UniqueId> friendsThatCurrentUserHasChatsTo,
@@ -107,24 +149,45 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
     final userId = _session.current?.id;
     final reads = _readsNow;
     final blocks = _blocks?.blocks ?? const Blocks();
+    final requests = _requests?.requests;
     final unread = <String>{};
     final blocked = <String>{};
     final hiddenPreview = <String>{};
+    final waiting = <String>{};
+    final hidden = <String>{};
     for (final chat in chats.iter) {
       final id = chat.id.getOrCrash();
-      final withBlocked = chat.participantsList.getOrCrash().iter.any(
-        (participant) =>
-            participant.value1.getOrCrash() != userId &&
-            blocks.isBlocked(participant.value1),
-      );
+      final others = [
+        for (final participant in chat.participantsList.getOrCrash().iter)
+          if (participant.value1.getOrCrash() != userId) participant.value1,
+      ];
+      final withBlocked = others.any(blocks.isBlocked);
       final last = chat.lastMessage;
       final lastHidden = blocks.hides(last.senderId, last.lastUpdatedAt);
       if (withBlocked) blocked.add(id);
       if (lastHidden) hiddenPreview.add(id);
+
+      // Where it belongs: among the chats, waiting, or nowhere.
+      if (userId != null && requests != null && !withBlocked) {
+        final place = placeOf(
+          chat,
+          userId,
+          isFriend: others.any(
+            (other) => _friendIds.contains(other.getOrCrash()),
+          ),
+          requests: requests,
+          startedByUser: lastMessageIsFrom(chat, userId),
+        );
+        if (place == ChatPlace.request) waiting.add(id);
+        if (place == ChatPlace.hidden) hidden.add(id);
+      }
+
       if (reads != null &&
           userId != null &&
           !withBlocked &&
           !lastHidden &&
+          !waiting.contains(id) &&
+          !hidden.contains(id) &&
           reads.isUnread(chat, userId)) {
         unread.add(id);
       }
@@ -135,6 +198,8 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
       unreadChatIds: unread,
       blockedChatIds: blocked,
       hiddenPreviewChatIds: hiddenPreview,
+      requestChatIds: waiting,
+      hiddenChatIds: hidden,
     );
   }
 
@@ -156,6 +221,8 @@ class ChatsWatcherBloc extends Bloc<ChatsWatcherEvent, ChatsWatcherState> {
     await _chatsSubscription?.cancel();
     await _readsSubscription?.cancel();
     await _blocksSubscription?.cancel();
+    await _requestsSubscription?.cancel();
+    await _friendsSubscription?.cancel();
     return super.close();
   }
 }

@@ -29,6 +29,33 @@ Future<bool> confirmBlock(BuildContext context, String name) async =>
     ) ??
     false;
 
+/// Asks before clearing a request from [name]: they are not told, and a
+/// new message from them brings the chat back.
+Future<bool> confirmDeleteRequest(BuildContext context, String name) async =>
+    await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete the request from $name?'),
+        content: Text(
+          'The chat leaves your requests and $name isn\'t told. If they '
+          'message you again, it comes back. Block them to stop them for '
+          'good.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: AppTheme.destructiveButton(Theme.of(context).colorScheme),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    ) ??
+    false;
+
 /// What the user chose to report.
 final class ReportChoice {
   final ReportReason reason;

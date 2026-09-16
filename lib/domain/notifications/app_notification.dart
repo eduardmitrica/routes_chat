@@ -22,6 +22,20 @@ final class MessageNotification extends AppNotification {
   List<Object?> get props => [chatId, senderName];
 }
 
+/// A first message in [chatId] from someone who is not a friend, waiting to
+/// be accepted or deleted.
+final class MessageRequestNotification extends AppNotification {
+  final UniqueId chatId;
+
+  const MessageRequestNotification({
+    required this.chatId,
+    required String senderName,
+  }) : super(senderName);
+
+  @override
+  List<Object?> get props => [chatId, senderName];
+}
+
 /// A new friend request.
 final class FriendRequestNotification extends AppNotification {
   const FriendRequestNotification({required String senderName})

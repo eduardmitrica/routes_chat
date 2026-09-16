@@ -876,6 +876,58 @@ service cloud.firestore {
           groupAfterInvite().invitedBy[userId] == request.auth.uid;
         allow delete: if signedIn() && request.auth.uid == userId;
       }
+
+      // Messages from the last day or week before someone was added, copied
+      // for them alone by whoever added them (FirestoreGroupRepository
+      // .addPeople): the grant here holds who shared, from when, and the key
+      // of the copies sealed to [userId] as generation 0, which no real
+      // generation is.
+      match /history/{userId} {
+        function groupAfterGrant() {
+          return getAfter(/databases/$(database)/documents/groups/$(groupId))
+            .data;
+        }
+
+        allow get: if signedIn() && request.auth.uid == userId;
+        // Written in the same batch as the invitation, by whoever invites.
+        allow create, update: if signedIn() &&
+          request.resource.data.keys().hasOnly(['sharedBy', 'since', 'key']) &&
+          request.resource.data.sharedBy == request.auth.uid &&
+          request.resource.data.since is timestamp &&
+          request.resource.data.since <= request.time &&
+          isSealedChatKey(request.resource.data.key) &&
+          request.auth.uid in groupAfterGrant().memberIds &&
+          userId in groupAfterGrant().invitedIds &&
+          groupAfterGrant().invitedBy[userId] == request.auth.uid;
+        allow delete: if signedIn() && request.auth.uid == userId;
+
+        match /messages/{messageId} {
+          function grant() {
+            return get(/databases/$(database)/documents/groups/$(groupId)/history/$(userId)).data;
+          }
+          function original() {
+            return get(/databases/$(database)/documents/groups/$(groupId)/messages/$(messageId)).data;
+          }
+
+          // Only the person they were copied for, once they have joined.
+          allow read: if signedIn() && request.auth.uid == userId &&
+            userId in groupNow().memberIds;
+          // A copy of a real message from the shared window, by whoever
+          // shared it, keeping the message's sender and time, encrypted
+          // under generation 0. The rules cannot compare what the copy says
+          // with the message: the person added trusts whoever added them
+          // for that.
+          allow create, update: if signedIn() &&
+            grant().sharedBy == request.auth.uid &&
+            request.auth.uid in groupNow().memberIds &&
+            request.resource.data.keys().hasOnly(messageFields()) &&
+            request.resource.data.senderId == original().senderId &&
+            request.resource.data.serverTimeStamp == original().serverTimeStamp &&
+            original().serverTimeStamp >= grant().since &&
+            isEncryptedContent(request.resource.data.content, 0);
+          allow delete: if signedIn() && request.auth.uid == userId;
+        }
+      }
     }
 
     // Reports of abuse. Chats are end-to-end encrypted, so a report carries

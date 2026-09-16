@@ -7,6 +7,7 @@ import 'package:routes_chat/application/groups/new_group_bloc.dart';
 import 'package:routes_chat/application/shared/users_watcher/users_watcher_bloc.dart';
 import 'package:routes_chat/domain/groups/group.dart';
 import 'package:routes_chat/domain/groups/group_failure.dart';
+import 'package:routes_chat/domain/groups/group_profile.dart';
 import 'package:routes_chat/domain/groups/group_repository_interface.dart';
 import 'package:routes_chat/domain/shared/user/user.dart';
 import 'package:routes_chat/domain/shared/user/user_repository_interface.dart';
@@ -51,6 +52,7 @@ class NewGroupPage extends StatefulWidget {
 
 class _NewGroupPageState extends State<NewGroupPage> {
   final _username = TextEditingController();
+  final _groupName = TextEditingController();
 
   /// People found by username, who are not among the friends listed.
   final _found = <User>[];
@@ -69,6 +71,7 @@ class _NewGroupPageState extends State<NewGroupPage> {
   @override
   void dispose() {
     _username.dispose();
+    _groupName.dispose();
     super.dispose();
   }
 
@@ -179,6 +182,22 @@ class _NewGroupPageState extends State<NewGroupPage> {
                     child: ListView(
                       padding: const EdgeInsets.only(bottom: 16),
                       children: [
+                        if (!_adding)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                            child: TextField(
+                              controller: _groupName,
+                              maxLength: GroupProfile.maxNameLength,
+                              textCapitalization: TextCapitalization.sentences,
+                              onTapOutside: (_) =>
+                                  FocusManager.instance.primaryFocus?.unfocus(),
+                              decoration: const InputDecoration(
+                                labelText: 'Group name (optional)',
+                                helperText:
+                                    'Only people in the group can see it.',
+                              ),
+                            ),
+                          ),
                         _UsernameField(
                           controller: _username,
                           looking: _looking,
@@ -238,7 +257,9 @@ class _NewGroupPageState extends State<NewGroupPage> {
                                               widget.addTo!.id,
                                               history: _history,
                                             )
-                                          : const NewGroupEvent.created(),
+                                          : NewGroupEvent.created(
+                                              name: _groupName.text,
+                                            ),
                                     )
                                   : null,
                               child: Text(_buttonText(state)),

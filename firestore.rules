@@ -611,8 +611,8 @@ service cloud.firestore {
       // Must match FirestoreGroupRepository.fields; a test checks it.
       function groupFields() {
         return ['memberIds', 'invitedIds', 'invitedBy', 'adminIds',
-                'onlyAdminsAdd', 'keyGenerations', 'currentKeyGeneration',
-                'lastMessage', 'createdAt'];
+                'onlyAdminsAdd', 'profile', 'keyGenerations',
+                'currentKeyGeneration', 'lastMessage', 'createdAt'];
       }
 
       function groupNow() {
@@ -635,6 +635,29 @@ service cloud.firestore {
           generation.sealedKeys.keys().hasOnly(people) &&
           generation.sealedKeys.keys().hasAll(people) &&
           isSealedChatKey(generation.sealedKeys[request.auth.uid]);
+      }
+
+      // The group's name and photo, encrypted under generation [generation]
+      // of its key (ChatCipher.encryptGroupProfile): a photo of at most
+      // 45000 bytes and a name travel in at most 70000 characters of base64.
+      function isEncryptedProfile(profile, generation) {
+        return profile.keys().hasOnly(['v', 'e', 'nonce', 'cipherText', 'mac']) &&
+          profile.v == 1 &&
+          profile.e == generation &&
+          profile.nonce is string && profile.nonce.size() == 16 &&
+          profile.mac is string && profile.mac.size() == 24 &&
+          profile.cipherText is string && profile.cipherText.size() <= 70000;
+      }
+
+      // Any member sets the name and photo, under the current generation.
+      // The server cannot tell a change from the same name encrypted again
+      // for someone who joined since, which is why any member may: the chat
+      // shows an event for a change.
+      function setsProfile() {
+        return request.auth.uid in resource.data.memberIds &&
+          onlyChanges(['profile']) &&
+          isEncryptedProfile(request.resource.data.profile,
+                             resource.data.currentKeyGeneration);
       }
 
       // The update changes nothing but [fields].
@@ -819,6 +842,8 @@ service cloud.firestore {
                                 everyoneIn(request.resource.data)) &&
         (!('onlyAdminsAdd' in request.resource.data) ||
          request.resource.data.onlyAdminsAdd is bool) &&
+        (!('profile' in request.resource.data) ||
+         isEncryptedProfile(request.resource.data.profile, 1)) &&
         request.resource.data.createdAt == request.time;
 
       allow update: if signedIn() &&
@@ -826,7 +851,7 @@ service cloud.firestore {
         (joinsByInvitation() || turnsDownInvitation() ||
          setsLastMessage() || addsNextGroupKeyGeneration() ||
          addsSomeone() || removesSomeone() || leaves() || setsAdmins() ||
-         setsOnlyAdminsAdd());
+         setsOnlyAdminsAdd() || setsProfile());
 
       // The last member leaving takes the group with them.
       allow delete: if signedIn() &&
@@ -839,20 +864,87 @@ service cloud.firestore {
             .data;
         }
 
+        // The group before this write, which a batch has not changed yet.
+        function groupBefore() {
+          return get(/databases/$(database)/documents/groups/$(groupId)).data;
+        }
+
+        // Must match what FirestoreGroupRepository writes for an event; a
+        // test checks it.
+        function eventFields() {
+          return ['kind', 'type', 'senderId', 'subjectId', 'on',
+                  'serverTimeStamp'];
+        }
+
+        // An event is true: the change it describes is made by the same
+        // batch, by the caller (GroupEventType in the app).
+        function eventHappens(event) {
+          let me = request.auth.uid;
+          let after = groupAfter();
+          let type = event.type;
+          let subject = event.get('subjectId', '');
+          return
+            (type == 'created' &&
+              !exists(/databases/$(database)/documents/groups/$(groupId)) &&
+              me in after.adminIds) ||
+            (type == 'added' &&
+              subject in after.invitedIds &&
+              !(subject in groupBefore().invitedIds) &&
+              after.invitedBy[subject] == me) ||
+            (type == 'joined' &&
+              me in after.memberIds && !(me in groupBefore().memberIds)) ||
+            (type == 'left' &&
+              me in groupBefore().memberIds && !(me in after.memberIds)) ||
+            (type == 'removed' &&
+              me in groupBefore().adminIds &&
+              subject in everyoneIn(groupBefore()) &&
+              !(subject in everyoneIn(after))) ||
+            (type == 'adminAdded' &&
+              subject in after.adminIds &&
+              !(subject in groupBefore().adminIds)) ||
+            (type == 'adminRemoved' &&
+              !(subject in after.adminIds) &&
+              subject in groupBefore().adminIds &&
+              subject in after.memberIds) ||
+            ((type == 'renamed' || type == 'photoChanged') &&
+              after.get('profile', null) != groupBefore().get('profile', null)) ||
+            (type == 'onlyAdminsAdd' &&
+              event.on == after.onlyAdminsAdd &&
+              after.onlyAdminsAdd != groupBefore().get('onlyAdminsAdd', false));
+        }
+
+        // Something that happened to the group, as a line in its chat, with no
+        // text of anyone's. A subject only for the events about someone, and
+        // "on" only for the switch.
+        function isEvent(event) {
+          return event.keys().hasOnly(eventFields()) &&
+            event.kind == 'event' &&
+            event.senderId == request.auth.uid &&
+            event.serverTimeStamp == request.time &&
+            (('subjectId' in event) ==
+               (event.type in ['added', 'removed', 'adminAdded', 'adminRemoved'])) &&
+            (('on' in event) == (event.type == 'onlyAdminsAdd')) &&
+            eventHappens(event);
+        }
+
         // Only members read messages: the invited hold the key, not the
         // messages, until they join.
         allow read: if signedIn() && request.auth.uid in groupNow().memberIds;
-        // Dated by the server, under the current generation, by a member.
-        // That generation must be sealed to exactly the people in the group:
-        // after someone joins or leaves, a member's phone adds the next one
-        // before anyone writes, so nobody who left reads what follows.
+        // A message: dated by the server, under the current generation, by a
+        // member. That generation must be sealed to exactly the people in
+        // the group: after someone joins or leaves, a member's phone adds the
+        // next one before anyone writes, so nobody who left reads what
+        // follows. An event carries no text, so it needs no key, and is
+        // written with its change before any new key exists.
         allow create: if signedIn() &&
-          request.auth.uid in groupAfter().memberIds &&
-          groupAfter().keyGenerations[string(groupAfter().currentKeyGeneration)]
-            .sealedKeys.keys().toSet() == everyoneIn(groupAfter()).toSet() &&
-          request.resource.data.serverTimeStamp == request.time &&
-          isOwnEncryptedMessage(request.resource.data, messageFields(),
-                                groupAfter().currentKeyGeneration);
+          (!('kind' in request.resource.data) &&
+           request.auth.uid in groupAfter().memberIds &&
+           groupAfter().keyGenerations[string(groupAfter().currentKeyGeneration)]
+             .sealedKeys.keys().toSet() == everyoneIn(groupAfter()).toSet() &&
+           request.resource.data.serverTimeStamp == request.time &&
+           isOwnEncryptedMessage(request.resource.data, messageFields(),
+                                 groupAfter().currentKeyGeneration)) ||
+          isEvent(request.resource.data);
         // Editing and deleting group messages come later.
         allow update, delete: if false;
       }

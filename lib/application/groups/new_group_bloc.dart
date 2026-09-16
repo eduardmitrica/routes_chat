@@ -13,8 +13,9 @@ sealed class NewGroupEvent extends Equatable {
   const factory NewGroupEvent.personToggled(UniqueId userId) =
       NewGroupPersonToggled;
 
-  /// Starts the group with the people chosen.
-  const factory NewGroupEvent.created() = NewGroupCreated;
+  /// Starts the group with the people chosen, named [name] if it is not
+  /// empty.
+  const factory NewGroupEvent.created({String name}) = NewGroupCreated;
 
   /// Adds the people chosen to the group [groupId], who can read its past as
   /// [history] says.
@@ -35,7 +36,10 @@ final class NewGroupPersonToggled extends NewGroupEvent {
 }
 
 final class NewGroupCreated extends NewGroupEvent {
-  const NewGroupCreated();
+  final String name;
+  const NewGroupCreated({this.name = ''});
+  @override
+  List<Object?> get props => [name];
 }
 
 final class PeopleAddedToGroup extends NewGroupEvent {
@@ -148,7 +152,7 @@ class NewGroupBloc extends Bloc<NewGroupEvent, NewGroupState> {
             ),
           );
 
-        case NewGroupCreated():
+        case NewGroupCreated(:final name):
           if (!state.canCreate) return;
           emit(
             NewGroupState(
@@ -157,7 +161,7 @@ class NewGroupBloc extends Bloc<NewGroupEvent, NewGroupState> {
               failures: state.failures,
             ),
           );
-          final result = await _groups.create(state.chosen);
+          final result = await _groups.create(state.chosen, name: name);
           emit(
             result.fold(
               (failure) => NewGroupState(

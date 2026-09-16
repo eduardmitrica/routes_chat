@@ -20,7 +20,10 @@ abstract interface class IGroupRepository {
   ///
   /// Fails with [GroupTooBig] beyond [Group.maxMembers], and with
   /// [GroupMemberWithoutKeys] if someone has not set up encryption.
-  Future<Either<GroupFailure, UniqueId>> create(List<UniqueId> invitees);
+  Future<Either<GroupFailure, UniqueId>> create(
+    List<UniqueId> invitees, {
+    String name = '',
+  });
 
   /// The user joins [groupId], which they were invited to.
   Future<Either<GroupFailure, Unit>> accept(UniqueId groupId);
@@ -54,6 +57,16 @@ abstract interface class IGroupRepository {
     UniqueId groupId,
     UniqueId userId, {
     required bool admin,
+  });
+
+  /// A member changes [groupId]'s name to [name], and its photo to the
+  /// image at [photoPath], made small; [removePhoto] takes the photo away.
+  /// Without either, the photo stays as it is.
+  Future<Either<GroupFailure, Unit>> setProfile(
+    UniqueId groupId, {
+    required String name,
+    String? photoPath,
+    bool removePhoto = false,
   });
 
   /// An admin decides whether only admins may add people to [groupId].

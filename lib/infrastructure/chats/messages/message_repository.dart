@@ -25,6 +25,7 @@ import 'package:routes_chat/domain/chats/messages/message_changes.dart';
 import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
 import 'package:routes_chat/infrastructure/chats/messages/attachment_store.dart';
+import 'package:routes_chat/infrastructure/core/firestore_helpers.dart';
 
 /// A chat's messages, encrypted on the way in and decrypted on the way out.
 /// See docs/e2ee.md.
@@ -200,7 +201,7 @@ class MessageRepository implements IMessageRepository {
   ) async {
     final id = chatId.getOrCrash();
     final messageId = message.id.getOrCrash();
-    final chatRef = _chats.doc(id);
+    final chatRef = _conversation(id);
     final messageRef = chatRef.collection('messages').doc(messageId);
     try {
       // A user whose keys were reset first adds a generation of the chat key
@@ -293,7 +294,7 @@ class MessageRepository implements IMessageRepository {
     }
     final id = chatId.getOrCrash();
     final messageId = message.id.getOrCrash();
-    final chatRef = _chats.doc(id);
+    final chatRef = _conversation(id);
     final messageRef = chatRef.collection('messages').doc(messageId);
     final edited = message.copyWith(content: Content(text), isEdited: true);
     try {
@@ -350,7 +351,7 @@ class MessageRepository implements IMessageRepository {
     }
     final id = chatId.getOrCrash();
     final messageId = message.id.getOrCrash();
-    final chatRef = _chats.doc(id);
+    final chatRef = _conversation(id);
     final messageRef = chatRef.collection('messages').doc(messageId);
     try {
       // The photos go first. Once the message is deleted, nothing refers to
@@ -523,7 +524,7 @@ class MessageRepository implements IMessageRepository {
         return right(unit);
       }
       await _keyring.addGenerationIfNeeded(id);
-      final chatRef = _chats.doc(id);
+      final chatRef = _conversation(id);
       final (chatDocument, messageDocument) = await (
         chatRef.get(),
         chatRef.collection('messages').doc(messageId).get(),
@@ -568,14 +569,15 @@ class MessageRepository implements IMessageRepository {
   static String reactionIdOf(String messageId, String userId) =>
       '${messageId}_$userId';
 
-  CollectionReference<Map<String, dynamic>> get _chats =>
-      _firestore.collection('chats');
+  /// A one-to-one chat or a group, by its id.
+  DocumentReference<Map<String, dynamic>> _conversation(String chatId) =>
+      _firestore.conversationDocument(chatId);
 
   CollectionReference<Map<String, dynamic>> _messages(String chatId) =>
-      _chats.doc(chatId).collection('messages');
+      _conversation(chatId).collection('messages');
 
   CollectionReference<Map<String, dynamic>> _reactions(String chatId) =>
-      _chats.doc(chatId).collection('reactions');
+      _conversation(chatId).collection('reactions');
 
   static MessageFailure _failureFor(Object exception) {
     // Firestore says permission-denied, Storage unauthorized.

@@ -68,6 +68,9 @@ import 'application/chats/messages/message_actor/message_actor_bloc.dart';
 import 'domain/chats/messages/emoji_usage.dart';
 import 'infrastructure/chats/messages/emoji_preferences_store.dart';
 import 'domain/chats/chat_reads.dart';
+import 'application/chats/message_requests/message_requests_bloc.dart';
+import 'domain/chats/chat_requests.dart';
+import 'infrastructure/chats/firestore_chat_requests_repository.dart';
 import 'infrastructure/chats/chat_reads_store.dart';
 import 'application/safety/block_list_bloc.dart';
 import 'application/safety/report_bloc.dart';
@@ -265,6 +268,19 @@ void configureDependencies() {
       ),
     )
     ..registerLazySingleton<IBlockList>(() => getIt<BlockListBloc>())
+    ..registerLazySingleton<IChatRequestsRepository>(
+      () => FirestoreChatRequestsRepository(
+        getIt<FirebaseFirestore>(),
+        getIt<ICurrentUserSession>(),
+      ),
+    )
+    ..registerLazySingleton<MessageRequestsBloc>(
+      () => MessageRequestsBloc(
+        getIt<IChatRequestsRepository>(),
+        getIt<ICurrentUserSession>(),
+      ),
+    )
+    ..registerLazySingleton<IChatRequests>(() => getIt<MessageRequestsBloc>())
     ..registerLazySingleton<PresenceReporter>(
       () => PresenceReporter(
         getIt<IPresenceRepository>(),
@@ -332,6 +348,7 @@ void configureDependencies() {
         privacy: getIt<IPrivacySettingsReader>(),
         messages: getIt<IMessageRepository>(),
         emojis: getIt<IEmojiPreferences>(),
+        requests: getIt<IChatRequestsRepository>(),
       ),
     )
     ..registerFactory<ChatsWatcherBloc>(
@@ -340,6 +357,8 @@ void configureDependencies() {
         getIt<ICurrentUserSession>(),
         reads: getIt<IChatReads>(),
         blocks: getIt<IBlockList>(),
+        requests: getIt<IChatRequests>(),
+        friendRequests: getIt<IFriendRequestsRepository>(),
       ),
     )
     ..registerFactory<MessagesWatcherBloc>(

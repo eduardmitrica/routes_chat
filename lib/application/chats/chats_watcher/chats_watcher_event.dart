@@ -14,6 +14,11 @@ sealed class ChatsWatcherEvent extends Equatable {
 
   const factory ChatsWatcherEvent.blocksChanged() = ChatsBlocksChanged;
 
+  const factory ChatsWatcherEvent.requestsChanged() = ChatsRequestsChanged;
+
+  const factory ChatsWatcherEvent.friendsReceived(KtList<UniqueId> friendIds) =
+      ChatsFriendsReceived;
+
   @override
   List<Object?> get props => const [];
 }
@@ -33,6 +38,19 @@ final class ChatsReadsChanged extends ChatsWatcherEvent {
 /// The user blocked or unblocked someone.
 final class ChatsBlocksChanged extends ChatsWatcherEvent {
   const ChatsBlocksChanged();
+}
+
+/// The user accepted or deleted a request, or changed who may reach them.
+final class ChatsRequestsChanged extends ChatsWatcherEvent {
+  const ChatsRequestsChanged();
+}
+
+/// Who the user is friends with, which decides whose messages are requests.
+final class ChatsFriendsReceived extends ChatsWatcherEvent {
+  final KtList<UniqueId> friendIds;
+  const ChatsFriendsReceived(this.friendIds);
+  @override
+  List<Object?> get props => [friendIds];
 }
 
 final class ChatsReceived extends ChatsWatcherEvent {

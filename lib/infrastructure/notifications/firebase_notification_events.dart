@@ -18,14 +18,13 @@ AppNotification? appNotificationFrom(
   switch (data['type']) {
     case 'friendRequest':
       return FriendRequestNotification(senderName: senderName);
-    case 'message' || null:
+    case 'message' || 'messageRequest' || null:
       final chatId = data['chatId'];
-      return chatId is String && chatId.isNotEmpty
-          ? MessageNotification(
-              chatId: UniqueId.fromUniqueString(chatId),
-              senderName: senderName,
-            )
-          : null;
+      if (chatId is! String || chatId.isEmpty) return null;
+      final id = UniqueId.fromUniqueString(chatId);
+      return data['type'] == 'messageRequest'
+          ? MessageRequestNotification(chatId: id, senderName: senderName)
+          : MessageNotification(chatId: id, senderName: senderName);
   }
   return null;
 }

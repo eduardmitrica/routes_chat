@@ -7,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/application/chats/outbox/message_outbox.dart';
+import 'package:routes_chat/domain/chats/chat_requests.dart';
 import 'package:routes_chat/domain/chats/messages/local_chat_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/media_failure.dart';
 import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
@@ -59,6 +60,10 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
   final IMessageRepository? _messages;
   final IEmojiPreferences? _emojis;
 
+  /// Writing to someone first takes the chat: it never waits in the user's
+  /// own requests when they answer.
+  final IChatRequestsRepository? _requests;
+
   UniqueId? _otherUserId;
 
   /// What the user was writing when they started editing a message.
@@ -80,7 +85,9 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
     Duration typingPause = defaultTypingPause,
     IMessageRepository? messages,
     IEmojiPreferences? emojis,
+    IChatRequestsRepository? requests,
   }) : _draftDelay = draftDelay,
+       _requests = requests,
        _messages = messages,
        _emojis = emojis,
        _presence = presence,
@@ -290,6 +297,8 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
           // Kept in the outbox before the draft is cleared, so the message is
           // on the phone the whole time.
           await _outbox.enqueue(outgoing);
+          // The user started this chat, so it is theirs, not a request.
+          if (!chatExists) unawaited(_requests?.accept(chatId));
           await _saveDraft();
           // The emojis the user sends are offered first when reacting.
           if (_emojis case final emojis?) {

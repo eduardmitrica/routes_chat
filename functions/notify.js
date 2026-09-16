@@ -29,6 +29,30 @@ function notificationFor({ senderName, chatId }) {
   };
 }
 
+/**
+ * What a message from [senderId] is to a recipient: an ordinary message from
+ * a friend or a chat they accepted, a message request from anyone else, or
+ * nothing at all when they take no messages from people who are not friends.
+ */
+function messageKindFor({ isFriend, accepted, allowFromAnyone }) {
+  if (isFriend || accepted) return "message";
+  return allowFromAnyone ? "request" : "none";
+}
+
+/**
+ * The push message for a first message from someone who is not a friend. It
+ * says no more than that someone wants to reach them; tapping it opens the
+ * requests.
+ */
+function messageRequestNotificationFor({ senderName, chatId }) {
+  return {
+    notification: { title: senderName || "Someone", body: "Sent you a message request" },
+    data: { type: "messageRequest", chatId },
+    android: { notification: { tag: chatId, channelId: CHANNELS.messages } },
+    apns: { payload: { aps: { "thread-id": "message-requests" } } },
+  };
+}
+
 /** The push message for a new friend request. */
 function friendRequestNotificationFor({ senderName, requestId }) {
   return {
@@ -66,4 +90,13 @@ function isBlocking(blockData) {
   return Boolean(blockData && blockData.blockedSince);
 }
 
-module.exports = { CHANNELS, recipientsOf, notificationFor, friendRequestNotificationFor, deadTokens, isBlocking };
+module.exports = {
+  CHANNELS,
+  recipientsOf,
+  notificationFor,
+  messageKindFor,
+  messageRequestNotificationFor,
+  friendRequestNotificationFor,
+  deadTokens,
+  isBlocking,
+};

@@ -5,7 +5,15 @@ const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
 
-const { recipientsOf, notificationFor, friendRequestNotificationFor, deadTokens, isBlocking } = require("./notify");
+const {
+  recipientsOf,
+  notificationFor,
+  messageKindFor,
+  messageRequestNotificationFor,
+  friendRequestNotificationFor,
+  deadTokens,
+  isBlocking,
+} = require("./notify");
 
 initializeApp();
 
@@ -55,6 +63,24 @@ async function hasBlocked(db, uid, otherUid) {
   return isBlocking(block.data());
 }
 
+/**
+ * What a message in [chatId] from [senderId] is to [uid]: "message",
+ * "request" or "none". A one-to-one chat's id is the pair of user ids, which
+ * is also the id of their friend request.
+ */
+async function kindForRecipient(db, uid, senderId, chatId) {
+  const [friendRequest, decision, settings] = await Promise.all([
+    db.doc(`friendRequests/${chatId}`).get(),
+    db.doc(`users/${uid}/chatRequests/${chatId}`).get(),
+    db.doc(`users/${uid}/settings/messaging`).get(),
+  ]);
+  return messageKindFor({
+    isFriend: friendRequest.get("status") === "Accepted",
+    accepted: decision.get("state") === "accepted",
+    allowFromAnyone: settings.get("allowFromAnyone") !== false,
+  });
+}
+
 /** Notifies the other participants of a chat when a message is sent. */
 exports.notifyNewMessage = onDocumentCreated(
   { document: "chats/{chatId}/messages/{messageId}", database: databaseId, region: REGION },
@@ -67,19 +93,32 @@ exports.notifyNewMessage = onDocumentCreated(
     // The first message of a chat is written in the same transaction as the
     // chat itself, so the chat exists by the time this runs.
     const chat = await db.doc(`chats/${chatId}`).get();
-    // Nothing is announced to someone who blocked the sender.
+    // Nothing is announced to someone who blocked the sender, and a message
+    // from someone who is not a friend is a request, or nothing at all.
     const participants = recipientsOf(chat.get("participantIds"), message.senderId);
-    const blocked = await Promise.all(
-      participants.map((uid) => hasBlocked(db, uid, message.senderId)),
-    );
-    const recipients = participants.filter((_, index) => !blocked[index]);
+    const recipients = [];
+    for (const uid of participants) {
+      if (await hasBlocked(db, uid, message.senderId)) continue;
+      const kind = await kindForRecipient(db, uid, message.senderId, chatId);
+      if (kind !== "none") recipients.push({ uid, kind });
+    }
     if (recipients.length === 0) return;
 
     // senderId is pinned to the author's uid by the security rules, so the
     // name shown cannot be spoofed by the client.
-    const payload = notificationFor({ senderName: await usernameOf(db, message.senderId), chatId });
+    const senderName = await usernameOf(db, message.senderId);
     await Promise.all(
-      recipients.map((uid) => sendToUser(db, uid, payload, "New message", { chatId })),
+      recipients.map(({ uid, kind }) =>
+        sendToUser(
+          db,
+          uid,
+          kind === "request"
+            ? messageRequestNotificationFor({ senderName, chatId })
+            : notificationFor({ senderName, chatId }),
+          kind === "request" ? "Message request" : "New message",
+          { chatId },
+        ),
+      ),
     );
   },
 );

@@ -16,6 +16,7 @@ import 'package:routes_chat/application/chats/messages/messages_watcher/messages
 import 'package:routes_chat/application/chats/messages/message_actor/message_actor_bloc.dart';
 import 'package:routes_chat/application/safety/block_list_bloc.dart';
 import 'package:routes_chat/application/safety/report_bloc.dart';
+import 'package:routes_chat/application/chats/message_requests/message_requests_bloc.dart';
 import 'package:routes_chat/domain/safety/safety_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message_changes.dart';
 import 'package:routes_chat/domain/chats/messages/message_reaction.dart';
@@ -44,6 +45,7 @@ import 'reaction_bar.dart';
 import 'media_failure_message.dart';
 import 'message_bubble.dart';
 import 'message_composer.dart';
+import 'message_request_bar.dart';
 import 'messages_skeleton.dart';
 import 'open_link_dialog.dart';
 import 'outgoing_message_bubble.dart';
@@ -70,14 +72,18 @@ class ChatPage extends StatelessWidget {
               .contains(user.id.getOrCrash()),
         );
         if (chat == null) {
-          return _ChatView(chat: null, otherUser: user);
+          return _ChatView(chat: null, otherUser: user, isRequest: false);
         }
         return BlocProvider(
           key: ValueKey(chat.id.getOrCrash()),
           create: (_) =>
               getIt<MessagesWatcherBloc>()
                 ..add(MessagesWatcherEvent.watchStarted(chat.id)),
-          child: _ChatView(chat: chat, otherUser: user),
+          child: _ChatView(
+            chat: chat,
+            otherUser: user,
+            isRequest: state.requestChatIds.contains(chat.id.getOrCrash()),
+          ),
         );
       },
     );
@@ -91,7 +97,15 @@ class _ChatView extends StatefulWidget {
   final Chat? chat;
   final User otherUser;
 
-  const _ChatView({required this.chat, required this.otherUser});
+  /// Waiting to be accepted: the message box gives way to Accept, Delete and
+  /// Block, and nothing tells the sender the messages were read.
+  final bool isRequest;
+
+  const _ChatView({
+    required this.chat,
+    required this.otherUser,
+    required this.isRequest,
+  });
 
   @override
   State<_ChatView> createState() => _ChatViewState();
@@ -115,6 +129,7 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
 
   /// One for the app: never closed here.
   final _blockList = getIt<BlockListBloc>();
+  final _requests = getIt<MessageRequestsBloc>();
   final _report = getIt<ReportBloc>();
   UniqueId? _chatId;
 
@@ -165,6 +180,13 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// Accepted just now: what the chat shows counts as read from here on.
+  @override
+  void didUpdateWidget(covariant _ChatView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isRequest && !widget.isRequest) _reportShown();
+  }
+
   MessagesWatcherBloc? get _messages =>
       widget.chat == null ? null : context.read<MessagesWatcherBloc>();
 
@@ -178,6 +200,8 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
   /// on screen. A message that arrives with the app in the background is not
   /// read until the user comes back.
   void _reportShown([MessagesWatcherState? state]) {
+    // A request tells its sender nothing until the user accepts it.
+    if (widget.isRequest) return;
     final lifecycle = WidgetsBinding.instance.lifecycleState;
     if (lifecycle != null && lifecycle != AppLifecycleState.resumed) return;
     final newest = (state ?? _messages?.state)?.messages.lastOrNull();
@@ -221,6 +245,26 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
           ? '$name is blocked.'
           : '$name couldn\'t be blocked. Check your connection and try again.',
     );
+  }
+
+  /// Takes the chat: from here it is an ordinary one, which does not make
+  /// the two of them friends.
+  void _acceptRequest() {
+    if (_chatId case final chatId?) {
+      _requests.add(MessageRequestsEvent.accepted(chatId));
+      _tell('Request accepted.');
+    }
+  }
+
+  /// Clears the chat from the requests. The sender is not told, and a new
+  /// message from them brings it back.
+  Future<void> _deleteRequest() async {
+    final name = widget.otherUser.username.getOrCrash();
+    if (!await confirmDeleteRequest(context, name) || !mounted) return;
+    if (_chatId case final chatId?) {
+      _requests.add(MessageRequestsEvent.deleted(chatId));
+    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _unblock() async {
@@ -890,6 +934,13 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
                         ? BlockedChatBar(
                             name: widget.otherUser.username.getOrCrash(),
                             onUnblock: () => unawaited(_unblock()),
+                          )
+                        : widget.isRequest
+                        ? MessageRequestBar(
+                            name: widget.otherUser.username.getOrCrash(),
+                            onAccept: _acceptRequest,
+                            onDelete: () => unawaited(_deleteRequest()),
+                            onBlock: () => unawaited(_confirmBlock()),
                           )
                         : _ChatBar(
                             chat: chat,

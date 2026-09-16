@@ -11,6 +11,8 @@ sealed class ChatsWatcherState extends Equatable {
     Set<String> unreadChatIds,
     Set<String> blockedChatIds,
     Set<String> hiddenPreviewChatIds,
+    Set<String> requestChatIds,
+    Set<String> hiddenChatIds,
   }) = ChatsWatcherLoadSuccess;
   const factory ChatsWatcherState.loadFailure(ChatFailure failure) =
       ChatsWatcherLoadFailure;
@@ -41,13 +43,36 @@ final class ChatsWatcherLoadSuccess extends ChatsWatcherState {
   /// someone while the user had them blocked.
   final Set<String> hiddenPreviewChatIds;
 
+  /// The ids of the chats waiting to be accepted or deleted: from someone
+  /// who is not a friend, whom the user has not written to.
+  final Set<String> requestChatIds;
+
+  /// The ids of the chats that show nowhere: a request the user deleted with
+  /// nothing new since, or one from someone who is not a friend while the
+  /// user takes no such messages.
+  final Set<String> hiddenChatIds;
+
   const ChatsWatcherLoadSuccess(
     this.chats,
     this.friendsThatCurrentUserHasChatsTo, {
     this.unreadChatIds = const {},
     this.blockedChatIds = const {},
     this.hiddenPreviewChatIds = const {},
+    this.requestChatIds = const {},
+    this.hiddenChatIds = const {},
   });
+
+  /// The chats to show in the list: not requests, and not hidden.
+  KtList<Chat> get chatsInList => chats.filter(
+    (chat) =>
+        !requestChatIds.contains(chat.id.getOrCrash()) &&
+        !hiddenChatIds.contains(chat.id.getOrCrash()),
+  );
+
+  /// The chats waiting to be accepted or deleted.
+  KtList<Chat> get requests =>
+      chats.filter((chat) => requestChatIds.contains(chat.id.getOrCrash()));
+
   @override
   List<Object?> get props => [
     chats,
@@ -55,6 +80,8 @@ final class ChatsWatcherLoadSuccess extends ChatsWatcherState {
     unreadChatIds,
     blockedChatIds,
     hiddenPreviewChatIds,
+    requestChatIds,
+    hiddenChatIds,
   ];
 }
 

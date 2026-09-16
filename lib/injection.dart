@@ -68,6 +68,10 @@ import 'application/chats/messages/message_actor/message_actor_bloc.dart';
 import 'domain/chats/messages/emoji_usage.dart';
 import 'infrastructure/chats/messages/emoji_preferences_store.dart';
 import 'domain/chats/chat_reads.dart';
+import 'application/encryption/safety_number/safety_number_bloc.dart';
+import 'domain/encryption/key_verifications.dart';
+import 'domain/encryption/public_keys.dart';
+import 'infrastructure/encryption/key_verifications_store.dart';
 import 'application/chats/message_requests/message_requests_bloc.dart';
 import 'domain/chats/chat_requests.dart';
 import 'infrastructure/chats/firestore_chat_requests_repository.dart';
@@ -199,6 +203,9 @@ void configureDependencies() {
     ..registerLazySingleton<IEncryptionRepository>(
       () => getIt<FirebaseEncryptionRepository>(),
     )
+    ..registerLazySingleton<IPublicKeys>(
+      () => getIt<FirebaseEncryptionRepository>(),
+    )
     ..registerLazySingleton<ChatCipher>(ChatCipher.new)
     ..registerLazySingleton<AttachmentStore>(
       () => AttachmentStore(
@@ -234,6 +241,19 @@ void configureDependencies() {
     )
     ..registerLazySingleton<IChatReads>(
       () => ChatReadsStore(getIt<LocalVault>(), getIt<ICurrentUserSession>()),
+    )
+    ..registerLazySingleton<IKeyVerificationsRepository>(
+      () => KeyVerificationsStore(
+        getIt<LocalVault>(),
+        getIt<ICurrentUserSession>(),
+      ),
+    )
+    ..registerFactory<SafetyNumberBloc>(
+      () => SafetyNumberBloc(
+        getIt<IPublicKeys>(),
+        getIt<IKeyVerificationsRepository>(),
+        getIt<ICurrentUserSession>(),
+      ),
     )
     // A singleton: it holds the session's opened chat keys.
     ..registerLazySingleton<ChatKeyring>(

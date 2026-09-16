@@ -16,6 +16,13 @@ sealed class NewGroupEvent extends Equatable {
   /// Starts the group with the people chosen.
   const factory NewGroupEvent.created() = NewGroupCreated;
 
+  /// Adds the people chosen to the group [groupId], who can read its past as
+  /// [history] says.
+  const factory NewGroupEvent.addedTo(
+    UniqueId groupId, {
+    required HistoryShare history,
+  }) = PeopleAddedToGroup;
+
   @override
   List<Object?> get props => const [];
 }
@@ -31,13 +38,21 @@ final class NewGroupCreated extends NewGroupEvent {
   const NewGroupCreated();
 }
 
+final class PeopleAddedToGroup extends NewGroupEvent {
+  final UniqueId groupId;
+  final HistoryShare history;
+  const PeopleAddedToGroup(this.groupId, {required this.history});
+  @override
+  List<Object?> get props => [groupId, history];
+}
+
 final class NewGroupState extends Equatable {
   /// Who will be invited, in the order they were chosen.
   final List<UniqueId> chosen;
 
   final bool creating;
 
-  /// The new group, once it exists.
+  /// The new group once it exists, or the group the people were added to.
   final UniqueId? createdId;
 
   final GroupFailure? failure;
@@ -74,7 +89,16 @@ final class NewGroupState extends Equatable {
 class NewGroupBloc extends Bloc<NewGroupEvent, NewGroupState> {
   final IGroupRepository _groups;
 
-  NewGroupBloc(this._groups) : super(const NewGroupState()) {
+  /// How many people [chosen] may grow to: everyone in a new group but the
+  /// user, or the room left in the group people are added to.
+  final int _capacity;
+
+  /// How many people may be chosen.
+  int get capacity => _capacity;
+
+  NewGroupBloc(this._groups, {int? capacity})
+    : _capacity = capacity ?? Group.maxMembers - 1,
+      super(const NewGroupState()) {
     on<NewGroupEvent>((event, emit) async {
       switch (event) {
         case NewGroupPersonToggled(:final userId):
@@ -86,7 +110,7 @@ class NewGroupBloc extends Bloc<NewGroupEvent, NewGroupState> {
                 failures: state.failures,
               ),
             );
-          } else if (!state.isFull) {
+          } else if (state.chosen.length < _capacity) {
             emit(
               NewGroupState(
                 chosen: [...state.chosen, userId],
@@ -94,6 +118,35 @@ class NewGroupBloc extends Bloc<NewGroupEvent, NewGroupState> {
               ),
             );
           }
+
+        case PeopleAddedToGroup(:final groupId, :final history):
+          if (!state.canCreate) return;
+          emit(
+            NewGroupState(
+              chosen: state.chosen,
+              creating: true,
+              failures: state.failures,
+            ),
+          );
+          final added = await _groups.addPeople(
+            groupId,
+            state.chosen,
+            history: history,
+          );
+          emit(
+            added.fold(
+              (failure) => NewGroupState(
+                chosen: state.chosen,
+                failure: failure,
+                failures: state.failures + 1,
+              ),
+              (_) => NewGroupState(
+                chosen: state.chosen,
+                createdId: groupId,
+                failures: state.failures,
+              ),
+            ),
+          );
 
         case NewGroupCreated():
           if (!state.canCreate) return;

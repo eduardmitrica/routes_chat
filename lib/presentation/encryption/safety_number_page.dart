@@ -9,6 +9,7 @@ import 'package:routes_chat/domain/encryption/key_verifications.dart';
 import 'package:routes_chat/domain/encryption/safety_number.dart';
 import 'package:routes_chat/presentation/core/theme/app_colors.dart';
 
+import 'widgets/forget_verification_dialog.dart';
 import 'widgets/scan_code_page.dart';
 
 /// The number the user and [name] compare to be sure nobody swapped a key
@@ -122,6 +123,15 @@ class _Number extends StatelessWidget {
     if (code != null) bloc.add(SafetyNumberEvent.scanned(code));
   }
 
+  Future<void> _forget(BuildContext context) async {
+    final bloc = context.read<SafetyNumberBloc>();
+    if (!await confirmForgetVerification(context, name)) return;
+    bloc.add(const SafetyNumberEvent.forgotten());
+    if (context.mounted) {
+      SafetyNumberPage._tell(context, '$name is no longer verified here.');
+    }
+  }
+
   Future<void> _copy(BuildContext context) async {
     await Clipboard.setData(ClipboardData(text: number.groups.join(' ')));
     if (context.mounted) {
@@ -134,6 +144,7 @@ class _Number extends StatelessWidget {
     final theme = Theme.of(context);
     final bloc = context.read<SafetyNumberBloc>();
     final verified = state.state == KeyVerificationState.verified;
+    final changed = state.state == KeyVerificationState.changed;
     return ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       children: [
@@ -197,6 +208,14 @@ class _Number extends StatelessWidget {
             child: const Text('I compared it, it matches'),
           ),
         const SizedBox(height: 8),
+        // Their number changed and the user would rather not deal with it: the
+        // old check goes, and with it the warnings, without pretending the new
+        // number was compared.
+        if (changed)
+          TextButton(
+            onPressed: () => unawaited(_forget(context)),
+            child: Text('Forget $name\'s old check'),
+          ),
         TextButton(
           onPressed: () => unawaited(_copy(context)),
           child: const Text('Copy the number'),

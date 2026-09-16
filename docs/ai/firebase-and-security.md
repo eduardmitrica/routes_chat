@@ -35,6 +35,8 @@ The project has no `(default)` database.
 | `presence/{uid}` | `state` (`online`/`offline`), `lastSeenAt` (server time) | The owner and their friends (accepted friend request); never listed |
 | `chats/{pairId}/typing/{uid}` | `typingAt` (server time) | The two people; each writes only their own |
 | `chats/{pairId}/reads/{uid}` | `messageId`, `messageSentAt` (that message's send time, which the rules check), `readAt` (server time). Only while the user shares read receipts | The two people; each writes and deletes only their own |
+| `groups/{groupId}` | `memberIds`, `invitedIds`, `invitedBy` (who added each invited person), `adminIds`, `keyGenerations` sealed to members and the invited, `currentKeyGeneration`, the encrypted `lastMessage`, `createdAt` (server time). The id is `group-` and a random UUID | Members and the invited; only the invited person moves themselves to members or leaves the invited |
+| `groups/{groupId}/messages/{id}` | The encrypted message, as in a chat. Editing and deleting come later | Members only |
 | `users/{uid}/chatRequests/{chatId}` | `state` (`accepted` or `deleted`), `at` (server time). What the user did about a chat from someone who is not their friend; the sender is never told | The owner only (and the functions, with the Admin SDK) |
 | `users/{uid}/settings/messaging` | `allowFromAnyone`. Whether people who are not friends may reach the user at all | The owner only (and the functions, with the Admin SDK) |
 | `users/{uid}/blocks/{blockedUid}` | `blockedSince` (server time, while blocked), `earlier` (past blocks, at most 100). A block is silent: what a blocked person sends is stored as usual and hidden by the blocker's app; the notification functions skip it | The owner only (and the functions, with the Admin SDK) |

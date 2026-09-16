@@ -1,6 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../domain/groups/group.dart';
+
 extension FirestoreX on FirebaseFirestore {
+  /// Where the conversation [id] is kept: a group under `groups`, a
+  /// one-to-one chat under `chats`. Messages, keys and the last message work
+  /// the same way in both.
+  DocumentReference<Map<String, dynamic>> conversationDocument(String id) =>
+      collection(isGroupIdString(id) ? 'groups' : 'chats').doc(id);
+
   DocumentReference userDocument(String userId) =>
       collection('users').doc(userId);
 

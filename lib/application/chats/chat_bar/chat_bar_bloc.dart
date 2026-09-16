@@ -66,6 +66,9 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
 
   UniqueId? _otherUserId;
 
+  /// Writing in a group rather than to one other person.
+  var _inGroup = false;
+
   /// What the user was writing when they started editing a message.
   ChatDraft? _beforeEdit;
   Timer? _draftTimer;
@@ -101,34 +104,19 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
           final userId = _session.current?.id;
           if (userId == null) return;
           _otherUserId = otherUserId;
+          _inGroup = false;
           // The chat's id follows from its participants, so a chat that does
           // not exist yet already has one to keep a draft under.
-          final chatId = compositeId([
-            UniqueId.fromUniqueString(userId),
-            otherUserId,
-          ]);
-          emit(state.copyWith(chatId: chatId));
-          await _outgoing?.cancel();
-          _outgoing = _outbox
-              .watch(chatId)
-              .listen(
-                (messages) => add(ChatBarEvent.outgoingChanged(messages)),
-              );
-          final draft = await _loadDraft(chatId);
-          final untouched =
-              state.text.isEmpty &&
-              state.replyingTo == null &&
-              state.media.isEmpty();
-          if (draft != null && untouched) {
-            emit(
-              state.copyWith(
-                text: draft.text,
-                textRevision: state.textRevision + 1,
-                replyingTo: draft.replyTo,
-                media: draft.media,
-              ),
-            );
-          }
+          await _start(
+            compositeId([UniqueId.fromUniqueString(userId), otherUserId]),
+            emit,
+          );
+
+        case ChatBarStartedInGroup(:final groupId):
+          if (_session.current == null) return;
+          _otherUserId = null;
+          _inGroup = true;
+          await _start(groupId, emit);
 
         case MessageContentChanged(:final contentString):
           emit(state.copyWith(text: contentString));
@@ -259,7 +247,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
               text.trim().isNotEmpty || state.media.isNotEmpty();
           if (userId == null ||
               chatId == null ||
-              otherUserId == null ||
+              (otherUserId == null && !_inGroup) ||
               !content.isValid() ||
               !hasSomething ||
               state.preparingMedia) {
@@ -277,7 +265,7 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
               isEdited: false,
             ),
             chatId: chatId,
-            startsChatWith: chatExists
+            startsChatWith: chatExists || otherUserId == null
                 ? const KtList.empty()
                 : KtList.of(otherUserId),
             media: state.media,
@@ -298,7 +286,9 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
           // on the phone the whole time.
           await _outbox.enqueue(outgoing);
           // The user started this chat, so it is theirs, not a request.
-          if (!chatExists) unawaited(_requests?.accept(chatId));
+          if (!chatExists && !_inGroup) {
+            unawaited(_requests?.accept(chatId));
+          }
           await _saveDraft();
           // The emojis the user sends are offered first when reacting.
           if (_emojis case final emojis?) {
@@ -317,6 +307,29 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
           }
       }
     });
+  }
+
+  /// Writes in [chatId]: follows its messages on their way, and brings back
+  /// what the user wrote there and did not send.
+  Future<void> _start(UniqueId chatId, Emitter<ChatBarState> emit) async {
+    emit(state.copyWith(chatId: chatId));
+    await _outgoing?.cancel();
+    _outgoing = _outbox
+        .watch(chatId)
+        .listen((messages) => add(ChatBarEvent.outgoingChanged(messages)));
+    final draft = await _loadDraft(chatId);
+    final untouched =
+        state.text.isEmpty && state.replyingTo == null && state.media.isEmpty();
+    if (draft != null && untouched) {
+      emit(
+        state.copyWith(
+          text: draft.text,
+          textRevision: state.textRevision + 1,
+          replyingTo: draft.replyTo,
+          media: draft.media,
+        ),
+      );
+    }
   }
 
   /// Stops editing, and brings back what the user was writing before.
@@ -341,7 +354,9 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
   void _typed(String text) {
     final presence = _presence;
     final chatId = state.chatId;
-    if (presence == null ||
+    // Typing in groups comes later; the server has no rules for it yet.
+    if (_inGroup ||
+        presence == null ||
         chatId == null ||
         !(_privacy?.privacy.shareTyping ?? false)) {
       return;

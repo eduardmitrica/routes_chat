@@ -13,7 +13,6 @@ import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/safety/blocks.dart';
 
 import '../../../../domain/chats/messages/message_failure.dart';
-import 'package:routes_chat/domain/groups/group.dart';
 
 part 'messages_watcher_event.dart';
 
@@ -241,9 +240,7 @@ class MessagesWatcherBloc
       }
     }
     final since = _reactionsSince;
-    // Reactions in groups come later; the server has no rules for them yet.
     if (chatId == null ||
-        isGroupId(chatId) ||
         oldest == null ||
         (since != null && !oldest.isBefore(since))) {
       return;

@@ -1,16 +1,23 @@
 import 'dart:async';
+import 'dart:typed_data';
 
-import 'package:dartz/dartz.dart' show left;
+import 'package:dartz/dartz.dart' show Either, left, right;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:kt_dart/collection.dart';
 import 'package:routes_chat/application/chats/chat_bar/chat_bar_bloc.dart';
+import 'package:routes_chat/application/chats/messages/message_actor/message_actor_bloc.dart';
 import 'package:routes_chat/application/chats/messages/messages_watcher/messages_watcher_bloc.dart';
 import 'package:routes_chat/application/groups/group_activity_bloc.dart';
 import 'package:routes_chat/application/groups/groups_watcher_bloc.dart';
 import 'package:routes_chat/application/shared/users_watcher/users_watcher_bloc.dart';
 import 'package:routes_chat/domain/chats/messages/media_failure.dart';
+import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
+import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import 'package:routes_chat/domain/chats/messages/message_changes.dart';
+import 'package:routes_chat/domain/chats/messages/message_failure.dart'
+    show EditTimeExpired;
 import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
@@ -21,7 +28,10 @@ import 'package:routes_chat/injection.dart';
 
 import '../chats/open_chat.dart';
 import '../chats/widgets/chat_timeline.dart';
+import '../chats/widgets/media_failure_message.dart';
+import '../chats/widgets/message_actions.dart';
 import '../chats/widgets/message_bubble.dart';
+import '../chats/widgets/message_reactions.dart';
 import '../chats/widgets/message_composer.dart';
 import '../chats/widgets/messages_skeleton.dart';
 import '../chats/widgets/outgoing_message_bubble.dart';
@@ -32,9 +42,9 @@ import 'package:routes_chat/domain/groups/group_event.dart';
 
 /// A group's messages and the box to write in.
 ///
-/// Text and replies, who is typing, and who has seen the user's newest
-/// message. Photos, reactions, editing and deleting come to groups later, so
-/// this page offers none of them.
+/// Messages with photos, replies and reactions, which their senders edit and
+/// delete, who is typing, and who has seen the user's newest message: as in
+/// a chat, for many people.
 class GroupChatPage extends StatefulWidget {
   static const groupChatPageRoute = '/home/groups/chat';
 
@@ -69,6 +79,8 @@ class _GroupChatPageState extends State<GroupChatPage>
   final _chatBar = getIt<ChatBarBloc>();
   final _groups = getIt<GroupsWatcherBloc>();
   final _activity = getIt<GroupActivityBloc>();
+  final _actor = getIt<MessageActorBloc>();
+  final _media = getIt<IMediaRepository>();
   final _scrollController = ScrollController();
   final _composerFocus = FocusNode();
   final String? _myId = getIt<ICurrentUserSession>().current?.id;
@@ -91,6 +103,7 @@ class _GroupChatPageState extends State<GroupChatPage>
     WidgetsBinding.instance.removeObserver(this);
     OpenChat.closed(widget.groupId);
     unawaited(_activity.close());
+    unawaited(_actor.close());
     _scrollController
       ..removeListener(_loadOlderIfNearTop)
       ..dispose();
@@ -171,29 +184,32 @@ class _GroupChatPageState extends State<GroupChatPage>
             // Taken out, or left from another phone: nothing more to read or
             // write here.
             final gone = groups.loaded && group == null;
-            return Scaffold(
-              appBar: _titleBar(group, names),
-              body: SafeArea(
-                top: false,
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: gone
-                          ? const Center(
-                              child: _Notice(
-                                'You\'re no longer in this group.',
-                              ),
-                            )
-                          : _messages(names),
-                    ),
-                    if (!gone)
-                      _Composer(
-                        chatBar: _chatBar,
-                        focusNode: _composerFocus,
-                        nameOf: (id) =>
-                            id == _myId ? 'yourself' : names[id] ?? 'someone',
+            return MultiBlocListener(
+              listeners: _listeners(),
+              child: Scaffold(
+                appBar: _titleBar(group, names),
+                body: SafeArea(
+                  top: false,
+                  child: Column(
+                    children: [
+                      Expanded(
+                        child: gone
+                            ? const Center(
+                                child: _Notice(
+                                  'You\'re no longer in this group.',
+                                ),
+                              )
+                            : _messages(names),
                       ),
-                  ],
+                      if (!gone)
+                        _Composer(
+                          chatBar: _chatBar,
+                          focusNode: _composerFocus,
+                          nameOf: (id) =>
+                              id == _myId ? 'yourself' : names[id] ?? 'someone',
+                        ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -202,6 +218,82 @@ class _GroupChatPageState extends State<GroupChatPage>
       },
     );
   }
+
+  List<BlocListener> _listeners() => [
+    BlocListener<ChatBarBloc, ChatBarState>(
+      bloc: _chatBar,
+      listenWhen: (previous, current) =>
+          previous.mediaFailureOption != current.mediaFailureOption,
+      listener: (context, state) => state.mediaFailureOption.fold<void>(
+        () {},
+        (failure) => tellInSnackBar(context, mediaFailureMessage(failure)),
+      ),
+    ),
+    BlocListener<ChatBarBloc, ChatBarState>(
+      bloc: _chatBar,
+      listenWhen: (previous, current) =>
+          previous.discardsRefused != current.discardsRefused,
+      listener: (context, _) => tellInSnackBar(
+        context,
+        'That message is being sent right now. Try again in a moment.',
+      ),
+    ),
+    BlocListener<ChatBarBloc, ChatBarState>(
+      bloc: _chatBar,
+      listenWhen: (previous, current) =>
+          previous.editFailures != current.editFailures,
+      listener: (context, state) =>
+          tellInSnackBar(context, switch (state.lastEditFailure) {
+            EditTimeExpired() =>
+              'Messages can be edited for ${messageEditWindow.inMinutes} '
+                  'minutes after they are sent.',
+            _ =>
+              'Your edit couldn\'t be saved. Check your connection and try '
+                  'again.',
+          }),
+    ),
+    // An edit or a deletion shows at once, even on an older page, which does
+    // not update by itself.
+    BlocListener<ChatBarBloc, ChatBarState>(
+      bloc: _chatBar,
+      listenWhen: (previous, current) =>
+          current.lastEdited != null &&
+          previous.lastEdited != current.lastEdited,
+      listener: (context, state) => context.read<MessagesWatcherBloc>().add(
+        MessagesWatcherEvent.messageChanged(state.lastEdited!),
+      ),
+    ),
+    BlocListener<MessageActorBloc, MessageActorState>(
+      bloc: _actor,
+      listenWhen: (previous, current) =>
+          current.lastDeleted != null &&
+          previous.lastDeleted != current.lastDeleted,
+      listener: (context, state) {
+        final deleted = state.lastDeleted!;
+        context.read<MessagesWatcherBloc>().add(
+          MessagesWatcherEvent.messageChanged(deleted),
+        );
+        if (_chatBar.state.editing?.id == deleted.id) {
+          _chatBar.add(const ChatBarEvent.editCancelled());
+        }
+      },
+    ),
+    BlocListener<MessageActorBloc, MessageActorState>(
+      bloc: _actor,
+      listenWhen: (previous, current) =>
+          current.lastProblem != null &&
+          previous.lastProblem != current.lastProblem,
+      listener: (context, state) =>
+          tellInSnackBar(context, switch (state.lastProblem!) {
+            MessageProblem(action: MessageAction.delete) =>
+              'The message couldn\'t be deleted. Check your connection and '
+                  'try again.',
+            MessageProblem(action: MessageAction.react) =>
+              'Your reaction couldn\'t be saved. Check your connection and '
+                  'try again.',
+          }),
+    ),
+  ];
 
   PreferredSizeWidget _titleBar(Group? group, Map<String, String> names) {
     final theme = Theme.of(context);
@@ -429,10 +521,24 @@ class _GroupChatPageState extends State<GroupChatPage>
   }) {
     final senderId = message.senderId.getOrCrash();
     final sent = senderId == _myId;
+    final id = message.id.getOrCrash();
     final bubble = MessageBubble(
       message: message,
       sent: sent,
       quoteAuthor: _quoteAuthor(message, names),
+      onLongPress: message.isDeleted
+          ? null
+          : () => unawaited(_showMessageActions(message, names)),
+      onOpenLink: (link) => openMessageLink(context, link),
+      loadAttachment: (attachment) => _media.load(widget.groupId, attachment),
+      saveAttachment: (attachment) =>
+          _media.saveToPhotos(widget.groupId, attachment),
+      reactions: message.reactions.isEmpty()
+          ? null
+          : MessageReactions(
+              reactions: message.reactions,
+              onTap: () => unawaited(_showReactions(message, names)),
+            ),
     );
     final theme = Theme.of(context);
     final row = Column(
@@ -451,7 +557,17 @@ class _GroupChatPageState extends State<GroupChatPage>
               ),
             ),
           ),
-        bubble,
+        // Faded while it is being deleted.
+        BlocBuilder<MessageActorBloc, MessageActorState>(
+          bloc: _actor,
+          buildWhen: (previous, current) =>
+              previous.deleting.contains(id) != current.deleting.contains(id),
+          builder: (context, state) => AnimatedOpacity(
+            opacity: state.deleting.contains(id) ? 0.5 : 1,
+            duration: const Duration(milliseconds: 200),
+            child: bubble,
+          ),
+        ),
       ],
     );
     // Nothing is left of it to reply to.
@@ -475,44 +591,103 @@ class _GroupChatPageState extends State<GroupChatPage>
     _composerFocus.requestFocus();
   }
 
+  void _react(Message message, String emoji) => _actor.add(
+    MessageActorEvent.reactionPicked(
+      chatId: widget.groupId,
+      message: message,
+      emoji: emoji,
+    ),
+  );
+
+  Future<void> _showMessageActions(
+    Message message,
+    Map<String, String> names,
+  ) async {
+    final myId = _myId;
+    if (myId == null) return;
+    await showMessageActions(
+      context,
+      message: message,
+      myId: myId,
+      actor: _actor,
+      onReact: (emoji) => _react(message, emoji),
+      onReply: () => _startReply(message),
+      onEdit: () {
+        _chatBar.add(ChatBarEvent.editStarted(message));
+        _composerFocus.requestFocus();
+      },
+      onSaveAll: () => unawaited(
+        saveAttachmentsToPhotos(
+          context,
+          media: _media,
+          chatId: widget.groupId,
+          attachments: message.attachments,
+        ),
+      ),
+      onDelete: () => unawaited(_confirmDelete(message)),
+    );
+  }
+
+  Future<void> _confirmDelete(Message message) async {
+    final delete = await confirmDeleteForEveryone(
+      context,
+      whoElse: 'for everyone in the group',
+    );
+    if (delete && mounted) {
+      _actor.add(
+        MessageActorEvent.deleteRequested(
+          chatId: widget.groupId,
+          message: message,
+        ),
+      );
+    }
+  }
+
+  /// Who reacted to [message] with what. The user can take theirs back here.
+  Future<void> _showReactions(
+    Message message,
+    Map<String, String> names,
+  ) async {
+    final myId = _myId;
+    if (myId == null) return;
+    final remove = await showReactionsSheet(
+      context,
+      message: message,
+      myId: myId,
+      nameOf: (id) => names[id] ?? 'Someone',
+    );
+    if (remove && mounted) {
+      _actor.add(
+        MessageActorEvent.reactionRemoved(
+          chatId: widget.groupId,
+          message: message,
+        ),
+      );
+    }
+  }
+
+  /// A photo of a message on its way, from the phone.
+  Future<Either<MediaFailure, Uint8List>> _loadOutgoing(
+    OutgoingMessage entry,
+    MessageAttachment attachment,
+  ) async {
+    final draft = entry.media.firstOrNull((draft) => draft.id == attachment.id);
+    if (draft == null) return left(const MediaUnavailable());
+    // Once the message arrives, its photo shows without downloading it.
+    _media.remember(entry.chatId, draft.id, draft.bytes);
+    return right(draft.bytes);
+  }
+
   Widget _outgoingRow(OutgoingMessage entry, Map<String, String> names) =>
       OutgoingMessageBubble(
         key: ValueKey('outgoing ${entry.id.getOrCrash()}'),
         entry: entry,
         quoteAuthor: _quoteAuthor(entry.message, names),
-        // Groups send no photos yet, so there is nothing to load.
-        loadAttachment: (_) async => left(const MediaUnavailable()),
-        onOptions: () => unawaited(_showOutgoingActions(entry)),
-      );
-
-  Future<void> _showOutgoingActions(OutgoingMessage entry) async {
-    final action = await showModalBottomSheet<VoidCallback>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.refresh_rounded),
-              title: const Text('Try again'),
-              onTap: () => Navigator.of(
-                context,
-              ).pop(() => _chatBar.add(ChatBarEvent.retryRequested(entry.id))),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline_rounded),
-              title: const Text('Don\'t send'),
-              onTap: () => Navigator.of(context).pop(
-                () => _chatBar.add(ChatBarEvent.discardRequested(entry.id)),
-              ),
-            ),
-          ],
+        loadAttachment: (attachment) => _loadOutgoing(entry, attachment),
+        onOptions: () => unawaited(
+          showOutgoingActions(context, entry: entry, chatBar: _chatBar),
         ),
-      ),
-    );
-    action?.call();
-  }
+      );
 }
 
 class _Composer extends StatelessWidget {
@@ -532,14 +707,27 @@ class _Composer extends StatelessWidget {
       bloc: chatBar,
       buildWhen: (previous, current) =>
           previous.replyingTo != current.replyingTo ||
-          previous.textRevision != current.textRevision,
+          previous.media != current.media ||
+          previous.preparingMedia != current.preparingMedia ||
+          previous.textRevision != current.textRevision ||
+          previous.editing != current.editing ||
+          previous.savingEdit != current.savingEdit,
       builder: (context, state) {
         final replyingTo = state.replyingTo;
+        final editing = state.editing;
         return MessageComposer(
           focusNode: focusNode,
           text: state.text,
           textRevision: state.textRevision,
           replyingTo: replyingTo,
+          media: state.media.asList(),
+          preparingMedia: state.preparingMedia,
+          editing: editing != null,
+          savingEdit: state.savingEdit,
+          canSaveEmpty: editing?.attachments.isNotEmpty() ?? false,
+          onCancelEdit: () => chatBar.add(const ChatBarEvent.editCancelled()),
+          onAddMedia: () => pickMedia(context, chatBar),
+          onRemoveMedia: (id) => chatBar.add(ChatBarEvent.mediaRemoved(id)),
           replyingToName: replyingTo == null
               ? ''
               : nameOf(replyingTo.senderId.getOrCrash()),

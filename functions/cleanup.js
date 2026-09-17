@@ -13,4 +13,13 @@ function groupDocumentPath(groupId) {
   return typeof groupId === "string" && GROUP_ID.test(groupId) ? `groups/${groupId}` : null;
 }
 
-module.exports = { groupDocumentPath };
+/**
+ * Where the photos and GIFs of the group [groupId] are stored, ending in "/"
+ * so no other group's files share the prefix; null for anything that is not
+ * a group's id.
+ */
+function groupMediaPrefix(groupId) {
+  return groupDocumentPath(groupId) === null ? null : `group_media/${groupId}/`;
+}
+
+module.exports = { groupDocumentPath, groupMediaPrefix };

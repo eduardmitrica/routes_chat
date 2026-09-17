@@ -40,7 +40,8 @@ The project has no `(default)` database.
 | `groups/{groupId}/sharedKeys/{uid}` | `sharedBy`, `generations`: earlier generations of the group key sealed to someone added with the group's history, written with their invitation | Only that person |
 | `groups/{groupId}/history/{uid}` | `sharedBy`, `since`, `key` (the history key sealed to that person as generation 0): the grant of a copied last day or week, written with the invitation | Only that person |
 | `groups/{groupId}/history/{uid}/messages/{id}` | A message from the window encrypted again under the history key, with the original's id, `senderId` and `serverTimeStamp` | Only that person, once a member |
-| `groups/{groupId}/messages/{id}` | The encrypted message, as in a chat, or an event (`kind: 'event'`, `type`, `senderId`, `subjectId` for events about someone, `on` for the only-admins switch), accepted only beside the change it describes. Editing and deleting come later | Members only |
+| `groups/{groupId}/messages/{id}` | The encrypted message, as in a chat, or an event (`kind: 'event'`, `type`, `senderId`, `subjectId` for events about someone, `on` for the only-admins switch), accepted only beside the change it describes. Its sender edits or deletes it as in a chat (`isMessageEdit` / `isMessageDeletion`, shared), and the group's `lastMessage` follows (`followsGroupLastMessage`); events never change | Members only |
+| `groups/{groupId}/reactions/{messageId}_{uid}` | As in a chat, under the group's current generation, never to an event | Members only; each writes their own, the message's sender removes all when deleting |
 | `users/{uid}/chatRequests/{chatId}` | `state` (`accepted` or `deleted`), `at` (server time). What the user did about a chat from someone who is not their friend; the sender is never told | The owner only (and the functions, with the Admin SDK) |
 | `users/{uid}/settings/messaging` | `allowFromAnyone`. Whether people who are not friends may reach the user at all | The owner only (and the functions, with the Admin SDK) |
 | `users/{uid}/blocks/{blockedUid}` | `blockedSince` (server time, while blocked), `earlier` (past blocks, at most 100). A block is silent: what a blocked person sends is stored as usual and hidden by the blocker's app; the notification functions skip it | The owner only (and the functions, with the Admin SDK) |
@@ -53,6 +54,7 @@ The project has no `(default)` database.
 | `chats/{pairId}/reactions/{messageId}_{uid}` | `messageId`, `userId`, `messageSentAt` (the message's send time), encrypted `content` of a fixed length | The two people; each writes their own, and the message's sender also deletes them with the message |
 | Storage `placeholders/…` | Shared placeholder avatar (public read, no client writes) | Anyone |
 | Storage `user_images/{uid}.jpg` | Profile photo | Signed-in users; only the owner writes |
+| Storage `group_media/{groupId}/{fileId}` | A group's photo or GIF, encrypted. Storage rules cannot read the named database, so membership is not checked: `get` only (no list) by the exact name, which must be a random v4 UUID; uploads pinned to their `uploader`, same size limit. `cleanUpDeletedGroup` deletes the folder with the group | Anyone signed in who has the name |
 | Storage `chat_media/{chatId}/{fileId}` | A photo or GIF of a chat, encrypted (never readable by the server), never replaced; its `uploader` metadata lets only them delete it | The two people |
 
 ## Rules: principles the code depends on
@@ -159,8 +161,9 @@ The full design is [docs/e2ee.md](../e2ee.md). What every change must keep:
   groupId}`, read by `appNotificationFrom`.
 - `cleanUpDeletedGroup` (on deleting `groups/{groupId}`, which the last
   member's leaving does) deletes everything under the group with
-  `recursiveDelete`: messages and events, `sharedKeys`, `history` and its
-  copies, `typing`, `reads`. Nobody could read them without the group. The id
+  `recursiveDelete`: messages and events, reactions, `sharedKeys`, `history`
+  and its copies, `typing`, `reads`, and the Storage folder
+  `group_media/{groupId}/`. Nobody could read them without the group. The id
   must be a group's (`functions/cleanup.js`), and it retries on failure.
 - `functions/notify.js` holds the pure helpers (recipients, payload, dead
   tokens), tested with `npm test` (`node --test`). CI runs them as the

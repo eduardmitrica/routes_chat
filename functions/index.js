@@ -8,6 +8,7 @@ const logger = require("firebase-functions/logger");
 const { initializeApp } = require("firebase-admin/app");
 const { getFirestore } = require("firebase-admin/firestore");
 const { getMessaging } = require("firebase-admin/messaging");
+const { getStorage } = require("firebase-admin/storage");
 
 const {
   recipientsOf,
@@ -22,7 +23,7 @@ const {
   isWrittenMessage,
   newlyInvited,
 } = require("./notify");
-const { groupDocumentPath } = require("./cleanup");
+const { groupDocumentPath, groupMediaPrefix } = require("./cleanup");
 
 initializeApp();
 
@@ -212,8 +213,8 @@ exports.notifyGroupInvitation = onDocumentWritten(
 
 /**
  * Deletes everything a group kept once the group itself is deleted, which
- * happens when its last member leaves: messages and events, shared keys,
- * history copies, typing and read markers. Nobody can read any of it without
+ * happens when its last member leaves: messages and events, reactions, shared
+ * keys, history copies, typing and read markers, and its photos in Storage. Nobody can read any of it without
  * the group, since the rules decide from its members, so it would only take
  * up space. Deleting twice is harmless, so a failed run is retried.
  */
@@ -224,6 +225,7 @@ exports.cleanUpDeletedGroup = onDocumentDeleted(
     if (!path) return;
     const db = getFirestore(databaseId.value());
     await db.recursiveDelete(db.doc(path));
+    await getStorage().bucket().deleteFiles({ prefix: groupMediaPrefix(event.params.groupId) });
     logger.info("Deleted group cleaned up", { groupId: event.params.groupId });
   },
 );

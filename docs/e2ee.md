@@ -72,7 +72,9 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
   a random 32-byte key of its own. The associated data is
   `routes_chat/v2/file`, the chat id and the file id. The stored file is the
   12-byte nonce, the ciphertext and the 16-byte tag, at
-  `chat_media/<chat id>/<file id>` in Storage. The message's payload lists
+  `chat_media/<chat id>/<file id>` in Storage, or
+  `group_media/<group id>/<file id>` for a group. File ids are random
+  (version 4) UUIDs. The message's payload lists
   each file under `attachments`: `{id, kind: "photo" | "gif", width, height,
   size, key, thumb?}`, where `thumb` is a JPEG about 40 pixels across. The keys
   and previews therefore travel inside the message's encryption, and Storage
@@ -200,6 +202,8 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
 | `chats/{chatId}/messages/{id}` | The encrypted message, and whether it was edited; once deleted, only who sent it and when | The chat's participants |
 | `chats/{chatId}/reactions/{messageId}_{uid}` | One person's encrypted reaction to a message, the ids, and when the message was sent | The chat's participants |
 | Storage `chat_media/{chatId}/{fileId}` | An encrypted photo or GIF, and who uploaded it; only they can delete it, for a message they gave up sending | The chat's participants |
+| `groups/{groupId}/reactions/{messageId}_{uid}` | As in a chat, under the group's current key generation | The group's members |
+| Storage `group_media/{groupId}/{fileId}` | An encrypted photo or GIF of a group, and who uploaded it; only they can delete it | Anyone signed in who knows the file's exact random name (see below) |
 
 Stored formats (keys, nonces, ciphertext and tags as base64):
 - a message's `content`: `{v: 2, e: <key generation>, nonce, cipherText, mac}`
@@ -263,6 +267,16 @@ They also:
 - Reports. A report can share the last 5 messages of a chat in readable form, but only when its author ticks that, with a warning; they are stored in `reports`, which no app can read, for the project owner to review. The server cannot check them against the ciphertext, so they are the reporter's word.
 - Who someone blocked, from the server. A block (`users/{uid}/blocks/{uid}`) is private to the blocker and hidden from the blocked person, but the server sees it. What a blocked person sends is still stored, encrypted, and the blocker's app keeps it out of sight.
 - A malicious chat partner, who can read everything sent to them.
+- Who fetches a group's photos. Storage rules cannot read the app's named
+  Firestore database, so they cannot check who is in a group. A group's
+  files are instead named by random version 4 UUIDs (122 random bits), which
+  the rules require, and cannot be listed: anyone signed in who learns a
+  file's exact name can download it, but only as ciphertext, since its key
+  travels inside the group's encrypted messages. Anyone signed in can also
+  store junk under a group's id, as themselves, within the size limit.
+- A later edit, for someone added with a copied day or week of history. The
+  copy keeps the text from when it was made; they cannot read the edited
+  original, which is under a key from before they joined.
 - In a group, someone invited who has not joined. They cannot read the
   messages, but they can read the group itself, which holds the encrypted last
   message and the key sealed to them, so a modified app could read that one

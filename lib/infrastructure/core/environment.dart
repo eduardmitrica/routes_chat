@@ -75,6 +75,19 @@ abstract final class Environment {
     'GOOGLE_ANDROID_CLIENT_ID',
   );
 
+  /// The App Check debug token this phone presents in debug and profile
+  /// builds, registered in the Firebase console (App Check > Apps > Manage
+  /// debug tokens). A secret: it only lives in `.env`. Optional: without it
+  /// the debug provider makes a token of its own and logs it once.
+  static const appCheckDebugToken = String.fromEnvironment(
+    'APP_CHECK_DEBUG_TOKEN',
+  );
+
+  /// Keys a run can do without, after [values] in `.env.example`.
+  static const Map<String, String> optionalValues = {
+    'APP_CHECK_DEBUG_TOKEN': appCheckDebugToken,
+  };
+
   /// Every key and its value, in the order of `.env.example`.
   static const Map<String, String> values = {
     'FIRESTORE_DATABASE_ID': firestoreDatabaseId,

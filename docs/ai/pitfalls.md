@@ -84,6 +84,17 @@ them.
 
 ## Firebase tooling
 
+- **Every read and write fails with permission-denied, on a new machine or
+  after a reinstall with another token.** App Check is enforced: the debug
+  build's `APP_CHECK_DEBUG_TOKEN` (in `.env`) must be registered in the
+  console (App Check > Apps > Manage debug tokens). Without one in `.env`, the
+  debug provider makes a token and logs it once ("Firebase App Check debug
+  token"); register that one.
+- **REST scripts get 403 from Firestore or 401 from Storage.** They need an
+  App Check token too: exchange the registered debug token
+  (`apps/{appId}:exchangeDebugToken`) and send it as `X-Firebase-AppCheck`.
+  Owner (OAuth) calls are not checked.
+
 - **`flutterfire configure` rewrites `lib/firebase_options.dart` with literal
   values,** and may skip writing the iOS plist. Restore the file with
   `git checkout`, put new values in `.env`, and fetch the plist with

@@ -16,6 +16,23 @@
 - `test/architecture/no_hardcoded_client_config_test.dart` fails on API keys,
   app ids, OAuth client ids or a database id written into `lib/`.
 
+## App Check
+
+- **Enforced for Firestore and Storage** since 2026-09-18: a request without a
+  valid App Check token is refused (Firestore 403, Storage 401), even with a
+  user's sign-in. Cloud Functions use the Admin SDK and are not affected;
+  Firebase Auth is not enforced.
+- `activateAppCheck` (`lib/infrastructure/core/app_check.dart`) runs right
+  after `Firebase.initializeApp`. Release builds use Play Integrity (Android,
+  SHA-256 fingerprints registered on the Android app) and App Attest with a
+  DeviceCheck fallback (iOS). Debug and profile builds use the debug provider
+  with `APP_CHECK_DEBUG_TOKEN` from `.env`, which must be registered under App
+  Check > Apps > Manage debug tokens. The token is a secret: only in `.env`.
+- **Play Integrity only vouches for apps installed from Google Play.** A
+  release APK installed any other way is refused while App Check is
+  enforced. Switch a service back to "Unenforced" in the console to allow
+  such a build.
+
 ## Firestore is a named database
 
 The project has no `(default)` database.

@@ -39,6 +39,15 @@ void main() {
   test('.env.example lists exactly the keys Environment reads, in order', () {
     // A key added to Environment but not to .env.example (or the reverse) would
     // leave every fresh checkout unable to start.
-    expect(_exampleKeys(), Environment.values.keys.toList());
+    expect(_exampleKeys(), [
+      ...Environment.values.keys,
+      ...Environment.optionalValues.keys,
+    ]);
+  });
+
+  test('an optional key is never required to start', () {
+    for (final key in Environment.optionalValues.keys) {
+      expect(Environment.missingKeys, isNot(contains(key)));
+    }
   });
 }

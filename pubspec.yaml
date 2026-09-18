@@ -70,6 +70,7 @@ dependencies:
   mobile_scanner: ^7.4.2
   record: ^7.1.1
   just_audio: ^0.10.6
+  firebase_app_check: ^0.4.8
 
 dev_dependencies:
   flutter_test:

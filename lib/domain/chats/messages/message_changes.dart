@@ -21,10 +21,12 @@ extension MessageChanges on Message {
   /// Whether it arrived and can be read, so there is something to change.
   bool get _arrived => lastUpdatedAt != null && isReadable && !isDeleted;
 
-  /// Their own message, within [messageEditWindow] of sending it.
+  /// Their own message, within [messageEditWindow] of sending it. A voice
+  /// message is sent as it was recorded.
   bool canBeEditedBy(String userId, DateTime now) =>
       isFrom(userId) &&
       _arrived &&
+      !attachments.iter.any((attachment) => attachment.isVoice) &&
       now.difference(lastUpdatedAt!) < messageEditWindow;
 
   /// Their own message, for everyone in the chat, however old it is.

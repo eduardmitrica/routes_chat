@@ -52,6 +52,25 @@ void main() {
       expect(_message().canBeEditedBy('bob', _sentAt), isFalse);
     });
 
+    test('a voice message stays as it was recorded', () {
+      final voice = _message(
+        text: '',
+        attachments: KtList.of(
+          MessageAttachment(
+            id: UniqueId.fromUniqueString('voice-1'),
+            kind: AttachmentKind.voice,
+            width: 0,
+            height: 0,
+            byteSize: 100,
+            key: Uint8List(32),
+            duration: const Duration(seconds: 3),
+          ),
+        ),
+      );
+      expect(voice.canBeEditedBy('alice', _sentAt), isFalse);
+      expect(voice.canBeDeletedBy('alice'), isTrue);
+    });
+
     test('a message on its way, unreadable or deleted is not edited', () {
       final onItsWay = Message(
         id: UniqueId.fromUniqueString('message-1'),

@@ -233,21 +233,31 @@ final class EncryptedContent {
 }
 
 /// What a message's ciphertext holds: its text, for a reply the message it
-/// answers, and the photos and GIFs it carries. Encrypted together, so the
-/// server cannot tell what kind of message it is.
+/// answers, the photos and GIFs it carries, and a voice message. Encrypted
+/// together, so the server cannot tell what kind of message it is.
 @immutable
 final class MessagePayload {
   final String text;
   final QuotedMessage? replyTo;
   final List<AttachedFile> attachments;
 
-  const MessagePayload(this.text, {this.replyTo, this.attachments = const []});
+  /// A voice message, kept out of [attachments] so versions of the app from
+  /// before voice messages pass over it rather than failing the message.
+  final AttachedFile? voice;
+
+  const MessagePayload(
+    this.text, {
+    this.replyTo,
+    this.attachments = const [],
+    this.voice,
+  });
 
   Map<String, Object> toJson() => {
     'text': text,
     if (replyTo case final replyTo?) 'replyTo': replyTo.toJson(),
     if (attachments.isNotEmpty)
       'attachments': [for (final file in attachments) file.toJson()],
+    if (voice case final voice?) 'voice': voice.toJson(),
   };
 
   /// Throws [FormatException] for anything [toJson] could not have made.
@@ -260,16 +270,24 @@ final class MessagePayload {
     final text = json['text'];
     final replyTo = json['replyTo'];
     final attachments = json['attachments'];
+    final voice = json['voice'];
     if (text is! String || (attachments != null && attachments is! List)) {
+      throw const FormatException('Malformed message payload');
+    }
+    final voiceFile = voice == null ? null : AttachedFile.fromJson(voice);
+    final photos = [
+      for (final file in (attachments as List?) ?? const [])
+        AttachedFile.fromJson(file),
+    ];
+    if ((voiceFile != null && voiceFile.kind != 'voice') ||
+        photos.any((file) => file.kind == 'voice')) {
       throw const FormatException('Malformed message payload');
     }
     return MessagePayload(
       text,
       replyTo: replyTo == null ? null : QuotedMessage.fromJson(replyTo),
-      attachments: [
-        for (final file in (attachments as List?) ?? const [])
-          AttachedFile.fromJson(file),
-      ],
+      attachments: photos,
+      voice: voiceFile,
     );
   }
 
@@ -278,36 +296,41 @@ final class MessagePayload {
       other is MessagePayload &&
       other.text == text &&
       other.replyTo == replyTo &&
-      listEquals(other.attachments, attachments);
+      listEquals(other.attachments, attachments) &&
+      other.voice == voice;
 
   @override
-  int get hashCode => Object.hash(text, replyTo, Object.hashAll(attachments));
+  int get hashCode =>
+      Object.hash(text, replyTo, Object.hashAll(attachments), voice);
 
   /// Lengths only: the text is decrypted content, which does not belong in
   /// logs.
   @override
   String toString() =>
       'MessagePayload(${text.length} code units, reply: ${replyTo != null}, '
-      'attachments: ${attachments.length})';
+      'attachments: ${attachments.length}, voice: ${voice != null})';
 }
 
-/// A photo or GIF a message carries: its id, which is also where it is
-/// stored, the key it is encrypted with, its size and a small preview.
+/// A photo, GIF or voice message a message carries: its id, which is also
+/// where it is stored, the key it is encrypted with, its size and a small
+/// preview, or for a voice message its length in milliseconds and waveform.
 @immutable
 final class AttachedFile {
-  static const kinds = {'photo', 'gif'};
+  static const kinds = {'photo', 'gif', 'voice'};
 
   final String id;
 
-  /// `photo` or `gif`.
+  /// `photo`, `gif` or `voice`.
   final String kind;
   final int width;
   final int height;
 
-  /// Bytes of the photo or GIF itself, before encryption.
+  /// Bytes of the file itself, before encryption.
   final int size;
   final Uint8List key;
   final Uint8List? thumbnail;
+  final int? durationMs;
+  final Uint8List? waveform;
 
   const AttachedFile({
     required this.id,
@@ -317,6 +340,8 @@ final class AttachedFile {
     required this.size,
     required this.key,
     this.thumbnail,
+    this.durationMs,
+    this.waveform,
   });
 
   Map<String, Object> toJson() => {
@@ -327,6 +352,8 @@ final class AttachedFile {
     'size': size,
     'key': base64Encode(key),
     if (thumbnail case final thumbnail?) 'thumb': base64Encode(thumbnail),
+    'durationMs': ?durationMs,
+    if (waveform case final waveform?) 'waveform': base64Encode(waveform),
   };
 
   factory AttachedFile.fromJson(Object? json) {
@@ -340,6 +367,8 @@ final class AttachedFile {
     final size = json['size'];
     final key = json['key'];
     final thumbnail = json['thumb'];
+    final durationMs = json['durationMs'];
+    final waveform = json['waveform'];
     if (id is! String ||
         kind is! String ||
         !kinds.contains(kind) ||
@@ -347,7 +376,9 @@ final class AttachedFile {
         height is! int ||
         size is! int ||
         key is! String ||
-        (thumbnail != null && thumbnail is! String)) {
+        (thumbnail != null && thumbnail is! String) ||
+        (durationMs != null && durationMs is! int) ||
+        (waveform != null && waveform is! String)) {
       throw const FormatException('Malformed attachment');
     }
     final keyBytes = base64Decode(key);
@@ -362,6 +393,8 @@ final class AttachedFile {
       size: size,
       key: keyBytes,
       thumbnail: thumbnail == null ? null : base64Decode(thumbnail as String),
+      durationMs: durationMs as int?,
+      waveform: waveform == null ? null : base64Decode(waveform as String),
     );
   }
 
@@ -374,7 +407,9 @@ final class AttachedFile {
       other.height == height &&
       other.size == size &&
       listEquals(other.key, key) &&
-      listEquals(other.thumbnail, thumbnail);
+      listEquals(other.thumbnail, thumbnail) &&
+      other.durationMs == durationMs &&
+      listEquals(other.waveform, waveform);
 
   @override
   int get hashCode => Object.hash(
@@ -385,6 +420,8 @@ final class AttachedFile {
     size,
     Object.hashAll(key),
     thumbnail == null ? null : Object.hashAll(thumbnail!),
+    durationMs,
+    waveform == null ? null : Object.hashAll(waveform!),
   );
 
   /// The id only: the key and the preview are secrets of the chat.

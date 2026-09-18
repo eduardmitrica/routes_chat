@@ -12,6 +12,25 @@ abstract interface class IMediaRepository {
   /// with a small preview.
   Future<Either<MediaFailure, MediaDraft>> prepare(String path);
 
+  /// The voice recording at [path], [duration] long with [waveform], made
+  /// ready to send. The recording file is deleted either way.
+  Future<Either<MediaFailure, MediaDraft>> prepareVoice(
+    String path, {
+    required Duration duration,
+    required Uint8List waveform,
+  });
+
+  /// A file on the phone, private to the app, that plays the voice message
+  /// [attachment] of a message in [chatId], downloaded and decrypted. Delete
+  /// it with [forgetPlayable] when it is no longer played.
+  Future<Either<MediaFailure, String>> playableFile(
+    UniqueId chatId,
+    MessageAttachment attachment,
+  );
+
+  /// Deletes the decrypted file [path] from [playableFile].
+  Future<void> forgetPlayable(String path);
+
   /// The photo or GIF [attachment] of a message in [chatId], downloaded and
   /// decrypted.
   Future<Either<MediaFailure, Uint8List>> load(

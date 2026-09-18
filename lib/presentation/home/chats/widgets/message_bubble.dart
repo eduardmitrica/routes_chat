@@ -9,6 +9,7 @@ import 'attachment_gallery.dart';
 import 'encrypted_image.dart';
 import 'linkified_text.dart';
 import 'media_viewer_page.dart';
+import 'voice_note_player.dart';
 
 /// A message in the chat, on the side of whoever sent it. A reply shows the
 /// message it answers above its own text, photos and GIFs show above their
@@ -39,6 +40,10 @@ class MessageBubble extends StatelessWidget {
   /// Saves one of its photos from the full-screen view.
   final AttachmentSaver? saveAttachment;
 
+  /// Gives a file that plays its voice message, and takes it back.
+  final VoiceFileLoader? loadVoice;
+  final VoiceFileRelease? releaseVoice;
+
   /// Shown tucked under the bubble, such as the reactions to the message.
   final Widget? reactions;
 
@@ -53,6 +58,8 @@ class MessageBubble extends StatelessWidget {
     this.onOpenLink,
     this.loadAttachment,
     this.saveAttachment,
+    this.loadVoice,
+    this.releaseVoice,
     this.reactions,
   });
 
@@ -65,6 +72,7 @@ class MessageBubble extends StatelessWidget {
         : colors.linkOnReceivedBubble;
     final text = message.content.getOrCrash();
     final attachments = message.attachments.asList();
+    final voice = attachments.where((file) => file.isVoice).firstOrNull;
     final loader = loadAttachment;
     final maxWidth = MediaQuery.sizeOf(context).width * 0.75;
     final quote = message.replyTo;
@@ -122,6 +130,30 @@ class MessageBubble extends StatelessWidget {
                   fontStyle: FontStyle.italic,
                 ),
               ),
+            ),
+          ],
+        ),
+      );
+    } else if (voice != null) {
+      content = Padding(
+        padding: const EdgeInsets.fromLTRB(2, 4, 8, 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (quoteView != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 4, 4, 4),
+                child: quoteView,
+              ),
+            VoiceNotePlayer(
+              // A new player for another voice message in the same place.
+              key: ValueKey(voice.id.getOrCrash()),
+              attachment: voice,
+              load: loadVoice,
+              release: releaseVoice,
+              color: foreground,
+              width: maxWidth * 0.9,
             ),
           ],
         ),

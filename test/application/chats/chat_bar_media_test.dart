@@ -12,6 +12,7 @@ import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
 import 'package:routes_chat/domain/chats/messages/message_failure.dart';
 import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
+import 'package:routes_chat/domain/chats/messages/voice_recorder_interface.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 
 import '../../helpers/outbox_fakes.dart';
@@ -32,6 +33,31 @@ class _FakeMedia implements IMediaRepository {
         bytes: Uint8List(10),
         width: 10,
         height: 10,
+      ),
+    );
+  }
+
+  /// Recordings prepared, and taken as too short when set.
+  final voices = <String>[];
+  var voiceTooShort = false;
+
+  @override
+  Future<Either<MediaFailure, MediaDraft>> prepareVoice(
+    String path, {
+    required Duration duration,
+    required Uint8List waveform,
+  }) async {
+    voices.add(path);
+    if (voiceTooShort) return const Left(VoiceTooShort());
+    return Right(
+      MediaDraft(
+        id: UniqueId.fromUniqueString('voice-$path'),
+        kind: AttachmentKind.voice,
+        bytes: Uint8List(20),
+        width: 0,
+        height: 0,
+        duration: duration,
+        waveform: waveform,
       ),
     );
   }
@@ -191,5 +217,58 @@ void main() {
 
     expect(chats.created.single.lastMessage.attachments.size, 1);
     expect(bloc.state.media.isEmpty(), isTrue);
+  });
+
+  group('voice messages', () {
+    final recording = VoiceRecording(
+      path: 'rec.m4a',
+      duration: const Duration(seconds: 7),
+      waveform: Uint8List.fromList([10, 200, 90]),
+    );
+
+    test('go out at once, on their own, with the reply chosen', () async {
+      final original = Message(
+        id: UniqueId.fromUniqueString('message-1'),
+        senderId: UniqueId.fromUniqueString('uid-bob'),
+        imageUrls: const KtList.empty(),
+        reactions: const KtList.empty(),
+        content: Content('Ai timp?'),
+        lastUpdatedAt: null,
+        isEdited: false,
+      );
+      await send(ChatBarEvent.replyStarted(original));
+
+      await send(ChatBarEvent.voiceRecorded(recording, chatExists: true));
+
+      final message = messages.sent.single;
+      expect(message.content.getOrCrash(), '');
+      expect(message.replyTo?.messageId, original.id);
+      final voice = message.attachments.single();
+      expect(voice.kind, AttachmentKind.voice);
+      expect(voice.duration, const Duration(seconds: 7));
+      expect(voice.waveform, [10, 200, 90]);
+      expect(messages.uploads.single.$1, 'voice-rec.m4a');
+      expect(bloc.state.replyingTo, isNull);
+    });
+
+    test('leave what the user was writing for later', () async {
+      await send(const ChatBarEvent.messageContentChanged('Stai puțin'));
+      await send(const ChatBarEvent.mediaPicked(['a.jpg']));
+
+      await send(ChatBarEvent.voiceRecorded(recording, chatExists: true));
+
+      expect(messages.sent.single.attachments.single().isVoice, isTrue);
+      expect(bloc.state.text, 'Stai puțin');
+      expect(draftIds(), ['draft-a.jpg']);
+    });
+
+    test('too short to be meant, say so and send nothing', () async {
+      media.voiceTooShort = true;
+
+      await send(ChatBarEvent.voiceRecorded(recording, chatExists: true));
+
+      expect(messages.sent, isEmpty);
+      expect(bloc.state.mediaFailureOption, some(const VoiceTooShort()));
+    });
   });
 }

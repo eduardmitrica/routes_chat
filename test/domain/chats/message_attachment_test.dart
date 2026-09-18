@@ -91,4 +91,49 @@ void main() {
     );
     expect(attachment.toString(), isNot(contains('AAAA')));
   });
+
+  group('voice messages', () {
+    test('are described as such', () {
+      expect(describeAttachments([AttachmentKind.voice]), 'Voice message');
+      expect(summaryOf('', [AttachmentKind.voice]), 'Voice message');
+    });
+
+    test('show their length as minutes and seconds', () {
+      expect(formatVoiceDuration(const Duration(milliseconds: 7900)), '0:07');
+      expect(formatVoiceDuration(const Duration(seconds: 102)), '1:42');
+      expect(formatVoiceDuration(MediaLimits.maxVoiceDuration), '5:00');
+    });
+
+    test('the waveform has a fixed number of bars from 0 to 255', () {
+      final waveform = waveformOf([
+        for (var i = 0; i < 500; i++) i.isEven ? -50.0 : -10.0,
+      ]);
+      expect(waveform, hasLength(MediaLimits.waveformBars));
+      expect(waveform.every((bar) => bar == 204), isTrue);
+    });
+
+    test('each bar is the loudest of its stretch, silence at the floor', () {
+      final quietThenLoud = waveformOf([
+        for (var i = 0; i < 64; i++) i < 32 ? -80.0 : 0.0,
+      ]);
+      expect(quietThenLoud.first, 0);
+      expect(quietThenLoud.last, 255);
+    });
+
+    test('a short recording is stretched, and none gives no bars', () {
+      expect(waveformOf([-25.0, -25.0]), hasLength(MediaLimits.waveformBars));
+      expect(waveformOf([-25.0, -25.0]).toSet(), {128});
+      expect(waveformOf([]), isEmpty);
+      expect(waveformOf([double.negativeInfinity]).first, 0);
+    });
+
+    test('fit in what storage allows', () {
+      final fiveMinutes =
+          MediaLimits.voiceBitRate ~/
+          8 *
+          MediaLimits.maxVoiceDuration.inSeconds;
+      expect(fiveMinutes, lessThan(MediaLimits.maxVoiceBytes));
+      expect(MediaLimits.maxVoiceBytes, lessThan(MediaLimits.maxStoredBytes));
+    });
+  });
 }

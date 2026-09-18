@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dartz/dartz.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:routes_chat/domain/chats/messages/media_failure.dart';
 import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
@@ -12,9 +13,12 @@ import 'attachment_store.dart';
 import 'image_tools.dart';
 import 'photo_library.dart';
 
-/// Photos and GIFs: prepared on the phone before sending, decrypted to show,
-/// and saved to the phone's photos when the user asks. Decrypted files are
-/// kept in memory while the app runs, never on disk.
+/// Photos, GIFs and voice messages: prepared on the phone before sending,
+/// decrypted to show or play, and saved to the phone's photos when the user
+/// asks. Decrypted files are kept in memory while the app runs. A voice
+/// message is the exception: the player needs a file, so one being played is
+/// written to the app's own cache, which other apps cannot read, and deleted
+/// once it is no longer played or the next time the app starts.
 class MediaRepository implements IMediaRepository {
   /// How much decrypted media is kept, the least recently shown dropped first.
   static const cacheBytes = 64 * 1024 * 1024;
@@ -23,6 +27,10 @@ class MediaRepository implements IMediaRepository {
   final ImageTools _images;
   final PhotoLibrary _photos;
   final Future<Uint8List> Function(String path) _readFile;
+  final Future<Directory> Function() _cacheDirectory;
+
+  /// Whether files left from an earlier run have been deleted.
+  var _sweptPlayables = false;
 
   /// Decrypted files by chat and id, the most recently shown last.
   final _cache = <String, Uint8List>{};
@@ -36,7 +44,9 @@ class MediaRepository implements IMediaRepository {
     this._images,
     this._photos, {
     Future<Uint8List> Function(String path)? readFile,
-  }) : _readFile = readFile ?? ((path) => File(path).readAsBytes());
+    Future<Directory> Function()? cacheDirectory,
+  }) : _readFile = readFile ?? ((path) => File(path).readAsBytes()),
+       _cacheDirectory = cacheDirectory ?? getTemporaryDirectory;
 
   @override
   Future<Either<MediaFailure, MediaDraft>> prepare(String path) async {
@@ -98,6 +108,85 @@ class MediaRepository implements IMediaRepository {
           : null;
     } on Exception {
       return null;
+    }
+  }
+
+  @override
+  Future<Either<MediaFailure, MediaDraft>> prepareVoice(
+    String path, {
+    required Duration duration,
+    required Uint8List waveform,
+  }) async {
+    try {
+      if (duration < MediaLimits.minVoiceDuration) {
+        return left(const VoiceTooShort());
+      }
+      final file = await _readFile(path);
+      if (file.isEmpty) return left(const VoiceTooShort());
+      if (file.length > MediaLimits.maxVoiceBytes) {
+        return left(const MediaTooLarge(MediaLimits.maxVoiceBytes));
+      }
+      return right(
+        MediaDraft(
+          id: UniqueId.random(),
+          kind: AttachmentKind.voice,
+          bytes: file,
+          width: 0,
+          height: 0,
+          duration: duration > MediaLimits.maxVoiceDuration
+              ? MediaLimits.maxVoiceDuration
+              : duration,
+          waveform: waveform,
+        ),
+      );
+    } on Exception catch (exception) {
+      debugPrint('Voice message not prepared: ${exception.runtimeType}');
+      return left(const UnsupportedMedia());
+    } finally {
+      await _deleteQuietly(path);
+    }
+  }
+
+  /// Where decrypted voice messages are played from.
+  Future<Directory> _playables() async {
+    final directory = Directory('${(await _cacheDirectory()).path}/voice');
+    if (!_sweptPlayables) {
+      _sweptPlayables = true;
+      if (await directory.exists()) await directory.delete(recursive: true);
+    }
+    return directory.create(recursive: true);
+  }
+
+  @override
+  Future<Either<MediaFailure, String>> playableFile(
+    UniqueId chatId,
+    MessageAttachment attachment,
+  ) async {
+    final loaded = await load(chatId, attachment);
+    return loaded.fold((failure) async => left(failure), (audio) async {
+      try {
+        final directory = await _playables();
+        // A new name each time, so two players never share a file.
+        final file = File(
+          '${directory.path}/${UniqueId.random().getOrCrash()}.m4a',
+        );
+        await file.writeAsBytes(audio, flush: true);
+        return right(file.path);
+      } on Exception catch (exception) {
+        debugPrint('Voice message not played: ${exception.runtimeType}');
+        return left(const MediaUnavailable());
+      }
+    });
+  }
+
+  @override
+  Future<void> forgetPlayable(String path) => _deleteQuietly(path);
+
+  static Future<void> _deleteQuietly(String path) async {
+    try {
+      await File(path).delete();
+    } on FileSystemException {
+      // Already gone.
     }
   }
 

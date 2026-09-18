@@ -7,6 +7,7 @@ import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
 
 import 'encrypted_image.dart';
 import 'message_bubble.dart';
+import 'voice_note_player.dart';
 
 /// A message the user sent that has not arrived yet, and where it stands:
 /// being sent, waiting to try again, or not sent. Its photos show from the
@@ -20,6 +21,10 @@ class OutgoingMessageBubble extends StatelessWidget {
   /// Shows its photos from the phone.
   final AttachmentLoader loadAttachment;
 
+  /// Plays its voice message from the phone.
+  final VoiceFileLoader? loadVoice;
+  final VoiceFileRelease? releaseVoice;
+
   /// Offers what can be done with it, such as trying again or deleting it.
   final VoidCallback onOptions;
 
@@ -28,6 +33,8 @@ class OutgoingMessageBubble extends StatelessWidget {
     required this.entry,
     required this.quoteAuthor,
     required this.loadAttachment,
+    this.loadVoice,
+    this.releaseVoice,
     required this.onOptions,
   });
 
@@ -47,6 +54,8 @@ class OutgoingMessageBubble extends StatelessWidget {
                 byteSize: draft.bytes.length,
                 key: Uint8List(0),
                 thumbnail: draft.thumbnail,
+                duration: draft.duration,
+                waveform: draft.waveform,
               ),
       ].toImmutableList(),
     );
@@ -60,6 +69,8 @@ class OutgoingMessageBubble extends StatelessWidget {
           quoteAuthor: quoteAuthor,
           onLongPress: onOptions,
           loadAttachment: loadAttachment,
+          loadVoice: loadVoice,
+          releaseVoice: releaseVoice,
         ),
         Align(
           alignment: Alignment.centerRight,

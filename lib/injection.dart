@@ -50,6 +50,8 @@ import 'domain/chats/messages/media_repository_interface.dart';
 import 'infrastructure/chats/messages/attachment_store.dart';
 import 'infrastructure/chats/messages/image_tools.dart';
 import 'infrastructure/chats/messages/media_repository.dart';
+import 'infrastructure/chats/messages/voice_recorder.dart';
+import 'domain/chats/messages/voice_recorder_interface.dart';
 import 'application/chats/outbox/message_outbox.dart';
 import 'domain/chats/messages/local_chat_repository_interface.dart';
 import 'infrastructure/chats/messages/local_chat_store.dart';
@@ -385,6 +387,8 @@ void configureDependencies() {
     ..registerFactory<UserWatcherBloc>(
       () => UserWatcherBloc(getIt<IUserRepository>()),
     )
+    // A recorder per chat screen, released when it closes.
+    ..registerFactory<IVoiceRecorder>(() => VoiceRecorder())
     ..registerFactory<MessageActorBloc>(
       () => MessageActorBloc(
         getIt<IMessageRepository>(),

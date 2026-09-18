@@ -8,6 +8,7 @@ import 'package:routes_chat/presentation/core/app_widget.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'firebase_options.dart';
+import 'infrastructure/core/app_check.dart';
 import 'infrastructure/core/environment.dart';
 import 'infrastructure/core/google_sign_in_initializer.dart';
 import 'injection.dart';
@@ -28,6 +29,9 @@ void main() async {
   );
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  // Before anything reaches Firestore or Storage, so every request carries
+  // its token.
+  await activateAppCheck();
   await GoogleSignInInitializer.ensureInitialized();
   configureDependencies();
   runApp(const AppWidget());

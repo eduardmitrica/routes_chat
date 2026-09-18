@@ -82,6 +82,17 @@ message text and any reply quote, last-message preview ──AES-256-GCM(chat ke
   at most 2048 pixels on the shorter side, which also drops metadata such as
   where they were taken; GIFs are sent as they are. A reply to a photo carries
   its preview as `replyTo.thumb`.
+- **Voice messages** are AAC (64 kbps, mono, at most 5 minutes) stored and
+  encrypted exactly like a photo, with a key of their own. The payload carries
+  one under `voice` rather than `attachments`: `{id, kind: "voice", width: 0,
+  height: 0, size, key, durationMs, waveform}`, where `waveform` is 64 loudness
+  bars (0 to 255) sampled while recording. Keeping it out of `attachments`
+  lets versions of the app from before voice messages pass over it (they
+  refuse unknown attachment kinds, which would make the whole message
+  unreadable). To play one, the phone decrypts it into a file in the app's
+  own cache, which other apps cannot read, and deletes it when the message is
+  no longer on screen, or at the next start; the audio player cannot play from
+  memory without a local HTTP server other apps could reach.
 - **Edits** encrypt the whole payload again (the new text, the quote and the
   attachments) with a new nonce, under the key generation the message was sent
   with, and set `isEdited`. Only the sender can edit, for 15 minutes after

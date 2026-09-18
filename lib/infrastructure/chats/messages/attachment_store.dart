@@ -35,6 +35,8 @@ class AttachmentStore {
     byteSize: draft.bytes.length,
     key: _cipher.newFileKey(),
     thumbnail: draft.thumbnail,
+    duration: draft.duration,
+    waveform: draft.waveform,
   );
 
   /// Encrypts [draft] with the key of [attachment] and uploads it to [chatId],

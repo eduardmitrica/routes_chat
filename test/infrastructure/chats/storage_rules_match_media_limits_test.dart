@@ -121,9 +121,10 @@ void main() {
         'lib/infrastructure/chats/messages/media_repository.dart',
       ).readAsStringSync();
       expect(media, isNot(contains('id: UniqueId(),')));
+      // A photo, a GIF and a voice message.
       expect(
         RegExp(r'id: UniqueId\.random\(\),').allMatches(media),
-        hasLength(2),
+        hasLength(3),
       );
     });
 

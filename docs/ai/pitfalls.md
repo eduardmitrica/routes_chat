@@ -108,6 +108,16 @@ them.
 
 ## Android emulator
 
+- **A slide that starts near the right edge is Android's back gesture.** The
+  app then leaves the screen. The voice message microphone is excluded
+  (`SystemGestures`); anything else slid from the edge needs the same.
+- **The emulator's microphone records silence** unless the host's audio input
+  is enabled in the emulator settings, so waveforms come out flat. Recording,
+  sending and playing still work end to end.
+- **Granting the microphone for a test:** `adb shell pm grant
+  com.example.routes_chat android.permission.RECORD_AUDIO`; a reinstall
+  forgets a one-time grant.
+
 - **Taps open a stylus handwriting sheet.** Use
   `adb shell input touchscreen tap X Y`, not `input tap`.
 - **Chained taps land on the wrong screen.** One tap per command, then a

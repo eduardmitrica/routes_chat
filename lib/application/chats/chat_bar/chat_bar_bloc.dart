@@ -20,6 +20,7 @@ import 'package:routes_chat/domain/chats/messages/message_repository_interface.d
 import 'package:routes_chat/domain/chats/messages/message_quote.dart';
 import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
 import 'package:routes_chat/domain/chats/messages/value_objects.dart';
+import 'package:routes_chat/domain/chats/messages/voice_recorder_interface.dart';
 import 'package:routes_chat/domain/core/composite_id.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/presence/presence_repository_interface.dart';
@@ -238,39 +239,46 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
             },
           );
 
-        case MessageSent(:final text, :final chatExists):
-          final userId = _session.current?.id;
-          final chatId = state.chatId;
-          final otherUserId = _otherUserId;
-          final content = Content(text);
-          final hasSomething =
-              text.trim().isNotEmpty || state.media.isNotEmpty();
-          if (userId == null ||
-              chatId == null ||
-              (otherUserId == null && !_inGroup) ||
-              !content.isValid() ||
-              !hasSomething ||
-              state.preparingMedia) {
+        case VoiceRecorded(:final recording, :final chatExists):
+          if (state.editing != null) return;
+          final prepared = await _mediaRepository.prepareVoice(
+            recording.path,
+            duration: recording.duration,
+            waveform: recording.waveform,
+          );
+          final voice = prepared.fold((_) => null, (draft) => draft);
+          if (voice == null) {
+            emit(
+              state.copyWith(
+                mediaFailureOption: prepared.fold(some, (_) => none()),
+              ),
+            );
             return;
           }
-          final outgoing = OutgoingMessage(
-            message: Message(
-              id: UniqueId(),
-              senderId: UniqueId.fromUniqueString(userId),
-              imageUrls: const KtList.empty(),
-              reactions: const KtList.empty(),
-              content: content,
-              replyTo: state.replyingTo,
-              lastUpdatedAt: null,
-              isEdited: false,
-            ),
-            chatId: chatId,
-            startsChatWith: chatExists || otherUserId == null
-                ? const KtList.empty()
-                : KtList.of(otherUserId),
-            media: state.media,
-            queuedAt: DateTime.now(),
+          final outgoing = _newOutgoing(
+            '',
+            media: KtList.of(voice),
+            chatExists: chatExists,
           );
+          if (outgoing == null) return;
+          emit(state.copyWith(replyingTo: null, mediaFailureOption: none()));
+          await _outbox.enqueue(outgoing);
+          if (!chatExists && !_inGroup) {
+            unawaited(_requests?.accept(outgoing.chatId));
+          }
+          await _saveDraft();
+
+        case MessageSent(:final text, :final chatExists):
+          final hasSomething =
+              text.trim().isNotEmpty || state.media.isNotEmpty();
+          if (!hasSomething || state.preparingMedia) return;
+          final outgoing = _newOutgoing(
+            text,
+            media: state.media,
+            chatExists: chatExists,
+          );
+          if (outgoing == null) return;
+          final chatId = outgoing.chatId;
           _draftTimer?.cancel();
           _stopTyping();
           // The field has already cleared itself.
@@ -380,6 +388,44 @@ class ChatBarBloc extends Bloc<ChatBarEvent, ChatBarState> {
     _typingSentAt = null;
     final chatId = state.chatId;
     if (chatId != null) unawaited(_presence?.stopTyping(chatId));
+  }
+
+  /// A message of [text] and [media] from the user, replying to the message
+  /// chosen, to put in the outbox; null when there is nobody to send it to or
+  /// the text cannot be sent.
+  OutgoingMessage? _newOutgoing(
+    String text, {
+    required KtList<MediaDraft> media,
+    required bool chatExists,
+  }) {
+    final userId = _session.current?.id;
+    final chatId = state.chatId;
+    final otherUserId = _otherUserId;
+    final content = Content(text);
+    if (userId == null ||
+        chatId == null ||
+        (otherUserId == null && !_inGroup) ||
+        !content.isValid()) {
+      return null;
+    }
+    return OutgoingMessage(
+      message: Message(
+        id: UniqueId(),
+        senderId: UniqueId.fromUniqueString(userId),
+        imageUrls: const KtList.empty(),
+        reactions: const KtList.empty(),
+        content: content,
+        replyTo: state.replyingTo,
+        lastUpdatedAt: null,
+        isEdited: false,
+      ),
+      chatId: chatId,
+      startsChatWith: chatExists || otherUserId == null
+          ? const KtList.empty()
+          : KtList.of(otherUserId),
+      media: media,
+      queuedAt: DateTime.now(),
+    );
   }
 
   void _saveDraftSoon() {

@@ -203,6 +203,8 @@ class LocalChatStore implements IDraftRepository, IOutboxRepository {
           width: photo['width'] as int,
           height: photo['height'] as int,
           thumbnail: _bytesFrom(photo['thumb']),
+          duration: _durationFrom(photo['durationMs']),
+          waveform: _bytesFrom(photo['waveform']),
         ),
       );
     }
@@ -228,12 +230,17 @@ class LocalChatStore implements IDraftRepository, IOutboxRepository {
   static Uint8List? _bytesFrom(Object? json) =>
       json is String ? base64Decode(json) : null;
 
+  static Duration? _durationFrom(Object? json) =>
+      json is int ? Duration(milliseconds: json) : null;
+
   static Map<String, Object?> _draftToJson(MediaDraft photo) => {
     'id': photo.id.getOrCrash(),
     'kind': photo.kind.name,
     'width': photo.width,
     'height': photo.height,
     if (photo.thumbnail case final thumb?) 'thumb': base64Encode(thumb),
+    'durationMs': ?photo.duration?.inMilliseconds,
+    if (photo.waveform case final waveform?) 'waveform': base64Encode(waveform),
   };
 
   static Map<String, Object?> _quoteToJson(MessageQuote quote) => {
@@ -260,6 +267,8 @@ class LocalChatStore implements IDraftRepository, IOutboxRepository {
     'size': file.byteSize,
     'key': base64Encode(file.key),
     if (file.thumbnail case final thumb?) 'thumb': base64Encode(thumb),
+    'durationMs': ?file.duration?.inMilliseconds,
+    if (file.waveform case final waveform?) 'waveform': base64Encode(waveform),
   };
 
   static MessageAttachment _attachmentFrom(Map<dynamic, dynamic> json) =>
@@ -271,6 +280,8 @@ class LocalChatStore implements IDraftRepository, IOutboxRepository {
         byteSize: json['size'] as int,
         key: base64Decode(json['key'] as String),
         thumbnail: _bytesFrom(json['thumb']),
+        duration: _durationFrom(json['durationMs']),
+        waveform: _bytesFrom(json['waveform']),
       );
 
   static Map<String, Object?> _outgoingToJson(OutgoingMessage outgoing) => {

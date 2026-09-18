@@ -53,3 +53,13 @@ final class PhotoAccessDenied extends MediaFailure {
 final class MediaNotSaved extends MediaFailure {
   const MediaNotSaved();
 }
+
+/// A voice recording was too short to be meant, or the recording failed.
+final class VoiceTooShort extends MediaFailure {
+  const VoiceTooShort();
+}
+
+/// The app may not use the microphone.
+final class MicrophoneDenied extends MediaFailure {
+  const MicrophoneDenied();
+}

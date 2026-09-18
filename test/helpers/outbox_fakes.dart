@@ -114,6 +114,8 @@ class FakeMessageSender implements IMessageRepository {
     byteSize: draft.bytes.length,
     key: Uint8List(32)..fillRange(0, 32, ++keysMade),
     thumbnail: draft.thumbnail,
+    duration: draft.duration,
+    waveform: draft.waveform,
   );
 
   @override

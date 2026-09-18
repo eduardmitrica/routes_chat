@@ -16,6 +16,7 @@ import 'package:routes_chat/domain/chats/messages/media_failure.dart';
 import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
 import 'package:routes_chat/domain/chats/messages/message_changes.dart';
+import 'package:routes_chat/domain/chats/messages/voice_recorder_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message_failure.dart'
     show EditTimeExpired;
 import 'package:routes_chat/domain/chats/messages/message.dart';
@@ -531,6 +532,9 @@ class _GroupChatPageState extends State<GroupChatPage>
           : () => unawaited(_showMessageActions(message, names)),
       onOpenLink: (link) => openMessageLink(context, link),
       loadAttachment: (attachment) => _media.load(widget.groupId, attachment),
+      loadVoice: (attachment) =>
+          _media.playableFile(widget.groupId, attachment),
+      releaseVoice: _media.forgetPlayable,
       saveAttachment: (attachment) =>
           _media.saveToPhotos(widget.groupId, attachment),
       reactions: message.reactions.isEmpty()
@@ -684,6 +688,11 @@ class _GroupChatPageState extends State<GroupChatPage>
         entry: entry,
         quoteAuthor: _quoteAuthor(entry.message, names),
         loadAttachment: (attachment) => _loadOutgoing(entry, attachment),
+        loadVoice: (attachment) async {
+          await _loadOutgoing(entry, attachment);
+          return _media.playableFile(entry.chatId, attachment);
+        },
+        releaseVoice: _media.forgetPlayable,
         onOptions: () => unawaited(
           showOutgoingActions(context, entry: entry, chatBar: _chatBar),
         ),
@@ -737,6 +746,12 @@ class _Composer extends StatelessWidget {
           // The group exists before anyone can write in it.
           onSend: (value) =>
               chatBar.add(ChatBarEvent.sent(value, chatExists: true)),
+          voiceRecorder: () => getIt<IVoiceRecorder>(),
+          onVoiceRecorded: (recording) => chatBar.add(
+            ChatBarEvent.voiceRecorded(recording, chatExists: true),
+          ),
+          onVoiceFailure: (failure) =>
+              tellInSnackBar(context, mediaFailureMessage(failure)),
         );
       },
     );

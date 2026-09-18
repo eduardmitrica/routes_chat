@@ -58,6 +58,8 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Routes Chat needs access to your camera so you can take a profile photo or a photo to send.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Routes Chat uses the microphone to record the voice messages you send.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Routes Chat adds the photos you save from a chat to your photos.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

@@ -48,7 +48,10 @@ Future<void> showMessageActions(
 }) async {
   if (message.isDeleted) return;
   final text = message.content.getOrCrash();
-  final attachments = message.attachments;
+  // A voice message is played, not saved to the photos.
+  final attachments = message.attachments.filter(
+    (attachment) => !attachment.isVoice,
+  );
   // A few at most: the sheet is for this message, not a list of links.
   final links = {
     for (final part in splitLinks(text))

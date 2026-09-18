@@ -17,6 +17,10 @@ sealed class ChatBarEvent extends Equatable {
   const factory ChatBarEvent.editCancelled() = EditCancelled;
   const factory ChatBarEvent.mediaPicked(List<String> paths) = MediaPicked;
   const factory ChatBarEvent.mediaRemoved(UniqueId id) = MediaRemoved;
+  const factory ChatBarEvent.voiceRecorded(
+    VoiceRecording recording, {
+    required bool chatExists,
+  }) = VoiceRecorded;
   const factory ChatBarEvent.sent(String text, {required bool chatExists}) =
       MessageSent;
   const factory ChatBarEvent.outgoingChanged(KtList<OutgoingMessage> messages) =
@@ -105,6 +109,16 @@ final class MessageSent extends ChatBarEvent {
   const MessageSent(this.text, {required this.chatExists});
   @override
   List<Object?> get props => [text, chatExists];
+}
+
+/// The user recorded [recording], which is sent at once as a message of its
+/// own, with the reply chosen. What they had typed stays for later.
+final class VoiceRecorded extends ChatBarEvent {
+  final VoiceRecording recording;
+  final bool chatExists;
+  const VoiceRecorded(this.recording, {required this.chatExists});
+  @override
+  List<Object?> get props => [recording.path, chatExists];
 }
 
 /// The messages of the chat on their way changed.

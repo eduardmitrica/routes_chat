@@ -14,4 +14,8 @@ String mediaFailureMessage(MediaFailure failure) => switch (failure) {
     'Routes Chat isn\'t allowed to add to your photos. You can allow it in '
         'the phone\'s settings.',
   MediaNotSaved() => 'That photo could not be saved.',
+  VoiceTooShort() => 'Hold the microphone to record a voice message.',
+  MicrophoneDenied() =>
+    'Routes Chat isn\'t allowed to use the microphone. You can allow it in '
+        'the phone\'s settings.',
 };

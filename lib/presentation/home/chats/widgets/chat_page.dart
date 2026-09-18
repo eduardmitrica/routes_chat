@@ -28,6 +28,7 @@ import 'package:routes_chat/domain/chats/messages/media_failure.dart';
 import 'package:routes_chat/domain/chats/messages/media_repository_interface.dart';
 import 'package:routes_chat/domain/chats/messages/message.dart';
 import 'package:routes_chat/domain/chats/messages/message_attachment.dart';
+import 'package:routes_chat/domain/chats/messages/voice_recorder_interface.dart';
 import 'package:routes_chat/domain/chats/messages/outgoing_message.dart';
 import 'package:routes_chat/domain/core/value_objects.dart';
 import 'package:routes_chat/domain/shared/user/user.dart';
@@ -983,6 +984,9 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
           : () => _showMessageActions(message),
       onOpenLink: (link) => openMessageLink(context, link),
       loadAttachment: (attachment) => _media.load(widget.chat!.id, attachment),
+      loadVoice: (attachment) =>
+          _media.playableFile(widget.chat!.id, attachment),
+      releaseVoice: _media.forgetPlayable,
       saveAttachment: (attachment) =>
           _media.saveToPhotos(widget.chat!.id, attachment),
       reactions: message.reactions.isEmpty()
@@ -1025,6 +1029,11 @@ class _ChatViewState extends State<_ChatView> with WidgetsBindingObserver {
     entry: entry,
     quoteAuthor: _quoteAuthor(entry.message),
     loadAttachment: (attachment) => _loadOutgoing(entry, attachment),
+    loadVoice: (attachment) async {
+      await _loadOutgoing(entry, attachment);
+      return _media.playableFile(entry.chatId, attachment);
+    },
+    releaseVoice: _media.forgetPlayable,
     onOptions: () =>
         showOutgoingActions(context, entry: entry, chatBar: _chatBar),
   );
@@ -1189,6 +1198,12 @@ class _ChatBar extends StatelessWidget {
                 chatBar.add(ChatBarEvent.messageContentChanged(value)),
             onSend: (value) =>
                 chatBar.add(ChatBarEvent.sent(value, chatExists: chat != null)),
+            voiceRecorder: () => getIt<IVoiceRecorder>(),
+            onVoiceRecorded: (recording) => chatBar.add(
+              ChatBarEvent.voiceRecorded(recording, chatExists: chat != null),
+            ),
+            onVoiceFailure: (failure) =>
+                _tell(context, mediaFailureMessage(failure)),
           );
         },
       ),
